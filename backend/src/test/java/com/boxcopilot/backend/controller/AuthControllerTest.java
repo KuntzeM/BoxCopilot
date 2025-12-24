@@ -1,6 +1,6 @@
 package com.boxcopilot.backend.controller;
 
-import com.boxcopilot.backend.testutil.WithMockOidcUser;
+import com.boxcopilot.backend.controller.testutil.WithMockOidcUser;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;

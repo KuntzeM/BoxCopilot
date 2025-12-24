@@ -1,4 +1,4 @@
-package com.boxcopilot.backend.testutil;
+package com.boxcopilot.backend.controller.testutil;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
