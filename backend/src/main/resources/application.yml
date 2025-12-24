@@ -1,0 +1,32 @@
+spring:
+  profiles:
+    active: prod
+  datasource:
+    url: jdbc:h2:file:./data/boxcopilot;DB_CLOSE_ON_EXIT=FALSE
+    driverClassName: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+  session:
+    store-type: none
+
+# Default frontend URL (can be overridden in profiles)
+frontend:
+  url: ${FRONTEND_URL}
+
+# Default Nextcloud logout URL (can be overridden in profiles)
+nextcloud:
+  logout-url: ${NEXTCLOUD_LOGOUT_URL}
+
+logging:
+  level:
+    org.springframework: INFO
+  file:
+    path: ./logs
+# profiles: dev uses H2 file. prod profile will override datasource to postgres.

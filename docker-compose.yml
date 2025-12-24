@@ -1,0 +1,113 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: boxcopilot-postgres
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+    networks:
+      - boxcopilot-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:latest
+    container_name: boxcopilot-redis
+    networks:
+      - boxcopilot-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: backend
+    container_name: boxcopilot-backend
+    working_dir: /app
+    env_file: .env
+    volumes:
+      - ./logs:/app/logs
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      CLIENT_ID: ${CLIENT_ID}
+      CLIENT_SECRET: ${CLIENT_SECRET}
+      NEXTCLOUD_URL: ${NEXTCLOUD_URL}
+      NEXTCLOUD_LOGOUT_URL: ${NEXTCLOUD_LOGOUT_URL}
+      FRONTEND_URL: ${FRONTEND_URL}
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+    networks:
+      - boxcopilot-network
+      - traefik-proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.box-backend.entrypoints=http"
+      - "traefik.http.routers.box-backend.rule=Host(`${TRAEFIK_BACKEND_HOST}`)"
+      - "traefik.http.middlewares.box-backend-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.box-backend.middlewares=box-backend-https-redirect"
+      - "traefik.http.routers.box-backend-secure.entrypoints=https"
+      - "traefik.http.routers.box-backend-secure.rule=Host(`${TRAEFIK_BACKEND_HOST}`)"
+      - "traefik.http.routers.box-backend-secure.tls=true"
+      - "traefik.http.routers.box-backend-secure.tls.certresolver=http"
+      - "traefik.http.routers.box-backend-secure.service=box-backend"
+      - "traefik.http.services.box-backend.loadbalancer.server.port=8080"
+      - "traefik.docker.network=traefik-proxy"
+
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+    env_file: .env
+    container_name: boxcopilot-frontend
+    networks:
+      - boxcopilot-network
+      - traefik-proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.box.entrypoints=http"
+      - "traefik.http.routers.box.rule=Host(`${TRAEFIK_FRONTEND_HOST}`)"
+      - "traefik.http.middlewares.box-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.box.middlewares=box-https-redirect"
+      - "traefik.http.routers.box-secure.entrypoints=https"
+      - "traefik.http.routers.box-secure.rule=Host(`${TRAEFIK_FRONTEND_HOST}`)"
+      - "traefik.http.routers.box-secure.tls=true"
+      - "traefik.http.routers.box-secure.tls.certresolver=http"
+      - "traefik.http.routers.box-secure.service=box"
+      - "traefik.http.services.box.loadbalancer.server.port=80"
+      - "traefik.docker.network=traefik-proxy"
+
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  backend-logs:
+
+networks:
+  boxcopilot-network:
+    driver: bridge
+  traefik-proxy:
+    external: true
+
