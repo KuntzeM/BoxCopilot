@@ -19,3 +19,29 @@ export async function searchItems(query: string): Promise<Item[]> {
   const response = await axios.get('/api/v1/items/search', { params: { q: query } });
   return response.data || [];
 }
+
+export async function uploadItemImage(itemId: number, file: File): Promise<Item> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await axios.post(`/api/v1/items/${itemId}/image`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
+}
+
+export async function deleteItemImage(itemId: number): Promise<Item> {
+  const response = await axios.delete(`/api/v1/items/${itemId}/image`);
+  return response.data;
+}
+
+export async function moveItem(itemId: number, targetBoxUuid: string): Promise<Item> {
+  const response = await axios.put(`/api/v1/items/${itemId}/move`, { targetBoxUuid });
+  return response.data;
+}
+
+export async function moveItems(itemIds: number[], targetBoxUuid: string): Promise<void> {
+  await axios.put('/api/v1/items/move-bulk', { itemIds, targetBoxUuid });
+}
+

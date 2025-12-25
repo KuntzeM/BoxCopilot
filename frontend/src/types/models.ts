@@ -5,6 +5,7 @@ export interface Item {
   boxUuid?: string;
   boxCurrentRoom?: string;
   boxTargetRoom?: string;
+  imageUrl?: string;
 }
 
 export interface Box {
@@ -21,7 +22,9 @@ export interface Box {
 }
 
 export interface BoxPreviewItem {
+  id: number;
   name: string;
+  imageUrl?: string;
 }
 
 export interface BoxPreview {

@@ -1,16 +1,23 @@
 package com.boxcopilot.backend.controller;
 
+import com.boxcopilot.backend.dto.BulkMoveItemsDTO;
 import com.boxcopilot.backend.dto.ItemRequestDTO;
 import com.boxcopilot.backend.dto.ItemResponseDTO;
 import com.boxcopilot.backend.dto.ItemUpdateDTO;
+import com.boxcopilot.backend.dto.MoveItemDTO;
+import com.boxcopilot.backend.service.ImageStorageService;
 import com.boxcopilot.backend.service.ItemService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -25,9 +32,11 @@ public class ItemController {
 
     private static final Logger log = LoggerFactory.getLogger(ItemController.class);
     private final ItemService itemService;
+    private final ImageStorageService imageStorageService;
 
-    public ItemController(ItemService itemService) {
+    public ItemController(ItemService itemService, ImageStorageService imageStorageService) {
         this.itemService = itemService;
+        this.imageStorageService = imageStorageService;
     }
 
     /**
@@ -100,4 +109,84 @@ public class ItemController {
         log.info("Item with ID {} deleted successfully", id);
         return ResponseEntity.noContent().build();
     }
+    
+    /**
+     * Uploads an image for an item.
+     */
+    @PostMapping("/{id}/image")
+    public ResponseEntity<ItemResponseDTO> uploadImage(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file) {
+        log.info("Uploading image for item ID: {}", id);
+        ItemResponseDTO updatedItem = itemService.uploadImage(id, file);
+        log.info("Image uploaded successfully for item ID: {}", id);
+        return ResponseEntity.ok(updatedItem);
+    }
+    
+    /**
+     * Retrieves an item's thumbnail image.
+     * This endpoint is accessible without authentication for public preview.
+     */
+    @GetMapping("/{id}/image")
+    @PreAuthorize("permitAll()")
+    public ResponseEntity<Resource> getImage(@PathVariable Long id) {
+        log.debug("Retrieving thumbnail for item ID: {}", id);
+        Resource image = imageStorageService.getImage(id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_JPEG)
+                .header(HttpHeaders.CACHE_CONTROL, "max-age=3600")
+                .body(image);
+    }
+    
+    /**
+     * Retrieves an item's large image (1024px).
+     * This endpoint is accessible without authentication for public preview.
+     */
+    @GetMapping("/{id}/image/large")
+    @PreAuthorize("permitAll()")
+    public ResponseEntity<Resource> getLargeImage(@PathVariable Long id) {
+        log.debug("Retrieving large image for item ID: {}", id);
+        Resource image = imageStorageService.getLargeImage(id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_JPEG)
+                .header(HttpHeaders.CACHE_CONTROL, "max-age=3600")
+                .body(image);
+    }
+    
+    /**
+     * Deletes an item's image.
+     */
+    @DeleteMapping("/{id}/image")
+    public ResponseEntity<ItemResponseDTO> deleteImage(@PathVariable Long id) {
+        log.info("Deleting image for item ID: {}", id);
+        ItemResponseDTO updatedItem = itemService.deleteImage(id);
+        log.info("Image deleted successfully for item ID: {}", id);
+        return ResponseEntity.ok(updatedItem);
+    }
+    
+    /**
+     * Moves an item to a different box.
+     */
+    @PutMapping("/{id}/move")
+    public ResponseEntity<ItemResponseDTO> moveItem(
+            @PathVariable Long id,
+            @Valid @RequestBody MoveItemDTO moveDTO) {
+        log.info("Moving item ID: {} to box: {}", id, moveDTO.getTargetBoxUuid());
+        ItemResponseDTO movedItem = itemService.moveItem(id, moveDTO.getTargetBoxUuid());
+        log.info("Item ID: {} moved successfully", id);
+        return ResponseEntity.ok(movedItem);
+    }
+    
+    /**
+     * Moves multiple items to a different box.
+     */
+    @PutMapping("/move-bulk")
+    public ResponseEntity<Void> moveItems(@Valid @RequestBody BulkMoveItemsDTO bulkMoveDTO) {
+        log.info("Bulk moving {} items to box: {}", bulkMoveDTO.getItemIds().size(), bulkMoveDTO.getTargetBoxUuid());
+        itemService.moveItems(bulkMoveDTO.getItemIds(), bulkMoveDTO.getTargetBoxUuid());
+        log.info("Bulk move completed");
+        return ResponseEntity.ok().build();
+    }
 }
+
+

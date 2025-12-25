@@ -6,6 +6,8 @@ RUN mvn -DskipTests package
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
+# Image-Verzeichnis erstellen
+RUN mkdir -p /var/boxcopilot/images
 COPY --from=build /workspace/target/backend-0.1.0.jar ./app.jar
 EXPOSE 8080
 ENTRYPOINT ["java","-jar","/app/app.jar"]

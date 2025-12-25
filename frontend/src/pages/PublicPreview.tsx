@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { Box, Card, CardContent, CircularProgress, Container, Typography, Alert, Stack, Divider, Chip, AppBar, Toolbar, IconButton, Paper } from '@mui/material';
-import { Brightness4, Brightness7 } from '@mui/icons-material';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Box, Card, CardContent, CircularProgress, Container, Typography, Alert, Stack, Divider, Chip, AppBar, Toolbar, IconButton, Paper, Dialog, DialogTitle, DialogContent, DialogActions, Button, Avatar } from '@mui/material';
+import { Brightness4, Brightness7, Close, Edit } from '@mui/icons-material';
 import { QRCodeCanvas } from 'qrcode.react';
+import axios from '../services/axiosConfig';
 import { fetchPublicPreview } from '../services/publicPreviewService';
 import { BoxPreview } from '../types/models';
 import { truncateToFirstLine } from '../utils/textUtils';
@@ -13,11 +14,33 @@ import LanguageSelector from '../components/LanguageSelector';
 
 function PublicPreviewContent() {
   const { token } = useParams();
+  const navigate = useNavigate();
   const { t } = useTranslation();
   const { mode, toggleTheme } = useThemeContext();
   const [data, setData] = useState<BoxPreview | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+
+  // Check if user is authenticated
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await axios.get('/api/v1/me');
+        console.log('Auth check response:', response.data);
+        setIsAuthenticated(true);
+      } catch (error: any) {
+        console.log('Auth check failed:', error.response?.status, error.message);
+        setIsAuthenticated(false);
+      } finally {
+        setIsLoadingAuth(false);
+      }
+    };
+
+    checkAuth();
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -60,11 +83,24 @@ function PublicPreviewContent() {
   return (
     <>
       <AppBar position="static" color="default" elevation={1}>
-        <Toolbar sx={{ justifyContent: 'flex-end' }}>
-          <IconButton onClick={toggleTheme} color="inherit" aria-label={t('theme.toggle')}>
-            {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
-          </IconButton>
-          <LanguageSelector />
+        <Toolbar sx={{ justifyContent: 'space-between' }}>
+          {isAuthenticated && (
+            <Button
+              startIcon={<Edit />}
+              variant="contained"
+              color="primary"
+              onClick={() => navigate(`/app/boxes/${data?.id}/edit`)}
+              disabled={!data}
+            >
+              {t('boxes.edit') || 'Bearbeiten'}
+            </Button>
+          )}
+          <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
+            <IconButton onClick={toggleTheme} color="inherit" aria-label={t('theme.toggle')}>
+              {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
+            </IconButton>
+            <LanguageSelector />
+          </Box>
         </Toolbar>
       </AppBar>
       <Container maxWidth="sm" sx={{ py: 4 }}>
@@ -143,7 +179,21 @@ function PublicPreviewContent() {
                           }
                         }}
                       >
-                        <Typography>{item.name}</Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                          {isAuthenticated && item.imageUrl ? (
+                            <Avatar
+                              src={item.imageUrl}
+                              alt={item.name}
+                              sx={{ width: 50, height: 50, cursor: 'pointer' }}
+                              onClick={() => setFullImageUrl(`/api/v1/items/${item.id}/image/large`)}
+                            />
+                          ) : (
+                            <Avatar sx={{ width: 50, height: 50, bgcolor: 'grey.300' }}>
+                              📦
+                            </Avatar>
+                          )}
+                          <Typography>{item.name}</Typography>
+                        </Box>
                       </Paper>
                     ))}
                   </Stack>
@@ -154,6 +204,42 @@ function PublicPreviewContent() {
             </Stack>
           </CardContent>
         </Card>
+
+        {/* Full Image Dialog */}
+        <Dialog open={fullImageUrl !== null} onClose={() => setFullImageUrl(null)} maxWidth="md" fullWidth>
+          <DialogTitle>
+            Bild Vorschau
+            <IconButton
+              onClick={() => setFullImageUrl(null)}
+              sx={{ position: 'absolute', right: 8, top: 8 }}
+            >
+              <Close />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent sx={{ textAlign: 'center', p: 2 }}>
+            {fullImageUrl && (
+              <img
+                src={fullImageUrl}
+                alt="Item large"
+                style={{ 
+                  maxWidth: '100%', 
+                  maxHeight: '80vh',
+                  objectFit: 'contain'
+                }}
+                onError={(e) => {
+                  // Fallback to thumbnail if large image not available
+                  const match = fullImageUrl.match(/\/api\/v1\/items\/(\d+)\/image/);
+                  if (match) {
+                    e.currentTarget.src = `/api/v1/items/${match[1]}/image`;
+                  }
+                }}
+              />
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setFullImageUrl(null)}>Schließen</Button>
+          </DialogActions>
+        </Dialog>
       </Container>
     </>
   );

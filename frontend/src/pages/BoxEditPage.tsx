@@ -6,7 +6,7 @@ import * as boxService from '../services/boxService';
 import * as itemService from '../services/itemService';
 import { Box as BoxType, Item, CreateItemPayload, UpdateItemPayload } from '../types/models';
 import BoxForm, { BoxFormData } from '../components/BoxForm';
-import ItemsTable from '../components/ItemsTable';
+import EnhancedItemsTable from '../components/EnhancedItemsTable';
 import ItemForm from '../components/ItemForm';
 import { useTranslation } from '../hooks/useTranslation';
 
@@ -24,38 +24,40 @@ const BoxEditPage: React.FC = () => {
 
   const boxId = id ? parseInt(id) : null;
 
+  const loadBoxAndItems = async () => {
+    if (!boxId) return;
+    
+    try {
+      // Fetch all boxes and find the one with matching ID
+      const allBoxes = await boxService.fetchBoxes();
+      const boxData = allBoxes.find((b) => b.id === boxId);
+      
+      if (!boxData) {
+        setError(t('errors.boxNotFound'));
+        setIsLoading(false);
+        return;
+      }
+
+      setBox(boxData);
+
+      // Filtere Items für diese Box
+      const allItems = boxData.items || [];
+      setItems(allItems);
+      setError(null);
+    } catch (err) {
+      setError(t('errors.boxLoadFailed'));
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!boxId) {
       setError(t('errors.invalidBoxId'));
       setIsLoading(false);
       return;
     }
-
-    const loadBoxAndItems = async () => {
-      try {
-        // Fetch all boxes and find the one with matching ID
-        const allBoxes = await boxService.fetchBoxes();
-        const boxData = allBoxes.find((b) => b.id === boxId);
-        
-        if (!boxData) {
-          setError(t('errors.boxNotFound'));
-          setIsLoading(false);
-          return;
-        }
-
-        setBox(boxData);
-
-        // Filtere Items für diese Box
-        const allItems = boxData.items || [];
-        setItems(allItems);
-        setError(null);
-      } catch (err) {
-        setError(t('errors.boxLoadFailed'));
-        console.error(err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
 
     loadBoxAndItems();
   }, [boxId, t]);
@@ -138,6 +140,30 @@ const BoxEditPage: React.FC = () => {
     }
   };
 
+  const handleMoveItems = async (itemIds: number[], targetBoxUuid: string) => {
+    try {
+      await itemService.moveItems(itemIds, targetBoxUuid);
+      // Reload items after moving
+      await loadBoxAndItems();
+    } catch (err) {
+      console.error(err);
+      throw err;
+    }
+  };
+
+  const handleImageUpdated = async () => {
+    // Reload items to get updated image URLs
+    await loadBoxAndItems();
+  };
+
+  const handleError = (message: string) => {
+    setSnackbar({ message, severity: 'error' });
+  };
+
+  const handleSuccess = (message: string) => {
+    setSnackbar({ message, severity: 'success' });
+  };
+
   if (isLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
@@ -201,7 +227,15 @@ const BoxEditPage: React.FC = () => {
         <Typography variant="h6" sx={{ mb: 2 }}>
           {t('boxes.items')}
         </Typography>
-        <ItemsTable items={items} onUpdateItem={handleUpdateItem} onDeleteItem={handleDeleteItem} />
+        <EnhancedItemsTable
+          items={items}
+          onUpdateItem={handleUpdateItem}
+          onDeleteItem={handleDeleteItem}
+          onMoveItems={handleMoveItems}
+          onImageUpdated={handleImageUpdated}
+          onError={handleError}
+          onSuccess={handleSuccess}
+        />
         <ItemForm onAddItem={handleAddItem} boxUuid={box.uuid} isLoading={isSaving} />
       </Paper>
 

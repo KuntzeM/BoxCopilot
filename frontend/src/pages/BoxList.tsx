@@ -22,6 +22,7 @@ import {
   Typography,
   useMediaQuery,
   useTheme,
+  Avatar,
 } from '@mui/material';
 import {
   Add,
@@ -36,6 +37,7 @@ import {
   OpenInNew,
   BrokenImage,
   DoNotDisturb,
+  Close,
 } from '@mui/icons-material';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Box as BoxModel, Item, CreateBoxPayload } from '../types/models';
@@ -109,6 +111,8 @@ export default function BoxList() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
   const [printOpen, setPrintOpen] = useState(false);
+
+  const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
 
   const selectedBoxes = useMemo(
     () => filteredBoxes.filter((b) => selectedIds.includes(b.id)),
@@ -493,6 +497,18 @@ export default function BoxList() {
                       box.items.map((item) => (
                         <Paper key={item.id} variant="outlined" sx={{ p: 1.25, borderRadius: 1.5 }}>
                           <Stack direction="row" alignItems="center" spacing={1.5}>
+                            {item.imageUrl ? (
+                              <Avatar
+                                src={item.imageUrl}
+                                alt={item.name}
+                                sx={{ width: 40, height: 40, cursor: 'pointer', flexShrink: 0 }}
+                                onClick={() => setFullImageUrl(`/api/v1/items/${item.id}/image/large`)}
+                              />
+                            ) : (
+                              <Avatar sx={{ width: 40, height: 40, bgcolor: 'grey.300', flexShrink: 0 }}>
+                                📦
+                              </Avatar>
+                            )}
                             <Box sx={{ flex: 1, minWidth: 160 }}>
                               <Typography variant="body2" fontWeight={500}>
                                 {item.name}
@@ -664,6 +680,42 @@ export default function BoxList() {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {/* Full Image Dialog */}
+      <Dialog open={fullImageUrl !== null} onClose={() => setFullImageUrl(null)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          Bild Vorschau
+          <IconButton
+            onClick={() => setFullImageUrl(null)}
+            sx={{ position: 'absolute', right: 8, top: 8 }}
+          >
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ textAlign: 'center', p: 2 }}>
+          {fullImageUrl && (
+            <img
+              src={fullImageUrl}
+              alt="Item large"
+              style={{ 
+                maxWidth: '100%', 
+                maxHeight: '80vh',
+                objectFit: 'contain'
+              }}
+              onError={(e) => {
+                // Fallback to thumbnail if large image not available
+                const match = fullImageUrl.match(/\/api\/v1\/items\/(\d+)\/image/);
+                if (match) {
+                  e.currentTarget.src = `/api/v1/items/${match[1]}/image`;
+                }
+              }}
+            />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setFullImageUrl(null)}>Schließen</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

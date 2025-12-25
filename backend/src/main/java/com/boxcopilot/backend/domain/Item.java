@@ -14,6 +14,9 @@ public class Item {
     private Box box;
 
     private String name;
+    
+    @Column(name = "image_path", length = 512)
+    private String imagePath;
 
     public Item() {}
 
@@ -27,4 +30,6 @@ public class Item {
     public void setBox(Box box) { this.box = box; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
+    public String getImagePath() { return imagePath; }
+    public void setImagePath(String imagePath) { this.imagePath = imagePath; }
 }

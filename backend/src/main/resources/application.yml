@@ -15,6 +15,10 @@ spring:
       write-dates-as-timestamps: false
   session:
     store-type: none
+  servlet:
+    multipart:
+      max-file-size: 15MB
+      max-request-size: 15MB
 
 # Default frontend URL (can be overridden in profiles)
 frontend:
@@ -23,6 +27,12 @@ frontend:
 # Default Nextcloud logout URL (can be overridden in profiles)
 nextcloud:
   logout-url: ${NEXTCLOUD_LOGOUT_URL}
+
+# Image Storage
+app:
+  image:
+    storage:
+      path: ${APP_IMAGE_STORAGE_PATH:/var/boxcopilot/images}
 
 logging:
   level:
