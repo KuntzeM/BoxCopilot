@@ -1,8 +1,10 @@
 package com.boxcopilot.backend.controller;
 
+import com.boxcopilot.backend.dto.BulkMoveItemsDTO;
 import com.boxcopilot.backend.dto.ItemRequestDTO;
 import com.boxcopilot.backend.dto.ItemResponseDTO;
 import com.boxcopilot.backend.dto.ItemUpdateDTO;
+import com.boxcopilot.backend.dto.MoveItemDTO;
 import com.boxcopilot.backend.service.ImageStorageService;
 import com.boxcopilot.backend.service.ItemService;
 import jakarta.validation.Valid;
@@ -18,7 +20,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * REST Controller for Item operations.
@@ -154,10 +155,9 @@ public class ItemController {
     @PutMapping("/{id}/move")
     public ResponseEntity<ItemResponseDTO> moveItem(
             @PathVariable Long id,
-            @RequestBody Map<String, String> payload) {
-        String targetBoxUuid = payload.get("targetBoxUuid");
-        log.info("Moving item ID: {} to box: {}", id, targetBoxUuid);
-        ItemResponseDTO movedItem = itemService.moveItem(id, targetBoxUuid);
+            @Valid @RequestBody MoveItemDTO moveDTO) {
+        log.info("Moving item ID: {} to box: {}", id, moveDTO.getTargetBoxUuid());
+        ItemResponseDTO movedItem = itemService.moveItem(id, moveDTO.getTargetBoxUuid());
         log.info("Item ID: {} moved successfully", id);
         return ResponseEntity.ok(movedItem);
     }
@@ -166,15 +166,12 @@ public class ItemController {
      * Moves multiple items to a different box.
      */
     @PutMapping("/move-bulk")
-    public ResponseEntity<Void> moveItems(@RequestBody Map<String, Object> payload) {
-        @SuppressWarnings("unchecked")
-        List<Long> itemIds = (List<Long>) payload.get("itemIds");
-        String targetBoxUuid = (String) payload.get("targetBoxUuid");
-        
-        log.info("Bulk moving {} items to box: {}", itemIds.size(), targetBoxUuid);
-        itemService.moveItems(itemIds, targetBoxUuid);
+    public ResponseEntity<Void> moveItems(@Valid @RequestBody BulkMoveItemsDTO bulkMoveDTO) {
+        log.info("Bulk moving {} items to box: {}", bulkMoveDTO.getItemIds().size(), bulkMoveDTO.getTargetBoxUuid());
+        itemService.moveItems(bulkMoveDTO.getItemIds(), bulkMoveDTO.getTargetBoxUuid());
         log.info("Bulk move completed");
         return ResponseEntity.ok().build();
     }
 }
+
 
