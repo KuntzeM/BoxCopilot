@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Comparator;
 import java.util.List;
@@ -29,11 +30,14 @@ public class ItemService {
     private final ItemRepository itemRepository;
     private final BoxRepository boxRepository;
     private final ItemMapper itemMapper;
+    private final ImageStorageService imageStorageService;
 
-    public ItemService(ItemRepository itemRepository, BoxRepository boxRepository, ItemMapper itemMapper) {
+    public ItemService(ItemRepository itemRepository, BoxRepository boxRepository, 
+                      ItemMapper itemMapper, ImageStorageService imageStorageService) {
         this.itemRepository = itemRepository;
         this.boxRepository = boxRepository;
         this.itemMapper = itemMapper;
+        this.imageStorageService = imageStorageService;
     }
 
     /**
@@ -109,13 +113,26 @@ public class ItemService {
 
     /**
      * Deletes an item by ID.
+     * Also deletes associated image if present.
      */
     public void deleteItem(Long id) {
         log.info("Service: Deleting item with ID: {}", id);
-        if (!itemRepository.existsById(id)) {
-            log.error("Cannot delete - Item not found with ID: {}", id);
-            throw new ResourceNotFoundException("Item not found with ID: " + id);
+        Item item = itemRepository.findById(id)
+            .orElseThrow(() -> {
+                log.error("Cannot delete - Item not found with ID: {}", id);
+                return new ResourceNotFoundException("Item not found with ID: " + id);
+            });
+        
+        // Delete associated image if exists
+        if (item.getImagePath() != null && !item.getImagePath().isBlank()) {
+            try {
+                imageStorageService.deleteImage(item.getImagePath());
+                log.info("Service: Deleted image for item ID: {}", id);
+            } catch (Exception e) {
+                log.warn("Service: Failed to delete image for item ID: {}, continuing with item deletion", id, e);
+            }
         }
+        
         itemRepository.deleteById(id);
         log.info("Service: Item with ID {} deleted successfully", id);
     }
@@ -144,4 +161,107 @@ public class ItemService {
         log.debug("Service: Search found {} items", result.size());
         return result;
     }
+    
+    /**
+     * Uploads and saves an image for an item.
+     */
+    public ItemResponseDTO uploadImage(Long itemId, MultipartFile file) {
+        log.info("Service: Uploading image for item ID: {}", itemId);
+        Item item = itemRepository.findById(itemId)
+            .orElseThrow(() -> {
+                log.error("Cannot upload image - Item not found with ID: {}", itemId);
+                return new ResourceNotFoundException("Item not found with ID: " + itemId);
+            });
+        
+        // Delete old image if exists
+        if (item.getImagePath() != null && !item.getImagePath().isBlank()) {
+            try {
+                imageStorageService.deleteImage(item.getImagePath());
+                log.debug("Service: Deleted old image for item ID: {}", itemId);
+            } catch (Exception e) {
+                log.warn("Service: Failed to delete old image for item ID: {}", itemId, e);
+            }
+        }
+        
+        // Save new image
+        String imagePath = imageStorageService.saveImage(itemId, file);
+        item.setImagePath(imagePath);
+        Item savedItem = itemRepository.save(item);
+        
+        log.info("Service: Image uploaded successfully for item ID: {}", itemId);
+        return itemMapper.toResponseDTO(savedItem);
+    }
+    
+    /**
+     * Deletes the image associated with an item.
+     */
+    public ItemResponseDTO deleteImage(Long itemId) {
+        log.info("Service: Deleting image for item ID: {}", itemId);
+        Item item = itemRepository.findById(itemId)
+            .orElseThrow(() -> {
+                log.error("Cannot delete image - Item not found with ID: {}", itemId);
+                return new ResourceNotFoundException("Item not found with ID: " + itemId);
+            });
+        
+        if (item.getImagePath() != null && !item.getImagePath().isBlank()) {
+            imageStorageService.deleteImage(item.getImagePath());
+            item.setImagePath(null);
+            Item savedItem = itemRepository.save(item);
+            log.info("Service: Image deleted successfully for item ID: {}", itemId);
+            return itemMapper.toResponseDTO(savedItem);
+        } else {
+            log.debug("Service: No image to delete for item ID: {}", itemId);
+            return itemMapper.toResponseDTO(item);
+        }
+    }
+    
+    /**
+     * Moves an item to a different box.
+     */
+    public ItemResponseDTO moveItem(Long itemId, String targetBoxUuid) {
+        log.info("Service: Moving item ID: {} to box: {}", itemId, targetBoxUuid);
+        Item item = itemRepository.findById(itemId)
+            .orElseThrow(() -> {
+                log.error("Cannot move - Item not found with ID: {}", itemId);
+                return new ResourceNotFoundException("Item not found with ID: " + itemId);
+            });
+        
+        Box targetBox = boxRepository.findByUuid(targetBoxUuid)
+            .orElseThrow(() -> {
+                log.error("Cannot move - Target box not found with UUID: {}", targetBoxUuid);
+                return new ResourceNotFoundException("Box not found with UUID: " + targetBoxUuid);
+            });
+        
+        item.setBox(targetBox);
+        Item savedItem = itemRepository.save(item);
+        log.info("Service: Item ID: {} moved to box: {}", itemId, targetBoxUuid);
+        return itemMapper.toResponseDTO(savedItem);
+    }
+    
+    /**
+     * Moves multiple items to a different box.
+     */
+    public void moveItems(List<Long> itemIds, String targetBoxUuid) {
+        log.info("Service: Moving {} items to box: {}", itemIds.size(), targetBoxUuid);
+        Box targetBox = boxRepository.findByUuid(targetBoxUuid)
+            .orElseThrow(() -> {
+                log.error("Cannot move - Target box not found with UUID: {}", targetBoxUuid);
+                return new ResourceNotFoundException("Box not found with UUID: " + targetBoxUuid);
+            });
+        
+        int movedCount = 0;
+        for (Long itemId : itemIds) {
+            try {
+                Item item = itemRepository.findById(itemId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Item not found with ID: " + itemId));
+                item.setBox(targetBox);
+                itemRepository.save(item);
+                movedCount++;
+            } catch (Exception e) {
+                log.warn("Service: Failed to move item ID: {}", itemId, e);
+            }
+        }
+        log.info("Service: Successfully moved {} out of {} items to box: {}", movedCount, itemIds.size(), targetBoxUuid);
+    }
 }
+

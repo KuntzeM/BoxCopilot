@@ -11,6 +11,7 @@ public class ItemResponseDTO {
     private String boxUuid;
     private String boxCurrentRoom;
     private String boxTargetRoom;
+    private String imageUrl;
 
     public ItemResponseDTO() {
     }
@@ -70,6 +71,14 @@ public class ItemResponseDTO {
 
     public void setBoxTargetRoom(String boxTargetRoom) {
         this.boxTargetRoom = boxTargetRoom;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 }
 

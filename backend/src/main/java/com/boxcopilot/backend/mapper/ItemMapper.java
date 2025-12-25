@@ -46,7 +46,7 @@ public class ItemMapper {
             boxId = entity.getBox().getId();
         }
 
-        return new ItemResponseDTO(
+        ItemResponseDTO dto = new ItemResponseDTO(
             entity.getId(),
             entity.getName(),
             boxId,
@@ -54,6 +54,13 @@ public class ItemMapper {
             boxCurrentRoom,
             boxTargetRoom
         );
+        
+        // Set imageUrl if imagePath exists
+        if (entity.getImagePath() != null && !entity.getImagePath().isBlank()) {
+            dto.setImageUrl("/api/v1/items/" + entity.getId() + "/image");
+        }
+        
+        return dto;
     }
 
     /**

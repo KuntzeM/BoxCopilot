@@ -49,7 +49,14 @@ public class PublicPreviewController {
         List<Item> items = itemRepo.findByBoxIdOrderByNameAsc(box.getId());
 
         List<BoxPreviewDTO.ItemDTO> itemDTOs = items.stream()
-            .map(i -> new BoxPreviewDTO.ItemDTO(i.getName()))
+            .map(i -> {
+                BoxPreviewDTO.ItemDTO dto = new BoxPreviewDTO.ItemDTO(i.getName());
+                // Add imageUrl if item has an image
+                if (i.getImagePath() != null && !i.getImagePath().isBlank()) {
+                    dto.setImageUrl("/api/v1/items/" + i.getId() + "/image");
+                }
+                return dto;
+            })
             .collect(Collectors.toList());
 
         BoxPreviewDTO dto = new BoxPreviewDTO(
