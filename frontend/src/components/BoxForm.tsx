@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, TextField, FormControlLabel, Checkbox, Typography } from '@mui/material';
+import { useTranslation } from '../hooks/useTranslation';
 
 export interface BoxFormData {
   currentRoom?: string;
@@ -15,6 +16,8 @@ interface BoxFormProps {
 }
 
 const BoxForm: React.FC<BoxFormProps> = ({ data, onChange }) => {
+  const { t } = useTranslation();
+  
   const handleCurrentRoomChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChange({ ...data, currentRoom: e.target.value });
   };
@@ -38,32 +41,32 @@ const BoxForm: React.FC<BoxFormProps> = ({ data, onChange }) => {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <TextField
-        label="Aktuelles Zimmer"
+        label={t('boxes.currentRoom')}
         value={data.currentRoom || ''}
         onChange={handleCurrentRoomChange}
         fullWidth
-        placeholder="z.B. Wohnzimmer"
+        placeholder={t('boxes.placeholderCurrentRoom')}
       />
       <TextField
-        label="Zielzimmer"
+        label={t('boxes.targetRoom')}
         value={data.targetRoom || ''}
         onChange={handleTargetRoomChange}
         fullWidth
-        placeholder="z.B. Keller"
+        placeholder={t('boxes.placeholderTargetRoom')}
       />
       <TextField
-        label="Beschreibung"
+        label={t('boxes.description')}
         value={data.description || ''}
         onChange={handleDescriptionChange}
         fullWidth
         multiline
         rows={4}
-        placeholder="Optionale Beschreibung der Box..."
+        placeholder={t('boxes.placeholderDescription')}
       />
       
       <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1, border: 1, borderColor: 'divider' }}>
         <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1.5 }}>
-          Transport-Hinweise
+          {t('boxes.transportHints')}
         </Typography>
         <FormControlLabel
           control={
@@ -73,7 +76,7 @@ const BoxForm: React.FC<BoxFormProps> = ({ data, onChange }) => {
               color="warning"
             />
           }
-          label="🔔 Zerbrechlich / Fragile"
+          label={t('boxes.fragileEmoji')}
         />
         <FormControlLabel
           control={
@@ -83,7 +86,7 @@ const BoxForm: React.FC<BoxFormProps> = ({ data, onChange }) => {
               color="error"
             />
           }
-          label="⛔ Nichts drauf stellen / Do Not Stack"
+          label={t('boxes.noStackEmoji')}
         />
       </Box>
     </Box>

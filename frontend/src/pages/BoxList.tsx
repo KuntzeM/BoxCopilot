@@ -42,6 +42,7 @@ import { Box as BoxModel, Item, CreateBoxPayload } from '../types/models';
 import { fetchBoxes, createBox, deleteBox } from '../services/boxService';
 import { searchItems } from '../services/itemService';
 import { truncateToFirstLine } from '../utils/textUtils';
+import { useTranslation } from '../hooks/useTranslation';
 
 type SnackbarState = { open: boolean; message: string; severity: 'success' | 'error' | 'info' };
 
@@ -50,6 +51,8 @@ interface BoxHandlingBadgesProps {
 }
 
 const BoxHandlingBadges: React.FC<BoxHandlingBadgesProps> = ({ box }) => {
+  const { t } = useTranslation();
+  
   if (!box.isFragile && !box.noStack) {
     return null;
   }
@@ -59,7 +62,7 @@ const BoxHandlingBadges: React.FC<BoxHandlingBadgesProps> = ({ box }) => {
       {box.isFragile && (
         <Chip
           icon={<BrokenImage />}
-          label="Zerbrechlich"
+          label={t('boxes.fragile')}
           color="warning"
           size="small"
         />
@@ -67,7 +70,7 @@ const BoxHandlingBadges: React.FC<BoxHandlingBadgesProps> = ({ box }) => {
       {box.noStack && (
         <Chip
           icon={<DoNotDisturb />}
-          label="Nicht stapeln"
+          label={t('boxes.noStack')}
           color="error"
           size="small"
         />
@@ -80,6 +83,7 @@ export default function BoxList() {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const { t } = useTranslation();
 
   const [allBoxes, setAllBoxes] = useState<BoxModel[]>([]);
   const [filteredBoxes, setFilteredBoxes] = useState<BoxModel[]>([]);
@@ -143,7 +147,7 @@ export default function BoxList() {
       setFilteredBoxes(withUrls);
       setSelectedIds([]);
     } catch (error) {
-      setSnackbar({ open: true, message: 'Fehler beim Laden der Boxen', severity: 'error' });
+      setSnackbar({ open: true, message: t('errors.boxesFetchFailed'), severity: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -183,10 +187,10 @@ export default function BoxList() {
 
       setFilteredBoxes(next);
       if (next.length === 0) {
-        setSnackbar({ open: true, message: 'Keine Boxen zur Suche gefunden', severity: 'info' });
+        setSnackbar({ open: true, message: t('errors.noSearchResults'), severity: 'info' });
       }
     } catch (error) {
-      setSnackbar({ open: true, message: 'Suche fehlgeschlagen', severity: 'error' });
+      setSnackbar({ open: true, message: t('errors.searchFailed'), severity: 'error' });
     }
   };
 
@@ -208,20 +212,20 @@ export default function BoxList() {
 
   const handleCopyLink = async (url?: string) => {
     if (!url) {
-      setSnackbar({ open: true, message: 'Kein Public Link verfügbar', severity: 'error' });
+      setSnackbar({ open: true, message: t('errors.noPublicLink'), severity: 'error' });
       return;
     }
     try {
       await navigator.clipboard.writeText(url);
-      setSnackbar({ open: true, message: 'Public Link kopiert', severity: 'success' });
+      setSnackbar({ open: true, message: t('success.linkCopied'), severity: 'success' });
     } catch (error) {
-      setSnackbar({ open: true, message: 'Kopieren nicht möglich', severity: 'error' });
+      setSnackbar({ open: true, message: t('errors.copyFailed'), severity: 'error' });
     }
   };
 
   const handleOpenPublicLink = (url?: string) => {
     if (!url) {
-      setSnackbar({ open: true, message: 'Kein Public Link verfügbar', severity: 'error' });
+      setSnackbar({ open: true, message: t('errors.noPublicLink'), severity: 'error' });
       return;
     }
     window.open(url, '_blank');
@@ -236,12 +240,12 @@ export default function BoxList() {
   const handleSubmitBox = async () => {
     try {
       const newBox = await createBox(boxFormData as CreateBoxPayload);
-      setSnackbar({ open: true, message: 'Box erstellt', severity: 'success' });
+      setSnackbar({ open: true, message: t('success.boxCreated'), severity: 'success' });
       setOpenBoxDialog(false);
       setBoxFormData({ currentRoom: '', targetRoom: '', description: '', isFragile: false, noStack: false });
       navigate(`/app/boxes/${newBox.id}/edit`);
     } catch (error) {
-      setSnackbar({ open: true, message: 'Box konnte nicht erstellt werden', severity: 'error' });
+      setSnackbar({ open: true, message: t('errors.boxCreateFailed'), severity: 'error' });
     }
   };
 
@@ -249,11 +253,11 @@ export default function BoxList() {
     if (deleteConfirmId === null) return;
     try {
       await deleteBox(deleteConfirmId);
-      setSnackbar({ open: true, message: 'Box gelöscht', severity: 'success' });
+      setSnackbar({ open: true, message: t('success.boxDeleted'), severity: 'success' });
       setDeleteConfirmId(null);
       await loadData();
     } catch (error) {
-      setSnackbar({ open: true, message: 'Box konnte nicht gelöscht werden', severity: 'error' });
+      setSnackbar({ open: true, message: t('errors.boxDeleteFailed'), severity: 'error' });
     }
   };
 
@@ -292,15 +296,15 @@ export default function BoxList() {
             <Stack direction={isMobile ? 'column' : 'row'} spacing={2} alignItems={isMobile ? 'stretch' : 'center'}>
               <TextField
                 fullWidth
-                label="Item-Name"
-                placeholder="z.B. Hammer"
+                label={t('boxes.itemName')}
+                placeholder={t('boxes.itemNamePlaceholder')}
                 value={itemQuery}
                 onChange={(e) => setItemQuery(e.target.value)}
               />
               <TextField
                 fullWidth
-                label="Zielraum"
-                placeholder="z.B. Keller"
+                label={t('boxes.targetRoomFilter')}
+                placeholder={t('boxes.targetRoomFilterPlaceholder')}
                 value={roomQuery}
                 onChange={(e) => setRoomQuery(e.target.value)}
               />
@@ -311,7 +315,7 @@ export default function BoxList() {
                   size="small"
                   sx={{ minWidth: '120px' }}
                 >
-                  Zurücksetzen
+                  {t('boxes.reset')}
                 </Button>
               )}
             </Stack>
@@ -324,7 +328,7 @@ export default function BoxList() {
                 onClick={handleResetFilter}
                 size="small"
               >
-                Filter zurücksetzen
+                {t('boxes.resetFilters')}
               </Button>
             )}
 
@@ -334,7 +338,7 @@ export default function BoxList() {
               onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
               sx={{ alignSelf: 'flex-start' }}
             >
-              {showAdvancedFilters ? '▼' : '▶'} Erweiterte Filter
+              {showAdvancedFilters ? '▼' : '▶'} {t('boxes.advancedFilters')}
               {(filterFragile || filterNoStack) && (
                 <Chip 
                   label={[filterFragile && '🔔', filterNoStack && '⛔'].filter(Boolean).join(' ')} 
@@ -360,7 +364,7 @@ export default function BoxList() {
                       size={isMobile ? 'small' : 'medium'}
                     />
                   }
-                  label={isMobile ? '🔔 Zerbrechlich' : 'Nur zerbrechliche Boxen'}
+                  label={isMobile ? `🔔 ${t('boxes.fragile')}` : t('boxes.onlyFragileBoxes')}
                   sx={{ m: 0 }}
                 />
                 <FormControlLabel
@@ -372,7 +376,7 @@ export default function BoxList() {
                       size={isMobile ? 'small' : 'medium'}
                     />
                   }
-                  label={isMobile ? '⛔ Nicht stapeln' : 'Nur nicht stapelbare Boxen'}
+                  label={isMobile ? `⛔ ${t('boxes.noStack')}` : t('boxes.onlyNoStackBoxes')}
                   sx={{ m: 0 }}
                 />
               </Stack>
@@ -381,7 +385,7 @@ export default function BoxList() {
         </Paper>
 
         <Stack direction={isMobile ? 'column' : 'row'} spacing={1.5} justifyContent="space-between" alignItems={isMobile ? 'stretch' : 'center'}>
-          <Typography variant="h5" fontWeight={700}>Boxen</Typography>
+          <Typography variant="h5" fontWeight={700}>{t('boxes.boxes')}</Typography>
           <Stack direction="row" spacing={1} justifyContent={isMobile ? 'flex-start' : 'flex-end'}>
             <Button
               variant="outlined"
@@ -389,19 +393,19 @@ export default function BoxList() {
               onClick={() => setPrintOpen(true)}
               disabled={selectedIds.length === 0}
             >
-              Label drucken
+              {t('boxes.printLabels')}
             </Button>
             <Button variant="contained" startIcon={<Add />} onClick={handleOpenBoxDialog}>
-              Neue Box
+              {t('boxes.createNew')}
             </Button>
           </Stack>
         </Stack>
       </Stack>
 
       {isLoading ? (
-        <Paper sx={{ p: 3, textAlign: 'center' }}>Lade Boxen...</Paper>
+        <Paper sx={{ p: 3, textAlign: 'center' }}>{t('boxes.loadingBoxes')}</Paper>
       ) : filteredBoxes.length === 0 ? (
-        <Alert severity="info">Keine Boxen gefunden.</Alert>
+        <Alert severity="info">{t('boxes.noBoxesFound')}</Alert>
       ) : (
         <Stack spacing={2}>
           {filteredBoxes.map((box) => (
@@ -412,15 +416,15 @@ export default function BoxList() {
                     <Checkbox
                       checked={selectedIds.includes(box.id)}
                       onChange={() => toggleSelect(box.id)}
-                      inputProps={{ 'aria-label': `Box ${box.id} auswählen` }}
+                      inputProps={{ 'aria-label': t('boxes.selectBox', { number: box.id }) }}
                     />
                     <Box sx={{ flex: 1 }}>
-                      <Typography variant="h6">Box #{box.id}</Typography>
+                      <Typography variant="h6">{t('boxes.boxNumber', { number: box.id })}</Typography>
                       <Typography variant="body2" color="text.secondary">
-                        Aktuell: {box.currentRoom || '-'}
+                        {t('boxes.current')}: {box.currentRoom || '-'}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        Ziel: {box.targetRoom || '-'}
+                        {t('boxes.target')}: {box.targetRoom || '-'}
                       </Typography>
                       {box.description && (
                         <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mt: 0.5 }}>
@@ -434,7 +438,7 @@ export default function BoxList() {
                   <Stack direction="row" spacing={0.5} flexWrap="wrap" justifyContent="flex-end">
                     <IconButton
                       size="small"
-                      title="Bearbeiten"
+                      title={t('boxes.edit')}
                       onClick={() => navigate(`/app/boxes/${box.id}/edit`)}
                       color="primary"
                     >
@@ -442,14 +446,14 @@ export default function BoxList() {
                     </IconButton>
                     <IconButton
                       size="small"
-                      title="Public Link kopieren"
+                      title={t('boxes.copyPublicLink')}
                       onClick={() => handleCopyLink(box.publicUrl)}
                     >
                       <ContentCopy fontSize="small" />
                     </IconButton>
                     <IconButton
                       size="small"
-                      title="Public Link öffnen"
+                      title={t('boxes.openPublicLink')}
                       onClick={() => handleOpenPublicLink(box.publicUrl)}
                       color="info"
                     >
@@ -457,7 +461,7 @@ export default function BoxList() {
                     </IconButton>
                     <IconButton
                       size="small"
-                      title="Löschen"
+                      title={t('boxes.delete')}
                       color="error"
                       onClick={() => setDeleteConfirmId(box.id)}
                     >
@@ -479,7 +483,7 @@ export default function BoxList() {
                 >
                   {expandedBoxes.has(box.id) ? <ExpandLess /> : <ExpandMore />}
                   <Typography variant="subtitle1" fontWeight={700}>
-                    {box.items?.length || 0} Items
+                    {t('items.itemsCount', { count: box.items?.length || 0 })}
                   </Typography>
                 </Stack>
 
@@ -499,7 +503,7 @@ export default function BoxList() {
                       ))
                     ) : (
                       <Typography variant="body2" color="text.secondary">
-                        Keine Items in dieser Box.
+                        {t('items.noItemsInBox')}
                       </Typography>
                     )}
                   </Stack>
@@ -512,35 +516,35 @@ export default function BoxList() {
 
       {/* Box Dialog - Create new box */}
       <Dialog open={openBoxDialog} onClose={() => setOpenBoxDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Neue Box erstellen</DialogTitle>
+        <DialogTitle>{t('boxes.createNewBox')}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <TextField
-              label="Aktuelles Zimmer"
+              label={t('boxes.currentRoom')}
               fullWidth
               value={boxFormData.currentRoom || ''}
               onChange={(e) => setBoxFormData({ ...boxFormData, currentRoom: e.target.value })}
-              placeholder="z.B. Wohnzimmer"
+              placeholder={t('boxes.placeholderCurrentRoom')}
             />
             <TextField
-              label="Zielzimmer"
+              label={t('boxes.targetRoom')}
               fullWidth
               value={boxFormData.targetRoom || ''}
               onChange={(e) => setBoxFormData({ ...boxFormData, targetRoom: e.target.value })}
-              placeholder="z.B. Keller"
+              placeholder={t('boxes.placeholderTargetRoom')}
             />
             <TextField
-              label="Beschreibung"
+              label={t('boxes.description')}
               fullWidth
               multiline
               rows={4}
               value={boxFormData.description || ''}
               onChange={(e) => setBoxFormData({ ...boxFormData, description: e.target.value })}
-              placeholder="Optionale Beschreibung der Box..."
+              placeholder={t('boxes.placeholderDescription')}
             />
             <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1, border: 1, borderColor: 'divider' }}>
               <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1.5 }}>
-                Transport-Hinweise
+                {t('boxes.transportHints')}
               </Typography>
               <FormControlLabel
                 control={
@@ -550,7 +554,7 @@ export default function BoxList() {
                     color="warning"
                   />
                 }
-                label="🔔 Zerbrechlich / Fragile"
+                label={t('boxes.fragileEmoji')}
               />
               <FormControlLabel
                 control={
@@ -560,18 +564,18 @@ export default function BoxList() {
                     color="error"
                   />
                 }
-                label="⛔ Nichts drauf stellen / Do Not Stack"
+                label={t('boxes.noStackEmoji')}
               />
             </Box>
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenBoxDialog(false)}>Abbrechen</Button>
+          <Button onClick={() => setOpenBoxDialog(false)}>{t('boxes.cancel')}</Button>
           <Button 
             variant="contained" 
             onClick={handleSubmitBox}
           >
-            Erstellen
+            {t('boxes.create')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -581,24 +585,24 @@ export default function BoxList() {
         open={deleteConfirmId !== null}
         onClose={() => setDeleteConfirmId(null)}
       >
-        <DialogTitle>Box löschen?</DialogTitle>
+        <DialogTitle>{t('boxes.deleteBoxTitle')}</DialogTitle>
         <DialogContent>
-          <Typography>Diese Box wird dauerhaft gelöscht. Dies kann nicht rückgängig gemacht werden.</Typography>
+          <Typography>{t('boxes.deleteBoxMessage')}</Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteConfirmId(null)}>Abbrechen</Button>
+          <Button onClick={() => setDeleteConfirmId(null)}>{t('boxes.cancel')}</Button>
           <Button color="error" variant="contained" onClick={handleDeleteBox}>
-            Löschen
+            {t('boxes.delete')}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Label print dialog */}
       <Dialog open={printOpen} onClose={() => setPrintOpen(false)} maxWidth="lg" fullWidth>
-        <DialogTitle>Label drucken</DialogTitle>
+        <DialogTitle>{t('boxes.printLabels')}</DialogTitle>
         <DialogContent>
           {selectedBoxes.length === 0 ? (
-            <Alert severity="info">Keine Box ausgewählt.</Alert>
+            <Alert severity="info">{t('boxes.noBoxSelected')}</Alert>
           ) : (
             <Box className="print-area" sx={{ display: 'grid', gap: 0 }}>
               {selectedBoxes.map((box) => (
@@ -609,10 +613,10 @@ export default function BoxList() {
                   <Stack direction="column" spacing={0.5} sx={{ flex: 1, justifyContent: 'flex-start', pl: 1.5 }}>
                     <Box sx={{ height: '5cm', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center' }}>
                       <Typography variant="h2" fontWeight={900} sx={{ lineHeight: 1, color: '#000', fontSize: '3rem' }}>
-                        Box #{box.id}
+                        {t('boxes.boxNumber', { number: box.id })}
                       </Typography>
                       <Typography variant="h2" fontWeight={900} sx={{ lineHeight: 1, color: '#000', fontSize: '3rem' }}>
-                        {box.currentRoom || 'Zielraum'}
+                        {box.currentRoom || t('boxes.targetRoom')}
                       </Typography>
                     </Box>
                     {box.description && (
@@ -626,13 +630,13 @@ export default function BoxList() {
                         {box.isFragile && (
                           <Box sx={{ textAlign: 'center' }}>
                             <Typography sx={{ fontSize: '48px', lineHeight: 1 }}>🔔</Typography>
-                            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#000', mt: 0.5 }}>FRAGILE</Typography>
+                            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#000', mt: 0.5 }}>{t('boxes.fragilePrintLabel')}</Typography>
                           </Box>
                         )}
                         {box.noStack && (
                           <Box sx={{ textAlign: 'center' }}>
                             <Typography sx={{ fontSize: '48px', lineHeight: 1 }}>⛔</Typography>
-                            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#000', mt: 0.5 }}>DO NOT STACK</Typography>
+                            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#000', mt: 0.5 }}>{t('boxes.noStackPrintLabel')}</Typography>
                           </Box>
                         )}
                       </Box>
@@ -644,9 +648,9 @@ export default function BoxList() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setPrintOpen(false)}>Schließen</Button>
+          <Button onClick={() => setPrintOpen(false)}>{t('boxes.close')}</Button>
           <Button variant="contained" startIcon={<Print />} onClick={() => window.print()} disabled={selectedBoxes.length === 0}>
-            Drucken
+            {t('boxes.print')}
           </Button>
         </DialogActions>
       </Dialog>

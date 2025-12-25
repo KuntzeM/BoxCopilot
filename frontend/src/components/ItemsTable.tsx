@@ -18,6 +18,7 @@ import {
 } from '@mui/material';
 import { Edit, Delete } from '@mui/icons-material';
 import { Item, UpdateItemPayload } from '../types/models';
+import { useTranslation } from '../hooks/useTranslation';
 
 interface ItemsTableProps {
   items: Item[];
@@ -26,6 +27,7 @@ interface ItemsTableProps {
 }
 
 const ItemsTable: React.FC<ItemsTableProps> = ({ items, onUpdateItem, onDeleteItem }) => {
+  const { t } = useTranslation();
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [editData, setEditData] = useState<UpdateItemPayload>({ name: '' });
@@ -61,7 +63,7 @@ const ItemsTable: React.FC<ItemsTableProps> = ({ items, onUpdateItem, onDeleteIt
   if (items.length === 0) {
     return (
       <Box sx={{ py: 3, textAlign: 'center', color: 'text.secondary' }}>
-        Keine Items vorhanden
+        {t('items.noItems')}
       </Box>
     );
   }
@@ -72,8 +74,8 @@ const ItemsTable: React.FC<ItemsTableProps> = ({ items, onUpdateItem, onDeleteIt
         <Table>
           <TableHead>
             <TableRow sx={{ backgroundColor: 'primary.main' }}>
-              <TableCell sx={{ color: 'white' }}>Name</TableCell>
-              <TableCell sx={{ color: 'white' }}>Aktionen</TableCell>
+              <TableCell sx={{ color: 'white' }}>{t('items.name')}</TableCell>
+              <TableCell sx={{ color: 'white' }}>{t('items.actions')}</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -85,7 +87,7 @@ const ItemsTable: React.FC<ItemsTableProps> = ({ items, onUpdateItem, onDeleteIt
                     size="small"
                     color="primary"
                     onClick={() => handleEditClick(item)}
-                    title="Bearbeiten"
+                    title={t('items.edit')}
                   >
                     <Edit fontSize="small" />
                   </IconButton>
@@ -93,7 +95,7 @@ const ItemsTable: React.FC<ItemsTableProps> = ({ items, onUpdateItem, onDeleteIt
                     size="small"
                     color="error"
                     onClick={() => setDeleteConfirm(item.id)}
-                    title="Löschen"
+                    title={t('items.delete')}
                   >
                     <Delete fontSize="small" />
                   </IconButton>
@@ -106,10 +108,10 @@ const ItemsTable: React.FC<ItemsTableProps> = ({ items, onUpdateItem, onDeleteIt
 
       {/* Edit Dialog */}
       <Dialog open={editingItem !== null} onClose={() => !isLoading && setEditingItem(null)} maxWidth="sm" fullWidth>
-        <DialogTitle>Item bearbeiten</DialogTitle>
+        <DialogTitle>{t('items.editItem')}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
           <TextField
-            label="Name"
+            label={t('items.name')}
             value={editData.name}
             onChange={(e) => setEditData({ ...editData, name: e.target.value })}
             fullWidth
@@ -117,24 +119,24 @@ const ItemsTable: React.FC<ItemsTableProps> = ({ items, onUpdateItem, onDeleteIt
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditingItem(null)} disabled={isLoading}>
-            Abbrechen
+            {t('items.cancel')}
           </Button>
           <Button onClick={handleEditSave} variant="contained" disabled={isLoading || !editData.name.trim()}>
-            Speichern
+            {t('items.save')}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteConfirm !== null} onClose={() => !isLoading && setDeleteConfirm(null)}>
-        <DialogTitle>Item löschen?</DialogTitle>
-        <DialogContent>Dieses Item wird dauerhaft gelöscht.</DialogContent>
+        <DialogTitle>{t('items.deleteItem')}</DialogTitle>
+        <DialogContent>{t('items.deleteMessage')}</DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteConfirm(null)} disabled={isLoading}>
-            Abbrechen
+            {t('items.cancel')}
           </Button>
           <Button onClick={handleDeleteConfirm} color="error" variant="contained" disabled={isLoading}>
-            Löschen
+            {t('items.delete')}
           </Button>
         </DialogActions>
       </Dialog>

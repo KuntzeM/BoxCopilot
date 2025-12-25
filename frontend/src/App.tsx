@@ -7,6 +7,9 @@ import BoxList from './pages/BoxList';
 import PublicPreview from './pages/PublicPreview';
 import BoxEditPage from './pages/BoxEditPage';
 import { CookieThemeProvider, useThemeContext } from './context/ThemeContext';
+import { LanguageProvider } from './context/LanguageContext';
+import { useTranslation } from './hooks/useTranslation';
+import LanguageSelector from './components/LanguageSelector';
 
 function LoadingScreen() {
   return (
@@ -17,6 +20,8 @@ function LoadingScreen() {
 }
 
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
+  const { t } = useTranslation();
+  
   return (
     <Box
       sx={{
@@ -31,10 +36,10 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
     >
       <Inventory2 sx={{ fontSize: 80, color: 'primary.main' }} />
       <Typography variant="h3" component="h1" align="center">
-        BoxCopilot
+        {t('app.title')}
       </Typography>
       <Typography variant="body1" color="text.secondary" align="center">
-        Bitte melden Sie sich an, um fortzufahren
+        {t('auth.loginPrompt')}
       </Typography>
       <Button
         variant="contained"
@@ -43,7 +48,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
         onClick={onLogin}
         sx={{ mt: 2 }}
       >
-        Mit Nextcloud anmelden
+        {t('auth.loginButton')}
       </Button>
     </Box>
   );
@@ -75,6 +80,7 @@ function ProtectedRoute({
 
 function AppShell({ children }: { children: React.ReactNode }) {
   const { toggleTheme, mode } = useThemeContext();
+  const { t } = useTranslation();
 
   const handleLogout = async () => {
     try {
@@ -93,23 +99,24 @@ function AppShell({ children }: { children: React.ReactNode }) {
         <Toolbar>
           <Inventory2 sx={{ mr: 2 }} />
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            BoxCopilot
+            {t('app.title')}
           </Typography>
           <IconButton
             onClick={toggleTheme}
             color="inherit"
-            aria-label="toggle dark mode"
+            aria-label={t('theme.toggleDarkMode')}
             size="medium"
           >
             {mode === 'light' ? <DarkMode /> : <WbSunny />}
           </IconButton>
+          <LanguageSelector />
           <Button
             color="inherit"
             startIcon={<Logout />}
             onClick={handleLogout}
             sx={{ ml: 2 }}
           >
-            Abmelden
+            {t('auth.logout')}
           </Button>
         </Toolbar>
       </AppBar>
@@ -157,31 +164,33 @@ export default function App() {
 
   return (
     <CookieThemeProvider>
-      <CssBaseline />
-      <Routes>
-        <Route path="/public/:token" element={<PublicPreview />} />
-        <Route
-          path="/app/boxes"
-          element={
-            <ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} onLogin={handleLogin}>
-              <AppShell>
-                <BoxList />
-              </AppShell>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/app/boxes/:id/edit"
-          element={
-            <ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} onLogin={handleLogin}>
-              <AppShell>
-                <BoxEditPage />
-              </AppShell>
-            </ProtectedRoute>
-          }
-        />
-        <Route path="*" element={<Navigate to="/app/boxes" replace />} />
-      </Routes>
+      <LanguageProvider>
+        <CssBaseline />
+        <Routes>
+          <Route path="/public/:token" element={<PublicPreview />} />
+          <Route
+            path="/app/boxes"
+            element={
+              <ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} onLogin={handleLogin}>
+                <AppShell>
+                  <BoxList />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/app/boxes/:id/edit"
+            element={
+              <ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} onLogin={handleLogin}>
+                <AppShell>
+                  <BoxEditPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route path="*" element={<Navigate to="/app/boxes" replace />} />
+        </Routes>
+      </LanguageProvider>
     </CookieThemeProvider>
   );
 }

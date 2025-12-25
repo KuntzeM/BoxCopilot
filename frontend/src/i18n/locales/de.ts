@@ -1,0 +1,146 @@
+// German translations (default language)
+
+export const de = {
+  app: {
+    title: 'BoxCopilot',
+    loading: 'Lädt...',
+  },
+  auth: {
+    loginPrompt: 'Bitte melden Sie sich an, um fortzufahren',
+    loginButton: 'Mit Nextcloud anmelden',
+    logout: 'Abmelden',
+  },
+  boxes: {
+    // Labels
+    currentRoom: 'Aktuelles Zimmer',
+    targetRoom: 'Zielzimmer',
+    description: 'Beschreibung',
+    
+    // Placeholders
+    placeholderCurrentRoom: 'z.B. Wohnzimmer',
+    placeholderTargetRoom: 'z.B. Keller',
+    placeholderDescription: 'Optionale Beschreibung der Box...',
+    
+    // Common terms
+    box: 'Box',
+    boxes: 'Boxen',
+    items: 'Items',
+    uuid: 'UUID',
+    current: 'Aktuell',
+    target: 'Ziel',
+    publicLink: 'Public Link',
+    
+    // Actions
+    createNew: 'Neue Box',
+    create: 'Erstellen',
+    edit: 'Bearbeiten',
+    delete: 'Löschen',
+    save: 'Speichern',
+    saveAndReturn: 'Speichern und zurück',
+    cancel: 'Abbrechen',
+    back: 'Zurück',
+    close: 'Schließen',
+    reset: 'Zurücksetzen',
+    copyPublicLink: 'Public Link kopieren',
+    openPublicLink: 'Public Link öffnen',
+    
+    // Box list
+    boxNumber: 'Box #{{number}}',
+    editBox: 'Box #{{number}} bearbeiten',
+    noBoxesFound: 'Keine Boxen gefunden.',
+    loadingBoxes: 'Lade Boxen...',
+    selectBox: 'Box {{number}} auswählen',
+    
+    // Handling
+    transportHints: 'Transport-Hinweise',
+    fragile: 'Zerbrechlich',
+    fragileEmoji: '🔔 Zerbrechlich / Fragile',
+    fragilePrintLabel: 'ZERBRECHLICH',
+    noStack: 'Nicht stapeln',
+    noStackEmoji: '⛔ Nichts drauf stellen / Do Not Stack',
+    noStackPrintLabel: 'NICHT STAPELN',
+    
+    // Filters
+    itemName: 'Item-Name',
+    itemNamePlaceholder: 'z.B. Hammer',
+    targetRoomFilter: 'Zielraum',
+    targetRoomFilterPlaceholder: 'z.B. Keller',
+    advancedFilters: 'Erweiterte Filter',
+    resetFilters: 'Filter zurücksetzen',
+    onlyFragileBoxes: 'Nur zerbrechliche Boxen',
+    onlyNoStackBoxes: 'Nur nicht stapelbare Boxen',
+    
+    // Print
+    printLabels: 'Label drucken',
+    print: 'Drucken',
+    noBoxSelected: 'Keine Box ausgewählt.',
+    
+    // Dialog titles
+    createNewBox: 'Neue Box erstellen',
+    deleteBoxTitle: 'Box löschen?',
+    deleteBoxMessage: 'Diese Box wird dauerhaft gelöscht. Dies kann nicht rückgängig gemacht werden.',
+  },
+  items: {
+    // Common terms
+    item: 'Item',
+    items: 'Items',
+    name: 'Name',
+    actions: 'Aktionen',
+    
+    // Actions
+    add: 'Hinzufügen',
+    addNew: 'Neues Item hinzufügen',
+    edit: 'Bearbeiten',
+    editItem: 'Item bearbeiten',
+    delete: 'Löschen',
+    deleteItem: 'Item löschen?',
+    save: 'Speichern',
+    cancel: 'Abbrechen',
+    
+    // Messages
+    noItems: 'Keine Items vorhanden',
+    noItemsInBox: 'Keine Items in dieser Box.',
+    deleteMessage: 'Dieses Item wird dauerhaft gelöscht.',
+    itemsCount: '{{count}} Items',
+  },
+  errors: {
+    invalidBoxId: 'Ungültige Box-ID',
+    boxNotFound: 'Box nicht gefunden',
+    boxLoadFailed: 'Box konnte nicht geladen werden',
+    boxSaveFailed: 'Fehler beim Speichern der Box',
+    boxDeleteFailed: 'Box konnte nicht gelöscht werden',
+    boxCreateFailed: 'Box konnte nicht erstellt werden',
+    boxesFetchFailed: 'Fehler beim Laden der Boxen',
+    tokenMissing: 'Token fehlt',
+    unknownError: 'Unbekannter Fehler',
+    itemAddFailed: 'Fehler beim Hinzufügen des Items',
+    itemUpdateFailed: 'Fehler beim Aktualisieren des Items',
+    itemDeleteFailed: 'Fehler beim Löschen des Items',
+    searchFailed: 'Suche fehlgeschlagen',
+    noPublicLink: 'Kein Public Link verfügbar',
+    copyFailed: 'Kopieren nicht möglich',
+    noSearchResults: 'Keine Boxen zur Suche gefunden',
+  },
+  success: {
+    boxSaved: 'Box erfolgreich gespeichert',
+    boxCreated: 'Box erstellt',
+    boxDeleted: 'Box gelöscht',
+    itemAdded: 'Item hinzugefügt',
+    itemUpdated: 'Item aktualisiert',
+    itemDeleted: 'Item gelöscht',
+    linkCopied: 'Public Link kopiert',
+    saving: 'Wird gespeichert...',
+  },
+  theme: {
+    toggleDarkMode: 'Dark Mode umschalten',
+    toggle: 'Theme umschalten',
+  },
+  language: {
+    select: 'Sprache wählen',
+    german: 'Deutsch',
+    english: 'English',
+    current: 'Aktuelle Sprache',
+  },
+};
+
+export type TranslationKeys = typeof de;

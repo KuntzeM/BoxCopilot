@@ -8,10 +8,12 @@ import { Box as BoxType, Item, CreateItemPayload, UpdateItemPayload } from '../t
 import BoxForm, { BoxFormData } from '../components/BoxForm';
 import ItemsTable from '../components/ItemsTable';
 import ItemForm from '../components/ItemForm';
+import { useTranslation } from '../hooks/useTranslation';
 
 const BoxEditPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const [box, setBox] = useState<BoxType | null>(null);
   const [items, setItems] = useState<Item[]>([]);
@@ -24,7 +26,7 @@ const BoxEditPage: React.FC = () => {
 
   useEffect(() => {
     if (!boxId) {
-      setError('Ungültige Box-ID');
+      setError(t('errors.invalidBoxId'));
       setIsLoading(false);
       return;
     }
@@ -36,7 +38,7 @@ const BoxEditPage: React.FC = () => {
         const boxData = allBoxes.find((b) => b.id === boxId);
         
         if (!boxData) {
-          setError('Box nicht gefunden');
+          setError(t('errors.boxNotFound'));
           setIsLoading(false);
           return;
         }
@@ -48,7 +50,7 @@ const BoxEditPage: React.FC = () => {
         setItems(allItems);
         setError(null);
       } catch (err) {
-        setError('Box konnte nicht geladen werden');
+        setError(t('errors.boxLoadFailed'));
         console.error(err);
       } finally {
         setIsLoading(false);
@@ -56,7 +58,7 @@ const BoxEditPage: React.FC = () => {
     };
 
     loadBoxAndItems();
-  }, [boxId]);
+  }, [boxId, t]);
 
   const [formData, setFormData] = useState<BoxFormData>({
     currentRoom: '',
@@ -91,12 +93,12 @@ const BoxEditPage: React.FC = () => {
         noStack: formData.noStack,
       });
 
-      setSnackbar({ message: 'Box erfolgreich gespeichert', severity: 'success' });
+      setSnackbar({ message: t('success.boxSaved'), severity: 'success' });
       setTimeout(() => {
         navigate('/app/boxes');
       }, 1500);
     } catch (err) {
-      setSnackbar({ message: 'Fehler beim Speichern der Box', severity: 'error' });
+      setSnackbar({ message: t('errors.boxSaveFailed'), severity: 'error' });
       console.error(err);
     } finally {
       setIsSaving(false);
@@ -107,9 +109,9 @@ const BoxEditPage: React.FC = () => {
     try {
       const newItem = await itemService.createItem(payload);
       setItems([...items, newItem]);
-      setSnackbar({ message: 'Item hinzugefügt', severity: 'success' });
+      setSnackbar({ message: t('success.itemAdded'), severity: 'success' });
     } catch (err) {
-      setSnackbar({ message: 'Fehler beim Hinzufügen des Items', severity: 'error' });
+      setSnackbar({ message: t('errors.itemAddFailed'), severity: 'error' });
       console.error(err);
     }
   };
@@ -118,9 +120,9 @@ const BoxEditPage: React.FC = () => {
     try {
       const updatedItem = await itemService.updateItem(itemId, data);
       setItems(items.map((item) => (item.id === itemId ? updatedItem : item)));
-      setSnackbar({ message: 'Item aktualisiert', severity: 'success' });
+      setSnackbar({ message: t('success.itemUpdated'), severity: 'success' });
     } catch (err) {
-      setSnackbar({ message: 'Fehler beim Aktualisieren des Items', severity: 'error' });
+      setSnackbar({ message: t('errors.itemUpdateFailed'), severity: 'error' });
       console.error(err);
     }
   };
@@ -129,9 +131,9 @@ const BoxEditPage: React.FC = () => {
     try {
       await itemService.deleteItem(itemId);
       setItems(items.filter((item) => item.id !== itemId));
-      setSnackbar({ message: 'Item gelöscht', severity: 'success' });
+      setSnackbar({ message: t('success.itemDeleted'), severity: 'success' });
     } catch (err) {
-      setSnackbar({ message: 'Fehler beim Löschen des Items', severity: 'error' });
+      setSnackbar({ message: t('errors.itemDeleteFailed'), severity: 'error' });
       console.error(err);
     }
   };
@@ -152,9 +154,9 @@ const BoxEditPage: React.FC = () => {
           onClick={() => navigate('/app/boxes')}
           sx={{ mb: 2 }}
         >
-          Zurück
+          {t('boxes.back')}
         </Button>
-        <Alert severity="error">{error || 'Box konnte nicht geladen werden'}</Alert>
+        <Alert severity="error">{error || t('errors.boxLoadFailed')}</Alert>
       </Box>
     );
   }
@@ -166,12 +168,12 @@ const BoxEditPage: React.FC = () => {
         onClick={() => navigate('/app/boxes')}
         sx={{ mb: 3 }}
       >
-        Zurück
+        {t('boxes.back')}
       </Button>
 
       <Paper sx={{ p: 3, mb: 3 }}>
         <Typography variant="h5" sx={{ mb: 3 }}>
-          Box #{box.id} bearbeiten
+          {t('boxes.editBox', { number: box.id })}
         </Typography>
         <BoxForm data={formData} onChange={setFormData} />
       </Paper>
@@ -183,7 +185,7 @@ const BoxEditPage: React.FC = () => {
           disabled={isSaving}
           size="large"
         >
-          {isSaving ? 'Wird gespeichert...' : 'Speichern und zurück'}
+          {isSaving ? t('success.saving') : t('boxes.saveAndReturn')}
         </Button>
         <Button
           variant="outlined"
@@ -191,13 +193,13 @@ const BoxEditPage: React.FC = () => {
           disabled={isSaving}
           size="large"
         >
-          Abbrechen
+          {t('boxes.cancel')}
         </Button>
       </Stack>
 
       <Paper sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" sx={{ mb: 2 }}>
-          Items
+          {t('boxes.items')}
         </Typography>
         <ItemsTable items={items} onUpdateItem={handleUpdateItem} onDeleteItem={handleDeleteItem} />
         <ItemForm onAddItem={handleAddItem} boxUuid={box.uuid} isLoading={isSaving} />
