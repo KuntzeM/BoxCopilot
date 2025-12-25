@@ -1,5 +1,7 @@
 # BoxCopilot
 
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+
 **Keep your moving organized.** BoxCopilot helps families stay sane during moves by tracking what's packed in each box and where it should go. No more opening 20 boxes to find your coffee maker.
 
 ![Dashboard Overview](docs/screenshots/dashboard.png)
@@ -232,17 +234,20 @@ Both frontend and backend services include Traefik labels for:
 
 ## License
 
-This project is licensed under the **Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License (CC BY-NC-SA 4.0)**.
+This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.
 
 **You are free to:**
-- ✅ Share - copy and redistribute the material
-- ✅ Adapt - remix, transform, and build upon the material
+- ✅ **Use** - Run the program for any purpose
+- ✅ **Study** - Access and study the source code
+- ✅ **Share** - Copy and distribute the software
+- ✅ **Modify** - Make changes and improvements to the software
 
 **Under the following terms:**
-- 📝 **Attribution** - You must give appropriate credit
-- 🚫 **NonCommercial** - You may not use the material for commercial purposes
-- 🔄 **ShareAlike** - If you remix or build upon the material, you must distribute your contributions under the same license
+- 📝 **Copyleft** - If you distribute modified versions, you must also license them under GPL v3.0
+- 🔓 **Source Code** - You must make the source code available when you distribute the software
+- 📄 **License Notice** - You must include a copy of the GPL v3.0 license and copyright notice
+- 🔄 **Same License** - All derivative works must be licensed under the same GPL v3.0 terms
 
-See [LICENSE](LICENSE) for full details or visit https://creativecommons.org/licenses/by-nc-sa/4.0/
+This ensures that BoxCopilot and all its derivatives remain free and open source software forever.
 
-For stricter copyleft requirements, consider the **GNU Affero General Public License v3.0 (AGPL-3.0)** which also requires sharing source code for network-deployed services.
+See [LICENSE](LICENSE) for full details or visit https://www.gnu.org/licenses/gpl-3.0.html
