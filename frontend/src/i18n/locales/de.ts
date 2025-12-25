@@ -141,6 +141,6 @@ export const de = {
     english: 'English',
     current: 'Aktuelle Sprache',
   },
-} as const;
+};
 
 export type TranslationKeys = typeof de;
