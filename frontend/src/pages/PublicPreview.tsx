@@ -143,7 +143,36 @@ function PublicPreviewContent() {
                           }
                         }}
                       >
-                        <Typography>{item.name}</Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                          {item.imageUrl ? (
+                            <img
+                              src={item.imageUrl}
+                              alt={item.name}
+                              style={{
+                                width: 50,
+                                height: 50,
+                                objectFit: 'cover',
+                                borderRadius: 4,
+                              }}
+                            />
+                          ) : (
+                            <Box
+                              sx={{
+                                width: 50,
+                                height: 50,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                backgroundColor: 'grey.300',
+                                borderRadius: 1,
+                                fontSize: '1.5rem',
+                              }}
+                            >
+                              📦
+                            </Box>
+                          )}
+                          <Typography>{item.name}</Typography>
+                        </Box>
                       </Paper>
                     ))}
                   </Stack>

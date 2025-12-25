@@ -6,6 +6,10 @@ export async function fetchBoxes(): Promise<Box[]> {
   return response.data;
 }
 
+export async function listBoxes(): Promise<Box[]> {
+  return fetchBoxes();
+}
+
 export async function createBox(payload: CreateBoxPayload): Promise<Box> {
   const response = await axios.post('/api/v1/boxes', payload);
   return response.data;
@@ -19,3 +23,4 @@ export async function updateBox(id: number, payload: UpdateBoxPayload): Promise<
 export async function deleteBox(id: number): Promise<void> {
   await axios.delete(`/api/v1/boxes/${id}`);
 }
+
