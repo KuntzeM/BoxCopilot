@@ -38,6 +38,7 @@ export default function ItemImageUpload({
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -75,9 +76,16 @@ export default function ItemImageUpload({
       });
       setStream(mediaStream);
       setIsCameraOpen(true);
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-      }
+      
+      // Wait for next tick to ensure dialog is open
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+          videoRef.current.play().catch(err => {
+            console.error('Error playing video:', err);
+          });
+        }
+      }, 100);
     } catch (error) {
       console.error('Camera access error:', error);
       onError('Kamerazugriff fehlgeschlagen');
@@ -171,8 +179,17 @@ export default function ItemImageUpload({
           <img
             src={currentImageUrl}
             alt="Item"
-            style={{ maxWidth: '200px', maxHeight: '200px', borderRadius: 8 }}
+            style={{ 
+              maxWidth: '200px', 
+              maxHeight: '200px', 
+              borderRadius: 8,
+              cursor: 'pointer'
+            }}
+            onClick={() => setImagePreviewOpen(true)}
           />
+          <Typography variant="caption" display="block" color="text.secondary">
+            Zum Vergrößern klicken
+          </Typography>
         </Box>
       )}
 
@@ -234,6 +251,11 @@ export default function ItemImageUpload({
               ref={videoRef}
               autoPlay
               playsInline
+              muted
+              onLoadedMetadata={(e) => {
+                const video = e.target as HTMLVideoElement;
+                video.play().catch(err => console.error('Play error:', err));
+              }}
               style={{
                 position: 'absolute',
                 top: 0,
@@ -241,6 +263,7 @@ export default function ItemImageUpload({
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover',
+                backgroundColor: '#000',
               }}
             />
           </Box>
@@ -265,6 +288,44 @@ export default function ItemImageUpload({
           <Button variant="contained" color="error" onClick={handleDelete}>
             Löschen
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Image Preview Dialog */}
+      <Dialog 
+        open={imagePreviewOpen} 
+        onClose={() => setImagePreviewOpen(false)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle>
+          Bild Vorschau
+          <IconButton
+            onClick={() => setImagePreviewOpen(false)}
+            sx={{ position: 'absolute', right: 8, top: 8 }}
+          >
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ textAlign: 'center', p: 2 }}>
+            <img
+              src={`/api/v1/items/${itemId}/image/large`}
+              alt="Item Large"
+              style={{ 
+                maxWidth: '100%', 
+                maxHeight: '80vh',
+                objectFit: 'contain'
+              }}
+              onError={(e) => {
+                // Fallback to thumbnail if large image not available
+                e.currentTarget.src = currentImageUrl || '';
+              }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setImagePreviewOpen(false)}>Schließen</Button>
         </DialogActions>
       </Dialog>
     </Box>

@@ -51,6 +51,7 @@ export default function ItemMoveDialog({
     } else {
       const query = searchQuery.toLowerCase();
       const filtered = boxes.filter(box =>
+        (box.id.toString().includes(query)) ||
         (box.currentRoom?.toLowerCase().includes(query) || false) ||
         (box.targetRoom?.toLowerCase().includes(query) || false) ||
         (box.description?.toLowerCase().includes(query) || false)
@@ -87,11 +88,11 @@ export default function ItemMoveDialog({
   };
 
   const getBoxDisplayText = (box: BoxType) => {
-    const parts = [];
+    const parts = [`ID: ${box.id}`];
     if (box.currentRoom) parts.push(`Von: ${box.currentRoom}`);
     if (box.targetRoom) parts.push(`Nach: ${box.targetRoom}`);
     if (box.description) parts.push(box.description);
-    return parts.join(' | ') || box.uuid;
+    return parts.join(' | ');
   };
 
   return (
@@ -110,7 +111,7 @@ export default function ItemMoveDialog({
             variant="outlined"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Nach Raum oder Beschreibung suchen..."
+            placeholder="Nach ID, Von, Nach oder Beschreibung suchen..."
             sx={{ mb: 2 }}
             autoFocus
           />
@@ -130,7 +131,6 @@ export default function ItemMoveDialog({
                   <ListItemButton onClick={() => handleBoxSelect(box)}>
                     <ListItemText
                       primary={getBoxDisplayText(box)}
-                      secondary={`UUID: ${box.uuid.substring(0, 8)}...`}
                     />
                   </ListItemButton>
                 </ListItem>

@@ -22,6 +22,7 @@ export interface Box {
 }
 
 export interface BoxPreviewItem {
+  id: number;
   name: string;
   imageUrl?: string;
 }

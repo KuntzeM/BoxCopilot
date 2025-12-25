@@ -45,6 +45,12 @@ frontend:
 nextcloud:
   logout-url: ${NEXTCLOUD_LOGOUT_URL:https://example.nextcloud.com/index.php/logout}
 
+# Image Storage
+app:
+  image:
+    storage:
+      path: ${APP_IMAGE_STORAGE_PATH:./data/images}
+
 logging:
   level:
     org.springframework.security: DEBUG

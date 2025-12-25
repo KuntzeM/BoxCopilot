@@ -21,14 +21,16 @@ import java.nio.file.StandardCopyOption;
 
 /**
  * Service for handling image storage operations.
- * Images are stored as WebP thumbnails (200x200px) only.
+ * Images are stored in two versions: thumbnail (200x200px) and large (1024px).
  */
 @Service
 public class ImageStorageService {
 
     private static final Logger log = LoggerFactory.getLogger(ImageStorageService.class);
     private static final int THUMBNAIL_SIZE = 200;
-    private static final String THUMBNAIL_SUFFIX = "_thumb.webp";
+    private static final int LARGE_SIZE = 1024;
+    private static final String THUMBNAIL_SUFFIX = "_thumb.jpg";
+    private static final String LARGE_SUFFIX = "_large.jpg";
     
     @Value("${app.image.storage.path}")
     private String storagePath;
@@ -48,8 +50,7 @@ public class ImageStorageService {
     }
 
     /**
-     * Saves an uploaded image as a WebP thumbnail.
-     * Only the 200x200px thumbnail is stored; the original is discarded.
+     * Saves an uploaded image in two versions: thumbnail (200x200px) and large (1024px).
      *
      * @param itemId The ID of the item
      * @param file The uploaded image file
@@ -69,31 +70,51 @@ public class ImageStorageService {
         }
         
         try {
-            // Generate filename
-            String filename = itemId + THUMBNAIL_SUFFIX;
-            Path targetPath = this.storageLocation.resolve(filename);
+            // Save thumbnail (200x200, center-crop)
+            String thumbFilename = itemId + THUMBNAIL_SUFFIX;
+            Path thumbPath = this.storageLocation.resolve(thumbFilename);
             
             // Prevent path traversal
-            if (!targetPath.normalize().startsWith(this.storageLocation)) {
+            if (!thumbPath.normalize().startsWith(this.storageLocation)) {
                 throw new FileStorageException("Cannot store file outside storage directory");
             }
             
-            // Create thumbnail as WebP (200x200, center-crop)
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            ByteArrayOutputStream thumbStream = new ByteArrayOutputStream();
             Thumbnails.of(file.getInputStream())
                     .size(THUMBNAIL_SIZE, THUMBNAIL_SIZE)
-                    .outputFormat("webp")
-                    .toOutputStream(outputStream);
+                    .outputFormat("jpg")
+                    .outputQuality(0.9)
+                    .toOutputStream(thumbStream);
             
-            // Write thumbnail to file
             Files.copy(
-                new ByteArrayInputStream(outputStream.toByteArray()),
-                targetPath,
+                new ByteArrayInputStream(thumbStream.toByteArray()),
+                thumbPath,
                 StandardCopyOption.REPLACE_EXISTING
             );
             
-            log.info("Image saved successfully: {}", filename);
-            return filename;
+            // Save large version (1024px max dimension, keep aspect ratio)
+            String largeFilename = itemId + LARGE_SUFFIX;
+            Path largePath = this.storageLocation.resolve(largeFilename);
+            
+            if (!largePath.normalize().startsWith(this.storageLocation)) {
+                throw new FileStorageException("Cannot store file outside storage directory");
+            }
+            
+            ByteArrayOutputStream largeStream = new ByteArrayOutputStream();
+            Thumbnails.of(file.getInputStream())
+                    .size(LARGE_SIZE, LARGE_SIZE)
+                    .outputFormat("jpg")
+                    .outputQuality(0.85)
+                    .toOutputStream(largeStream);
+            
+            Files.copy(
+                new ByteArrayInputStream(largeStream.toByteArray()),
+                largePath,
+                StandardCopyOption.REPLACE_EXISTING
+            );
+            
+            log.info("Images saved successfully: {} and {}", thumbFilename, largeFilename);
+            return thumbFilename;
             
         } catch (IOException e) {
             log.error("Failed to save image for item ID: {}", itemId, e);
@@ -102,10 +123,10 @@ public class ImageStorageService {
     }
 
     /**
-     * Retrieves an image by item ID.
+     * Retrieves the thumbnail image by item ID.
      *
      * @param itemId The ID of the item
-     * @return The image file as a Resource
+     * @return The thumbnail image file as a Resource
      */
     public Resource getImage(Long itemId) {
         try {
@@ -119,20 +140,50 @@ public class ImageStorageService {
             
             Resource resource = new UrlResource(filePath.toUri());
             if (resource.exists() && resource.isReadable()) {
-                log.debug("Image retrieved for item ID: {}", itemId);
+                log.debug("Thumbnail retrieved for item ID: {}", itemId);
                 return resource;
             } else {
-                log.warn("Image not found for item ID: {}", itemId);
+                log.warn("Thumbnail not found for item ID: {}", itemId);
                 throw new FileStorageException("Image not found");
             }
         } catch (IOException e) {
-            log.error("Failed to retrieve image for item ID: {}", itemId, e);
+            log.error("Failed to retrieve thumbnail for item ID: {}", itemId, e);
             throw new FileStorageException("Failed to retrieve image", e);
         }
     }
 
     /**
-     * Deletes an image file.
+     * Retrieves the large image by item ID.
+     *
+     * @param itemId The ID of the item
+     * @return The large image file as a Resource
+     */
+    public Resource getLargeImage(Long itemId) {
+        try {
+            String filename = itemId + LARGE_SUFFIX;
+            Path filePath = this.storageLocation.resolve(filename).normalize();
+            
+            // Prevent path traversal
+            if (!filePath.startsWith(this.storageLocation)) {
+                throw new FileStorageException("Invalid file path");
+            }
+            
+            Resource resource = new UrlResource(filePath.toUri());
+            if (resource.exists() && resource.isReadable()) {
+                log.debug("Large image retrieved for item ID: {}", itemId);
+                return resource;
+            } else {
+                log.warn("Large image not found for item ID: {}", itemId);
+                throw new FileStorageException("Large image not found");
+            }
+        } catch (IOException e) {
+            log.error("Failed to retrieve large image for item ID: {}", itemId, e);
+            throw new FileStorageException("Failed to retrieve large image", e);
+        }
+    }
+
+    /**
+     * Deletes both thumbnail and large image files.
      *
      * @param imagePath The path to the image file (filename)
      */
@@ -142,6 +193,7 @@ public class ImageStorageService {
         }
         
         try {
+            // Delete thumbnail
             Path filePath = this.storageLocation.resolve(imagePath).normalize();
             
             // Prevent path traversal
@@ -150,7 +202,16 @@ public class ImageStorageService {
             }
             
             Files.deleteIfExists(filePath);
-            log.info("Image deleted: {}", imagePath);
+            log.info("Thumbnail deleted: {}", imagePath);
+            
+            // Delete large version (derive filename from thumbnail path)
+            String largeFilename = imagePath.replace(THUMBNAIL_SUFFIX, LARGE_SUFFIX);
+            Path largeFilePath = this.storageLocation.resolve(largeFilename).normalize();
+            
+            if (largeFilePath.startsWith(this.storageLocation)) {
+                Files.deleteIfExists(largeFilePath);
+                log.info("Large image deleted: {}", largeFilename);
+            }
         } catch (IOException e) {
             log.error("Failed to delete image: {}", imagePath, e);
             throw new FileStorageException("Failed to delete image", e);

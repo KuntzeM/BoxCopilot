@@ -14,4 +14,10 @@ spring:
   session:
     store-type: none
 
+# Image Storage for tests
+app:
+  image:
+    storage:
+      path: ${APP_IMAGE_STORAGE_PATH:./data/images}
+
 # For test profile we use NoSecurityConfig which permits all requests (no auth)

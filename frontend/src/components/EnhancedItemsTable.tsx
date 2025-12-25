@@ -117,8 +117,10 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
     setMoveDialogOpen(true);
   };
 
-  const handleImageClick = (imageUrl: string) => {
-    setFullImageUrl(imageUrl);
+  const handleImageClick = (itemId: number, imageUrl: string) => {
+    // Load the large image URL
+    const largeImageUrl = `/api/v1/items/${itemId}/image/large`;
+    setFullImageUrl(largeImageUrl);
   };
 
   const handleManageImage = (itemId: number, currentImageUrl?: string) => {
@@ -184,7 +186,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
                       src={item.imageUrl}
                       alt={item.name}
                       sx={{ width: 50, height: 50, cursor: 'pointer' }}
-                      onClick={() => handleImageClick(item.imageUrl!)}
+                      onClick={() => handleImageClick(item.id, item.imageUrl!)}
                     />
                   ) : (
                     <Avatar sx={{ width: 50, height: 50, bgcolor: 'grey.300' }}>
@@ -304,13 +306,26 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
       </Dialog>
 
       {/* Full Image Dialog */}
-      <Dialog open={fullImageUrl !== null} onClose={() => setFullImageUrl(null)} maxWidth="md">
-        <DialogContent sx={{ p: 0 }}>
+      <Dialog open={fullImageUrl !== null} onClose={() => setFullImageUrl(null)} maxWidth="md" fullWidth>
+        <DialogContent sx={{ p: 0, textAlign: 'center' }}>
           {fullImageUrl && (
             <img
               src={fullImageUrl}
               alt="Item full"
-              style={{ width: '100%', height: 'auto', display: 'block' }}
+              style={{ 
+                width: '100%', 
+                height: 'auto', 
+                display: 'block',
+                maxHeight: '80vh',
+                objectFit: 'contain'
+              }}
+              onError={(e) => {
+                // If large image fails, fall back to thumbnail
+                const match = fullImageUrl.match(/\/api\/v1\/items\/(\d+)\/image/);
+                if (match) {
+                  e.currentTarget.src = `/api/v1/items/${match[1]}/image`;
+                }
+              }}
             />
           )}
         </DialogContent>

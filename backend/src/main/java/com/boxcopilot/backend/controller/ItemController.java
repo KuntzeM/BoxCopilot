@@ -124,16 +124,31 @@ public class ItemController {
     }
     
     /**
-     * Retrieves an item's image.
+     * Retrieves an item's thumbnail image.
      * This endpoint is accessible without authentication for public preview.
      */
     @GetMapping("/{id}/image")
     @PreAuthorize("permitAll()")
     public ResponseEntity<Resource> getImage(@PathVariable Long id) {
-        log.debug("Retrieving image for item ID: {}", id);
+        log.debug("Retrieving thumbnail for item ID: {}", id);
         Resource image = imageStorageService.getImage(id);
         return ResponseEntity.ok()
-                .contentType(MediaType.valueOf("image/webp"))
+                .contentType(MediaType.IMAGE_JPEG)
+                .header(HttpHeaders.CACHE_CONTROL, "max-age=3600")
+                .body(image);
+    }
+    
+    /**
+     * Retrieves an item's large image (1024px).
+     * This endpoint is accessible without authentication for public preview.
+     */
+    @GetMapping("/{id}/image/large")
+    @PreAuthorize("permitAll()")
+    public ResponseEntity<Resource> getLargeImage(@PathVariable Long id) {
+        log.debug("Retrieving large image for item ID: {}", id);
+        Resource image = imageStorageService.getLargeImage(id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_JPEG)
                 .header(HttpHeaders.CACHE_CONTROL, "max-age=3600")
                 .body(image);
     }

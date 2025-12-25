@@ -21,7 +21,7 @@ public class AuthController {
 
     /**
      * Get current authenticated user information and CSRF token
-     * Returns user details from OIDC principal or null if not authenticated
+     * Returns 401 Unauthorized if user is not authenticated
      */
     @GetMapping("/me")
     public ResponseEntity<UserPrincipalDTO> getCurrentUser(
@@ -29,18 +29,9 @@ public class AuthController {
             HttpServletRequest request) {
         
         if (oidcUser == null) {
-            log.debug("Unauthenticated user accessing /me endpoint");
-            // User is not authenticated
-            UserPrincipalDTO dto = new UserPrincipalDTO();
-            dto.setAuthenticated(false);
-            
-            // Still provide CSRF token for public endpoints
-            CsrfToken csrfToken = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
-            if (csrfToken != null) {
-                dto.setCsrfToken(csrfToken.getToken());
-            }
-            
-            return ResponseEntity.ok(dto);
+            log.debug("Unauthenticated user accessing /me endpoint - returning 401");
+            // Return 401 Unauthorized for unauthenticated requests
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
         // Extract OIDC claims

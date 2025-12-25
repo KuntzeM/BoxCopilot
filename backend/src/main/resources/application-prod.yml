@@ -43,6 +43,12 @@ spring:
 frontend:
   url: ${FRONTEND_URL}
 
+# Image Storage
+app:
+  image:
+    storage:
+      path: ${APP_IMAGE_STORAGE_PATH:/var/boxcopilot/images}
+
 logging:
   level:
     org.springframework: INFO
