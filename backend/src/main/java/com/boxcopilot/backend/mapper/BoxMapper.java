@@ -35,6 +35,8 @@ public class BoxMapper {
         box.setCurrentRoom(dto.getCurrentRoom());
         box.setTargetRoom(dto.getTargetRoom());
         box.setDescription(dto.getDescription());
+        box.setIsFragile(dto.getIsFragile() != null ? dto.getIsFragile() : false);
+        box.setNoStack(dto.getNoStack() != null ? dto.getNoStack() : false);
         return box;
     }
 
@@ -54,6 +56,9 @@ public class BoxMapper {
             entity.getDescription(),
             entity.getCreatedAt()
         );
+        
+        dto.setIsFragile(entity.getIsFragile());
+        dto.setNoStack(entity.getNoStack());
 
         // Add items if they exist
         if (entity.getItems() != null && !entity.getItems().isEmpty()) {
@@ -82,6 +87,12 @@ public class BoxMapper {
         }
         if (dto.getDescription() != null) {
             entity.setDescription(dto.getDescription());
+        }
+        if (dto.getIsFragile() != null) {
+            entity.setIsFragile(dto.getIsFragile());
+        }
+        if (dto.getNoStack() != null) {
+            entity.setNoStack(dto.getNoStack());
         }
     }
 }

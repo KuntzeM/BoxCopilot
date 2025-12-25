@@ -60,6 +60,9 @@ public class PublicPreviewController {
             box.getDescription(),
             itemDTOs
         );
+        
+        dto.setIsFragile(box.getIsFragile());
+        dto.setNoStack(box.getNoStack());
 
         log.info("Public preview generated for box: {} with {} items", uuid, itemDTOs.size());
         return ResponseEntity.ok(dto);

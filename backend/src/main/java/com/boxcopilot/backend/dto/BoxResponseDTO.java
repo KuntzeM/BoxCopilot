@@ -16,6 +16,8 @@ public class BoxResponseDTO {
     private String description;
     private Instant createdAt;
     private List<ItemResponseDTO> items;
+    private Boolean isFragile;
+    private Boolean noStack;
 
     public BoxResponseDTO() {
     }
@@ -27,6 +29,8 @@ public class BoxResponseDTO {
         this.targetRoom = targetRoom;
         this.description = description;
         this.createdAt = createdAt;
+        this.isFragile = false;
+        this.noStack = false;
     }
 
     public Long getId() {
@@ -83,5 +87,21 @@ public class BoxResponseDTO {
 
     public void setItems(List<ItemResponseDTO> items) {
         this.items = items;
+    }
+
+    public Boolean getIsFragile() {
+        return isFragile;
+    }
+
+    public void setIsFragile(Boolean isFragile) {
+        this.isFragile = isFragile;
+    }
+
+    public Boolean getNoStack() {
+        return noStack;
+    }
+
+    public void setNoStack(Boolean noStack) {
+        this.noStack = noStack;
     }
 }
