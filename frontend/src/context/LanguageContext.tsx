@@ -5,14 +5,6 @@ import { getTranslation, interpolate } from '../i18n';
 
 export const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
-export const useLanguageContext = () => {
-  const context = React.useContext(LanguageContext);
-  if (!context) {
-    throw new Error('useLanguageContext must be used within LanguageProvider');
-  }
-  return context;
-};
-
 interface LanguageProviderProps {
   children: ReactNode;
 }

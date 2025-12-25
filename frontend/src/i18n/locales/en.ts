@@ -43,6 +43,8 @@ export const en: TranslationKeys = {
     back: 'Back',
     close: 'Close',
     reset: 'Reset',
+    copyPublicLink: 'Copy public link',
+    openPublicLink: 'Open public link',
     
     // Box list
     boxNumber: 'Box #{{number}}',
@@ -54,9 +56,9 @@ export const en: TranslationKeys = {
     // Handling
     transportHints: 'Transport Notes',
     fragile: 'Fragile',
-    fragileEmoji: '🔔 Zerbrechlich / Fragile',
+    fragileEmoji: '🔔 Fragile',
     noStack: 'Do Not Stack',
-    noStackEmoji: '⛔ Nichts drauf stellen / Do Not Stack',
+    noStackEmoji: '⛔ Do Not Stack',
     
     // Filters
     itemName: 'Item Name',

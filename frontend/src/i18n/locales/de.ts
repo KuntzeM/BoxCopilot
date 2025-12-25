@@ -41,6 +41,8 @@ export const de = {
     back: 'Zurück',
     close: 'Schließen',
     reset: 'Zurücksetzen',
+    copyPublicLink: 'Public Link kopieren',
+    openPublicLink: 'Public Link öffnen',
     
     // Box list
     boxNumber: 'Box #{{number}}',

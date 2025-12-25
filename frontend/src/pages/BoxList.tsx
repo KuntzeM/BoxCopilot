@@ -446,14 +446,14 @@ export default function BoxList() {
                     </IconButton>
                     <IconButton
                       size="small"
-                      title={t('success.linkCopied')}
+                      title={t('boxes.copyPublicLink')}
                       onClick={() => handleCopyLink(box.publicUrl)}
                     >
                       <ContentCopy fontSize="small" />
                     </IconButton>
                     <IconButton
                       size="small"
-                      title={t('boxes.publicLink')}
+                      title={t('boxes.openPublicLink')}
                       onClick={() => handleOpenPublicLink(box.publicUrl)}
                       color="info"
                     >
