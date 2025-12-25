@@ -61,7 +61,7 @@ const BoxForm: React.FC<BoxFormProps> = ({ data, onChange }) => {
         placeholder="Optionale Beschreibung der Box..."
       />
       
-      <Box sx={{ p: 2, backgroundColor: 'grey.100', borderRadius: 1 }}>
+      <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1, border: 1, borderColor: 'divider' }}>
         <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1.5 }}>
           Transport-Hinweise
         </Typography>

@@ -86,6 +86,9 @@ export default function BoxList() {
   const [isLoading, setIsLoading] = useState(true);
   const [itemQuery, setItemQuery] = useState('');
   const [roomQuery, setRoomQuery] = useState('');
+  const [filterFragile, setFilterFragile] = useState(false);
+  const [filterNoStack, setFilterNoStack] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [expandedBoxes, setExpandedBoxes] = useState<Set<number>>(new Set());
   const [snackbar, setSnackbar] = useState<SnackbarState>({ open: false, message: '', severity: 'success' });
@@ -112,6 +115,15 @@ export default function BoxList() {
     loadData();
   }, []);
 
+  // Automatische Filterung mit Debounce für Textfelder
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      handleSearch();
+    }, 400); // 400ms Debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [itemQuery, roomQuery, filterFragile, filterNoStack]);
+
   const loadData = async () => {
     setIsLoading(true);
     try {
@@ -135,6 +147,8 @@ export default function BoxList() {
   const handleResetFilter = () => {
     setItemQuery('');
     setRoomQuery('');
+    setFilterFragile(false);
+    setFilterNoStack(false);
     setFilteredBoxes(allBoxes);
   };
 
@@ -152,6 +166,14 @@ export default function BoxList() {
         const items = await searchItems(itemTerm);
         const ids = new Set(items.map((i) => i.boxId));
         next = next.filter((b) => ids.has(b.id));
+      }
+
+      if (filterFragile) {
+        next = next.filter((b) => b.isFragile === true);
+      }
+
+      if (filterNoStack) {
+        next = next.filter((b) => b.noStack === true);
       }
 
       setFilteredBoxes(next);
@@ -261,31 +283,95 @@ export default function BoxList() {
 
       <Stack spacing={2} sx={{ mb: 2 }}>
         <Paper sx={{ p: 2, borderRadius: 2, boxShadow: 2 }}>
-          <Stack direction={isMobile ? 'column' : 'row'} spacing={2} alignItems={isMobile ? 'stretch' : 'center'}>
-            <TextField
-              fullWidth
-              label="Item-Name"
-              placeholder="z.B. Hammer"
-              value={itemQuery}
-              onChange={(e) => setItemQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            />
-            <TextField
-              fullWidth
-              label="Zielraum"
-              placeholder="z.B. Keller"
-              value={roomQuery}
-              onChange={(e) => setRoomQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            />
-            <Stack direction="row" spacing={1} justifyContent={isMobile ? 'flex-end' : 'flex-start'}>
-              <Button variant="contained" startIcon={<Search />} onClick={handleSearch}>
-                Filtern
-              </Button>
-              <Button variant="text" onClick={handleResetFilter}>
-                Zurücksetzen
-              </Button>
+          <Stack spacing={2}>
+            <Stack direction={isMobile ? 'column' : 'row'} spacing={2} alignItems={isMobile ? 'stretch' : 'center'}>
+              <TextField
+                fullWidth
+                label="Item-Name"
+                placeholder="z.B. Hammer"
+                value={itemQuery}
+                onChange={(e) => setItemQuery(e.target.value)}
+              />
+              <TextField
+                fullWidth
+                label="Zielraum"
+                placeholder="z.B. Keller"
+                value={roomQuery}
+                onChange={(e) => setRoomQuery(e.target.value)}
+              />
+              {!isMobile && (
+                <Button 
+                  variant="outlined" 
+                  onClick={handleResetFilter}
+                  size="small"
+                  sx={{ minWidth: '120px' }}
+                >
+                  Zurücksetzen
+                </Button>
+              )}
             </Stack>
+            
+            {/* Mobile Reset Button */}
+            {isMobile && (
+              <Button 
+                fullWidth 
+                variant="outlined" 
+                onClick={handleResetFilter}
+                size="small"
+              >
+                Filter zurücksetzen
+              </Button>
+            )}
+
+            {/* Advanced Filters Toggle */}
+            <Button
+              size="small"
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              sx={{ alignSelf: 'flex-start' }}
+            >
+              {showAdvancedFilters ? '▼' : '▶'} Erweiterte Filter
+              {(filterFragile || filterNoStack) && (
+                <Chip 
+                  label={[filterFragile && '🔔', filterNoStack && '⛔'].filter(Boolean).join(' ')} 
+                  size="small" 
+                  sx={{ ml: 1 }} 
+                />
+              )}
+            </Button>
+
+            {/* Advanced Filters */}
+            <Collapse in={showAdvancedFilters}>
+              <Stack 
+                direction={isMobile ? 'column' : 'row'} 
+                spacing={isMobile ? 1 : 2} 
+                sx={{ pl: isMobile ? 0 : 1, pt: 1 }}
+              >
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={filterFragile}
+                      onChange={(e) => setFilterFragile(e.target.checked)}
+                      color="warning"
+                      size={isMobile ? 'small' : 'medium'}
+                    />
+                  }
+                  label={isMobile ? '🔔 Zerbrechlich' : 'Nur zerbrechliche Boxen'}
+                  sx={{ m: 0 }}
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={filterNoStack}
+                      onChange={(e) => setFilterNoStack(e.target.checked)}
+                      color="error"
+                      size={isMobile ? 'small' : 'medium'}
+                    />
+                  }
+                  label={isMobile ? '⛔ Nicht stapeln' : 'Nur nicht stapelbare Boxen'}
+                  sx={{ m: 0 }}
+                />
+              </Stack>
+            </Collapse>
           </Stack>
         </Paper>
 
@@ -447,7 +533,7 @@ export default function BoxList() {
               onChange={(e) => setBoxFormData({ ...boxFormData, description: e.target.value })}
               placeholder="Optionale Beschreibung der Box..."
             />
-            <Box sx={{ p: 2, backgroundColor: 'grey.100', borderRadius: 1 }}>
+            <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1, border: 1, borderColor: 'divider' }}>
               <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1.5 }}>
                 Transport-Hinweise
               </Typography>
