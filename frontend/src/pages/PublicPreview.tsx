@@ -28,9 +28,15 @@ function PublicPreviewContent() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const response = await axios.get('/api/v1/me');
-        console.log('Auth check response:', response.data);
-        setIsAuthenticated(true);
+        const response = await axios.get('/api/v1/me', {
+          // Accept all statuses so we can handle 3xx/4xx ourselves
+          validateStatus: () => true,
+        });
+        console.log('Auth check response:', response.status, response.data);
+
+        // Treat only explicit 200 + authenticated true as logged in
+        const isOk = response.status === 200 && response.data?.authenticated === true;
+        setIsAuthenticated(isOk);
       } catch (error: any) {
         console.log('Auth check failed:', error.response?.status, error.message);
         setIsAuthenticated(false);
