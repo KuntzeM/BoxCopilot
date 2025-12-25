@@ -16,6 +16,8 @@ export interface Box {
   createdAt?: string;
   items?: Item[];
   publicUrl?: string;
+  isFragile?: boolean;
+  noStack?: boolean;
 }
 
 export interface BoxPreviewItem {
@@ -29,12 +31,16 @@ export interface BoxPreview {
   targetRoom?: string;
   description?: string;
   items: BoxPreviewItem[];
+  isFragile?: boolean;
+  noStack?: boolean;
 }
 
 export interface CreateBoxPayload {
   currentRoom?: string;
   targetRoom?: string;
   description?: string;
+  isFragile?: boolean;
+  noStack?: boolean;
 }
 
 export type UpdateBoxPayload = CreateBoxPayload;

@@ -62,6 +62,8 @@ const BoxEditPage: React.FC = () => {
     currentRoom: '',
     targetRoom: '',
     description: '',
+    isFragile: false,
+    noStack: false,
   });
 
   useEffect(() => {
@@ -70,6 +72,8 @@ const BoxEditPage: React.FC = () => {
         currentRoom: box.currentRoom || '',
         targetRoom: box.targetRoom || '',
         description: box.description || '',
+        isFragile: box.isFragile || false,
+        noStack: box.noStack || false,
       });
     }
   }, [box]);
@@ -83,6 +87,8 @@ const BoxEditPage: React.FC = () => {
         currentRoom: formData.currentRoom,
         targetRoom: formData.targetRoom,
         description: formData.description,
+        isFragile: formData.isFragile,
+        noStack: formData.noStack,
       });
 
       setSnackbar({ message: 'Box erfolgreich gespeichert', severity: 'success' });

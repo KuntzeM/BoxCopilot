@@ -5,12 +5,14 @@ import {
   Box,
   Button,
   Checkbox,
+  Chip,
   Collapse,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
+  FormControlLabel,
   GlobalStyles,
   IconButton,
   Paper,
@@ -32,6 +34,8 @@ import {
   Print,
   Search,
   OpenInNew,
+  BrokenImage,
+  DoNotDisturb,
 } from '@mui/icons-material';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Box as BoxModel, Item, CreateBoxPayload } from '../types/models';
@@ -40,6 +44,37 @@ import { searchItems } from '../services/itemService';
 import { truncateToFirstLine } from '../utils/textUtils';
 
 type SnackbarState = { open: boolean; message: string; severity: 'success' | 'error' | 'info' };
+
+interface BoxHandlingBadgesProps {
+  box: BoxModel;
+}
+
+const BoxHandlingBadges: React.FC<BoxHandlingBadgesProps> = ({ box }) => {
+  if (!box.isFragile && !box.noStack) {
+    return null;
+  }
+
+  return (
+    <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
+      {box.isFragile && (
+        <Chip
+          icon={<BrokenImage />}
+          label="Zerbrechlich"
+          color="warning"
+          size="small"
+        />
+      )}
+      {box.noStack && (
+        <Chip
+          icon={<DoNotDisturb />}
+          label="Nicht stapeln"
+          color="error"
+          size="small"
+        />
+      )}
+    </Box>
+  );
+};
 
 export default function BoxList() {
   const navigate = useNavigate();
@@ -56,7 +91,13 @@ export default function BoxList() {
   const [snackbar, setSnackbar] = useState<SnackbarState>({ open: false, message: '', severity: 'success' });
 
   const [openBoxDialog, setOpenBoxDialog] = useState(false);
-  const [boxFormData, setBoxFormData] = useState<CreateBoxPayload>({ currentRoom: '', targetRoom: '', description: '' });
+  const [boxFormData, setBoxFormData] = useState<CreateBoxPayload>({ 
+    currentRoom: '', 
+    targetRoom: '', 
+    description: '',
+    isFragile: false,
+    noStack: false
+  });
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
@@ -161,7 +202,7 @@ export default function BoxList() {
 
   // Box Dialogs
   const handleOpenBoxDialog = () => {
-    setBoxFormData({ currentRoom: '', targetRoom: '', description: '' });
+    setBoxFormData({ currentRoom: '', targetRoom: '', description: '', isFragile: false, noStack: false });
     setOpenBoxDialog(true);
   };
 
@@ -170,7 +211,7 @@ export default function BoxList() {
       const newBox = await createBox(boxFormData as CreateBoxPayload);
       setSnackbar({ open: true, message: 'Box erstellt', severity: 'success' });
       setOpenBoxDialog(false);
-      setBoxFormData({ currentRoom: '', targetRoom: '', description: '' });
+      setBoxFormData({ currentRoom: '', targetRoom: '', description: '', isFragile: false, noStack: false });
       navigate(`/app/boxes/${newBox.id}/edit`);
     } catch (error) {
       setSnackbar({ open: true, message: 'Box konnte nicht erstellt werden', severity: 'error' });
@@ -295,6 +336,7 @@ export default function BoxList() {
                           {truncateToFirstLine(box.description)}
                         </Typography>
                       )}
+                      <BoxHandlingBadges box={box} />
                     </Box>
                   </Stack>
 
@@ -405,6 +447,31 @@ export default function BoxList() {
               onChange={(e) => setBoxFormData({ ...boxFormData, description: e.target.value })}
               placeholder="Optionale Beschreibung der Box..."
             />
+            <Box sx={{ p: 2, backgroundColor: 'grey.100', borderRadius: 1 }}>
+              <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1.5 }}>
+                Transport-Hinweise
+              </Typography>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={boxFormData.isFragile || false}
+                    onChange={(e) => setBoxFormData({ ...boxFormData, isFragile: e.target.checked })}
+                    color="warning"
+                  />
+                }
+                label="🔔 Zerbrechlich / Fragile"
+              />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={boxFormData.noStack || false}
+                    onChange={(e) => setBoxFormData({ ...boxFormData, noStack: e.target.checked })}
+                    color="error"
+                  />
+                }
+                label="⛔ Nichts drauf stellen / Do Not Stack"
+              />
+            </Box>
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -461,6 +528,23 @@ export default function BoxList() {
                       <Typography variant="body2" sx={{ fontSize: '0.75rem', fontStyle: 'italic', color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                         {truncateToFirstLine(box.description)}
                       </Typography>
+                    )}
+                    
+                    {(box.isFragile || box.noStack) && (
+                      <Box sx={{ borderTop: '2px dashed #000', mt: 1.5, pt: 1.5, display: 'flex', gap: 2, alignItems: 'center' }}>
+                        {box.isFragile && (
+                          <Box sx={{ textAlign: 'center' }}>
+                            <Typography sx={{ fontSize: '48px', lineHeight: 1 }}>🔔</Typography>
+                            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#000', mt: 0.5 }}>FRAGILE</Typography>
+                          </Box>
+                        )}
+                        {box.noStack && (
+                          <Box sx={{ textAlign: 'center' }}>
+                            <Typography sx={{ fontSize: '48px', lineHeight: 1 }}>⛔</Typography>
+                            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#000', mt: 0.5 }}>DO NOT STACK</Typography>
+                          </Box>
+                        )}
+                      </Box>
                     )}
                   </Stack>
                 </Paper>
