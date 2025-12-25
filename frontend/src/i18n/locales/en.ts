@@ -57,8 +57,10 @@ export const en: TranslationKeys = {
     transportHints: 'Transport Notes',
     fragile: 'Fragile',
     fragileEmoji: '🔔 Fragile',
+    fragilePrintLabel: 'FRAGILE',
     noStack: 'Do Not Stack',
     noStackEmoji: '⛔ Do Not Stack',
+    noStackPrintLabel: 'DO NOT STACK',
     
     // Filters
     itemName: 'Item Name',
@@ -133,6 +135,7 @@ export const en: TranslationKeys = {
   },
   theme: {
     toggleDarkMode: 'Toggle dark mode',
+    toggle: 'Toggle theme',
   },
   language: {
     select: 'Select language',

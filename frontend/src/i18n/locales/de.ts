@@ -55,8 +55,10 @@ export const de = {
     transportHints: 'Transport-Hinweise',
     fragile: 'Zerbrechlich',
     fragileEmoji: '🔔 Zerbrechlich / Fragile',
+    fragilePrintLabel: 'ZERBRECHLICH',
     noStack: 'Nicht stapeln',
     noStackEmoji: '⛔ Nichts drauf stellen / Do Not Stack',
+    noStackPrintLabel: 'NICHT STAPELN',
     
     // Filters
     itemName: 'Item-Name',
@@ -131,6 +133,7 @@ export const de = {
   },
   theme: {
     toggleDarkMode: 'Dark Mode umschalten',
+    toggle: 'Theme umschalten',
   },
   language: {
     select: 'Sprache wählen',

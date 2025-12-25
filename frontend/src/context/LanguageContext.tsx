@@ -1,7 +1,6 @@
 import React, { createContext, useState, useMemo, ReactNode, useEffect, useCallback } from 'react';
 import Cookies from 'js-cookie';
-import { Language, LanguageContextType } from '../i18n/types';
-import { getTranslation, interpolate } from '../i18n';
+import { Language, LanguageContextType, getTranslation, interpolate } from '../i18n';
 
 export const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 

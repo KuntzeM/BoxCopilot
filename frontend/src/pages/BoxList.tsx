@@ -630,13 +630,13 @@ export default function BoxList() {
                         {box.isFragile && (
                           <Box sx={{ textAlign: 'center' }}>
                             <Typography sx={{ fontSize: '48px', lineHeight: 1 }}>🔔</Typography>
-                            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#000', mt: 0.5 }}>FRAGILE</Typography>
+                            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#000', mt: 0.5 }}>{t('boxes.fragilePrintLabel')}</Typography>
                           </Box>
                         )}
                         {box.noStack && (
                           <Box sx={{ textAlign: 'center' }}>
                             <Typography sx={{ fontSize: '48px', lineHeight: 1 }}>⛔</Typography>
-                            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#000', mt: 0.5 }}>DO NOT STACK</Typography>
+                            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#000', mt: 0.5 }}>{t('boxes.noStackPrintLabel')}</Typography>
                           </Box>
                         )}
                       </Box>

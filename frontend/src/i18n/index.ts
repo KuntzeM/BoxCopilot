@@ -39,5 +39,4 @@ export function interpolate(text: string, vars?: Record<string, string | number>
   return result;
 }
 
-export { Language } from './types';
-export type { LanguageContextType } from './types';
+export type { Language, LanguageContextType } from './types';
