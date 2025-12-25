@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -42,6 +43,7 @@ public class ItemService {
     public List<ItemResponseDTO> getAllItems() {
         log.debug("Service: Fetching all items");
         List<ItemResponseDTO> items = itemRepository.findAll().stream()
+            .sorted(Comparator.comparing(Item::getName, String.CASE_INSENSITIVE_ORDER))
             .map(itemMapper::toResponseDTO)
             .collect(Collectors.toList());
         log.debug("Service: Found {} items", items.size());
@@ -62,6 +64,7 @@ public class ItemService {
         
         List<ItemResponseDTO> items = itemRepository.findAll().stream()
             .filter(item -> item.getBox().equals(box))
+            .sorted(Comparator.comparing(Item::getName, String.CASE_INSENSITIVE_ORDER))
             .map(itemMapper::toResponseDTO)
             .collect(Collectors.toList());
         log.debug("Service: Found {} items for box: {}", items.size(), boxUuid);
@@ -130,9 +133,9 @@ public class ItemService {
         log.debug("Service: Searching items with query: '{}', boxUuid: {}", query, boxUuid);
         List<Item> items;
         if (boxUuid != null && !boxUuid.isBlank()) {
-            items = itemRepository.findByBox_UuidAndNameContainingIgnoreCase(boxUuid, query);
+            items = itemRepository.findByBox_UuidAndNameContainingIgnoreCaseOrderByNameAsc(boxUuid, query);
         } else {
-            items = itemRepository.findByNameContainingIgnoreCase(query);
+            items = itemRepository.findByNameContainingIgnoreCaseOrderByNameAsc(query);
         }
 
         List<ItemResponseDTO> result = items.stream()

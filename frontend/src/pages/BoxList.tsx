@@ -117,12 +117,17 @@ export default function BoxList() {
 
   // Automatische Filterung mit Debounce für Textfelder
   useEffect(() => {
+    // Nur filtern, wenn allBoxes bereits geladen wurde
+    if (allBoxes.length === 0 && !isLoading) {
+      return;
+    }
+
     const timeoutId = setTimeout(() => {
       handleSearch();
     }, 400); // 400ms Debounce
 
     return () => clearTimeout(timeoutId);
-  }, [itemQuery, roomQuery, filterFragile, filterNoStack]);
+  }, [itemQuery, roomQuery, filterFragile, filterNoStack, allBoxes]);
 
   const loadData = async () => {
     setIsLoading(true);

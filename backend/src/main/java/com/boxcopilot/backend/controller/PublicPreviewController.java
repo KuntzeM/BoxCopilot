@@ -46,7 +46,7 @@ public class PublicPreviewController {
         final Box box = boxOpt.get();
 
         // Fetch items by box ID (more efficient than loading all items)
-        List<Item> items = itemRepo.findByBoxId(box.getId());
+        List<Item> items = itemRepo.findByBoxIdOrderByNameAsc(box.getId());
 
         List<BoxPreviewDTO.ItemDTO> itemDTOs = items.stream()
             .map(i -> new BoxPreviewDTO.ItemDTO(i.getName()))
