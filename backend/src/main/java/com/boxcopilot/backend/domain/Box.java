@@ -25,6 +25,12 @@ public class Box {
     @Column
     private String description;
 
+    @Column(name = "is_fragile", nullable = false)
+    private Boolean isFragile = false;
+
+    @Column(name = "no_stack", nullable = false)
+    private Boolean noStack = false;
+
     private Instant createdAt = Instant.now();
 
     @OneToMany(mappedBy = "box", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -38,6 +44,8 @@ public class Box {
         this.currentRoom = currentRoom;
         this.targetRoom = targetRoom;
         this.description = description;
+        this.isFragile = false;
+        this.noStack = false;
     }
 
     public Long getId() { return id; }
@@ -53,6 +61,12 @@ public class Box {
     
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+    
+    public Boolean getIsFragile() { return isFragile; }
+    public void setIsFragile(Boolean isFragile) { this.isFragile = isFragile; }
+    
+    public Boolean getNoStack() { return noStack; }
+    public void setNoStack(Boolean noStack) { this.noStack = noStack; }
     
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }

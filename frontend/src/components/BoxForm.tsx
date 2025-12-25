@@ -1,10 +1,12 @@
 import React from 'react';
-import { Box, TextField } from '@mui/material';
+import { Box, TextField, FormControlLabel, Checkbox, Typography } from '@mui/material';
 
 export interface BoxFormData {
   currentRoom?: string;
   targetRoom?: string;
   description?: string;
+  isFragile?: boolean;
+  noStack?: boolean;
 }
 
 interface BoxFormProps {
@@ -23,6 +25,14 @@ const BoxForm: React.FC<BoxFormProps> = ({ data, onChange }) => {
 
   const handleDescriptionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChange({ ...data, description: e.target.value });
+  };
+
+  const handleFragileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onChange({ ...data, isFragile: e.target.checked });
+  };
+
+  const handleNoStackChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onChange({ ...data, noStack: e.target.checked });
   };
 
   return (
@@ -50,6 +60,32 @@ const BoxForm: React.FC<BoxFormProps> = ({ data, onChange }) => {
         rows={4}
         placeholder="Optionale Beschreibung der Box..."
       />
+      
+      <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1, border: 1, borderColor: 'divider' }}>
+        <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1.5 }}>
+          Transport-Hinweise
+        </Typography>
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={data.isFragile || false}
+              onChange={handleFragileChange}
+              color="warning"
+            />
+          }
+          label="🔔 Zerbrechlich / Fragile"
+        />
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={data.noStack || false}
+              onChange={handleNoStackChange}
+              color="error"
+            />
+          }
+          label="⛔ Nichts drauf stellen / Do Not Stack"
+        />
+      </Box>
     </Box>
   );
 };

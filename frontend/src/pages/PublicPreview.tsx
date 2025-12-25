@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Box, Card, CardContent, CircularProgress, Container, Typography, Alert, Stack, Divider } from '@mui/material';
+import { Box, Card, CardContent, CircularProgress, Container, Typography, Alert, Stack, Divider, Chip } from '@mui/material';
 import { QRCodeCanvas } from 'qrcode.react';
 import { fetchPublicPreview } from '../services/publicPreviewService';
 import { BoxPreview } from '../types/models';
@@ -55,6 +55,27 @@ export default function PublicPreview() {
       <Card sx={{ boxShadow: 3 }}>
         <CardContent>
           <Stack spacing={2}>
+            {(data.isFragile || data.noStack) && (
+              <Alert severity="warning" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Stack direction="row" spacing={1} flexWrap="wrap">
+                  {data.isFragile && (
+                    <Chip
+                      label="🔔 Zerbrechlich"
+                      color="warning"
+                      size="small"
+                    />
+                  )}
+                  {data.noStack && (
+                    <Chip
+                      label="⛔ Nicht stapeln"
+                      color="error"
+                      size="small"
+                    />
+                  )}
+                </Stack>
+              </Alert>
+            )}
+            
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
               <Box>
                 <Typography variant="h5" fontWeight={700}>

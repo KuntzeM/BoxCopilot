@@ -5,12 +5,14 @@ import {
   Box,
   Button,
   Checkbox,
+  Chip,
   Collapse,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
+  FormControlLabel,
   GlobalStyles,
   IconButton,
   Paper,
@@ -32,6 +34,8 @@ import {
   Print,
   Search,
   OpenInNew,
+  BrokenImage,
+  DoNotDisturb,
 } from '@mui/icons-material';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Box as BoxModel, Item, CreateBoxPayload } from '../types/models';
@@ -40,6 +44,37 @@ import { searchItems } from '../services/itemService';
 import { truncateToFirstLine } from '../utils/textUtils';
 
 type SnackbarState = { open: boolean; message: string; severity: 'success' | 'error' | 'info' };
+
+interface BoxHandlingBadgesProps {
+  box: BoxModel;
+}
+
+const BoxHandlingBadges: React.FC<BoxHandlingBadgesProps> = ({ box }) => {
+  if (!box.isFragile && !box.noStack) {
+    return null;
+  }
+
+  return (
+    <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
+      {box.isFragile && (
+        <Chip
+          icon={<BrokenImage />}
+          label="Zerbrechlich"
+          color="warning"
+          size="small"
+        />
+      )}
+      {box.noStack && (
+        <Chip
+          icon={<DoNotDisturb />}
+          label="Nicht stapeln"
+          color="error"
+          size="small"
+        />
+      )}
+    </Box>
+  );
+};
 
 export default function BoxList() {
   const navigate = useNavigate();
@@ -51,12 +86,21 @@ export default function BoxList() {
   const [isLoading, setIsLoading] = useState(true);
   const [itemQuery, setItemQuery] = useState('');
   const [roomQuery, setRoomQuery] = useState('');
+  const [filterFragile, setFilterFragile] = useState(false);
+  const [filterNoStack, setFilterNoStack] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [expandedBoxes, setExpandedBoxes] = useState<Set<number>>(new Set());
   const [snackbar, setSnackbar] = useState<SnackbarState>({ open: false, message: '', severity: 'success' });
 
   const [openBoxDialog, setOpenBoxDialog] = useState(false);
-  const [boxFormData, setBoxFormData] = useState<CreateBoxPayload>({ currentRoom: '', targetRoom: '', description: '' });
+  const [boxFormData, setBoxFormData] = useState<CreateBoxPayload>({ 
+    currentRoom: '', 
+    targetRoom: '', 
+    description: '',
+    isFragile: false,
+    noStack: false
+  });
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
@@ -70,6 +114,20 @@ export default function BoxList() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Automatische Filterung mit Debounce für Textfelder
+  useEffect(() => {
+    // Nur filtern, wenn allBoxes bereits geladen wurde
+    if (allBoxes.length === 0 && !isLoading) {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      handleSearch();
+    }, 400); // 400ms Debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [itemQuery, roomQuery, filterFragile, filterNoStack, allBoxes]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -94,6 +152,8 @@ export default function BoxList() {
   const handleResetFilter = () => {
     setItemQuery('');
     setRoomQuery('');
+    setFilterFragile(false);
+    setFilterNoStack(false);
     setFilteredBoxes(allBoxes);
   };
 
@@ -111,6 +171,14 @@ export default function BoxList() {
         const items = await searchItems(itemTerm);
         const ids = new Set(items.map((i) => i.boxId));
         next = next.filter((b) => ids.has(b.id));
+      }
+
+      if (filterFragile) {
+        next = next.filter((b) => b.isFragile === true);
+      }
+
+      if (filterNoStack) {
+        next = next.filter((b) => b.noStack === true);
       }
 
       setFilteredBoxes(next);
@@ -161,7 +229,7 @@ export default function BoxList() {
 
   // Box Dialogs
   const handleOpenBoxDialog = () => {
-    setBoxFormData({ currentRoom: '', targetRoom: '', description: '' });
+    setBoxFormData({ currentRoom: '', targetRoom: '', description: '', isFragile: false, noStack: false });
     setOpenBoxDialog(true);
   };
 
@@ -170,7 +238,7 @@ export default function BoxList() {
       const newBox = await createBox(boxFormData as CreateBoxPayload);
       setSnackbar({ open: true, message: 'Box erstellt', severity: 'success' });
       setOpenBoxDialog(false);
-      setBoxFormData({ currentRoom: '', targetRoom: '', description: '' });
+      setBoxFormData({ currentRoom: '', targetRoom: '', description: '', isFragile: false, noStack: false });
       navigate(`/app/boxes/${newBox.id}/edit`);
     } catch (error) {
       setSnackbar({ open: true, message: 'Box konnte nicht erstellt werden', severity: 'error' });
@@ -220,31 +288,95 @@ export default function BoxList() {
 
       <Stack spacing={2} sx={{ mb: 2 }}>
         <Paper sx={{ p: 2, borderRadius: 2, boxShadow: 2 }}>
-          <Stack direction={isMobile ? 'column' : 'row'} spacing={2} alignItems={isMobile ? 'stretch' : 'center'}>
-            <TextField
-              fullWidth
-              label="Item-Name"
-              placeholder="z.B. Hammer"
-              value={itemQuery}
-              onChange={(e) => setItemQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            />
-            <TextField
-              fullWidth
-              label="Zielraum"
-              placeholder="z.B. Keller"
-              value={roomQuery}
-              onChange={(e) => setRoomQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            />
-            <Stack direction="row" spacing={1} justifyContent={isMobile ? 'flex-end' : 'flex-start'}>
-              <Button variant="contained" startIcon={<Search />} onClick={handleSearch}>
-                Filtern
-              </Button>
-              <Button variant="text" onClick={handleResetFilter}>
-                Zurücksetzen
-              </Button>
+          <Stack spacing={2}>
+            <Stack direction={isMobile ? 'column' : 'row'} spacing={2} alignItems={isMobile ? 'stretch' : 'center'}>
+              <TextField
+                fullWidth
+                label="Item-Name"
+                placeholder="z.B. Hammer"
+                value={itemQuery}
+                onChange={(e) => setItemQuery(e.target.value)}
+              />
+              <TextField
+                fullWidth
+                label="Zielraum"
+                placeholder="z.B. Keller"
+                value={roomQuery}
+                onChange={(e) => setRoomQuery(e.target.value)}
+              />
+              {!isMobile && (
+                <Button 
+                  variant="outlined" 
+                  onClick={handleResetFilter}
+                  size="small"
+                  sx={{ minWidth: '120px' }}
+                >
+                  Zurücksetzen
+                </Button>
+              )}
             </Stack>
+            
+            {/* Mobile Reset Button */}
+            {isMobile && (
+              <Button 
+                fullWidth 
+                variant="outlined" 
+                onClick={handleResetFilter}
+                size="small"
+              >
+                Filter zurücksetzen
+              </Button>
+            )}
+
+            {/* Advanced Filters Toggle */}
+            <Button
+              size="small"
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              sx={{ alignSelf: 'flex-start' }}
+            >
+              {showAdvancedFilters ? '▼' : '▶'} Erweiterte Filter
+              {(filterFragile || filterNoStack) && (
+                <Chip 
+                  label={[filterFragile && '🔔', filterNoStack && '⛔'].filter(Boolean).join(' ')} 
+                  size="small" 
+                  sx={{ ml: 1 }} 
+                />
+              )}
+            </Button>
+
+            {/* Advanced Filters */}
+            <Collapse in={showAdvancedFilters}>
+              <Stack 
+                direction={isMobile ? 'column' : 'row'} 
+                spacing={isMobile ? 1 : 2} 
+                sx={{ pl: isMobile ? 0 : 1, pt: 1 }}
+              >
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={filterFragile}
+                      onChange={(e) => setFilterFragile(e.target.checked)}
+                      color="warning"
+                      size={isMobile ? 'small' : 'medium'}
+                    />
+                  }
+                  label={isMobile ? '🔔 Zerbrechlich' : 'Nur zerbrechliche Boxen'}
+                  sx={{ m: 0 }}
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={filterNoStack}
+                      onChange={(e) => setFilterNoStack(e.target.checked)}
+                      color="error"
+                      size={isMobile ? 'small' : 'medium'}
+                    />
+                  }
+                  label={isMobile ? '⛔ Nicht stapeln' : 'Nur nicht stapelbare Boxen'}
+                  sx={{ m: 0 }}
+                />
+              </Stack>
+            </Collapse>
           </Stack>
         </Paper>
 
@@ -295,6 +427,7 @@ export default function BoxList() {
                           {truncateToFirstLine(box.description)}
                         </Typography>
                       )}
+                      <BoxHandlingBadges box={box} />
                     </Box>
                   </Stack>
 
@@ -405,6 +538,31 @@ export default function BoxList() {
               onChange={(e) => setBoxFormData({ ...boxFormData, description: e.target.value })}
               placeholder="Optionale Beschreibung der Box..."
             />
+            <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1, border: 1, borderColor: 'divider' }}>
+              <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1.5 }}>
+                Transport-Hinweise
+              </Typography>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={boxFormData.isFragile || false}
+                    onChange={(e) => setBoxFormData({ ...boxFormData, isFragile: e.target.checked })}
+                    color="warning"
+                  />
+                }
+                label="🔔 Zerbrechlich / Fragile"
+              />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={boxFormData.noStack || false}
+                    onChange={(e) => setBoxFormData({ ...boxFormData, noStack: e.target.checked })}
+                    color="error"
+                  />
+                }
+                label="⛔ Nichts drauf stellen / Do Not Stack"
+              />
+            </Box>
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -461,6 +619,23 @@ export default function BoxList() {
                       <Typography variant="body2" sx={{ fontSize: '0.75rem', fontStyle: 'italic', color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                         {truncateToFirstLine(box.description)}
                       </Typography>
+                    )}
+                    
+                    {(box.isFragile || box.noStack) && (
+                      <Box sx={{ borderTop: '2px dashed #000', mt: 1.5, pt: 1.5, display: 'flex', gap: 2, alignItems: 'center' }}>
+                        {box.isFragile && (
+                          <Box sx={{ textAlign: 'center' }}>
+                            <Typography sx={{ fontSize: '48px', lineHeight: 1 }}>🔔</Typography>
+                            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#000', mt: 0.5 }}>FRAGILE</Typography>
+                          </Box>
+                        )}
+                        {box.noStack && (
+                          <Box sx={{ textAlign: 'center' }}>
+                            <Typography sx={{ fontSize: '48px', lineHeight: 1 }}>⛔</Typography>
+                            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#000', mt: 0.5 }}>DO NOT STACK</Typography>
+                          </Box>
+                        )}
+                      </Box>
                     )}
                   </Stack>
                 </Paper>

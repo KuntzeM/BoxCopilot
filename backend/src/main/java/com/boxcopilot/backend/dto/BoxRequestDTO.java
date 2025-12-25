@@ -15,6 +15,10 @@ public class BoxRequestDTO {
     private String targetRoom;
     
     private String description;
+    
+    private Boolean isFragile = false;
+    
+    private Boolean noStack = false;
 
     public BoxRequestDTO() {
     }
@@ -23,6 +27,8 @@ public class BoxRequestDTO {
         this.currentRoom = currentRoom;
         this.targetRoom = targetRoom;
         this.description = description;
+        this.isFragile = false;
+        this.noStack = false;
     }
 
     public String getCurrentRoom() {
@@ -47,5 +53,21 @@ public class BoxRequestDTO {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public Boolean getIsFragile() {
+        return isFragile;
+    }
+
+    public void setIsFragile(Boolean isFragile) {
+        this.isFragile = isFragile;
+    }
+
+    public Boolean getNoStack() {
+        return noStack;
+    }
+
+    public void setNoStack(Boolean noStack) {
+        this.noStack = noStack;
     }
 }

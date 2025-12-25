@@ -9,6 +9,8 @@ public class BoxPreviewDTO {
     private String targetRoom;
     private String description;
     private List<ItemDTO> items;
+    private Boolean isFragile;
+    private Boolean noStack;
 
     public BoxPreviewDTO() {}
 
@@ -19,6 +21,8 @@ public class BoxPreviewDTO {
         this.targetRoom = targetRoom;
         this.description = description;
         this.items = items;
+        this.isFragile = false;
+        this.noStack = false;
     }
 
     public Long getId() { return id; }
@@ -33,6 +37,10 @@ public class BoxPreviewDTO {
     public void setDescription(String description) { this.description = description; }
     public List<ItemDTO> getItems() { return items; }
     public void setItems(List<ItemDTO> items) { this.items = items; }
+    public Boolean getIsFragile() { return isFragile; }
+    public void setIsFragile(Boolean isFragile) { this.isFragile = isFragile; }
+    public Boolean getNoStack() { return noStack; }
+    public void setNoStack(Boolean noStack) { this.noStack = noStack; }
 
     public static class ItemDTO {
         private String name;
