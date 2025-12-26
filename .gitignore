@@ -8,3 +8,5 @@ data/
 backend/logs/
 logs/
 images/
+pgdata/
+.DS_Store
