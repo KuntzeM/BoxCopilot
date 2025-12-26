@@ -57,6 +57,16 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
   const [imageItemId, setImageItemId] = useState<number | null>(null);
 
+  // Ensure image URLs use API origin (works without nginx proxy)
+  const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+  const withApiBase = (path: string) =>
+    apiBase ? `${apiBase}${path.startsWith('/') ? path : `/${path}`}` : path;
+  const resolveImageUrl = (url?: string) => {
+    if (!url) return undefined;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return withApiBase(url.startsWith('/') ? url : `/${url}`);
+  };
+
   const handleEditClick = (item: Item) => {
     setEditingItem(item);
     setEditData({ name: item.name });
@@ -119,7 +129,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
 
   const handleImageClick = (itemId: number, imageUrl: string) => {
     // Load the large image URL
-    const largeImageUrl = `/api/v1/items/${itemId}/image/large`;
+    const largeImageUrl = withApiBase(`/api/v1/items/${itemId}/image/large`);
     setFullImageUrl(largeImageUrl);
   };
 
@@ -183,7 +193,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
                 <TableCell>
                   {item.imageUrl ? (
                     <Avatar
-                      src={item.imageUrl}
+                      src={resolveImageUrl(item.imageUrl)}
                       alt={item.name}
                       sx={{ width: 50, height: 50, cursor: 'pointer' }}
                       onClick={() => handleImageClick(item.id, item.imageUrl!)}
@@ -323,7 +333,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
                 // If large image fails, fall back to thumbnail
                 const match = fullImageUrl.match(/\/api\/v1\/items\/(\d+)\/image/);
                 if (match) {
-                  e.currentTarget.src = `/api/v1/items/${match[1]}/image`;
+                  e.currentTarget.src = withApiBase(`/api/v1/items/${match[1]}/image`);
                 }
               }}
             />
