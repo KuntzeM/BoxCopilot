@@ -26,6 +26,25 @@
 - 🌙 **Dark Mode** - Toggle between light/dark themes with cookie persistence
 - 🔐 **Nextcloud Authentication** - Secure login via OpenID Connect (OIDC)
 
+- 📷 **Item Images** - Capture via camera, upload from file, preview large images, and delete if needed
+- 🌐 **Multi‑Language** - Switch between languages (DE/EN) using the language selector; preference is persisted
+- 🔀 **Move Items** - Move single or multiple items between boxes with a guided dialog
+
+### Feature Highlights
+
+- **Capture & Upload Item Images**
+  - Open item image management from the box details table (camera or file upload)
+  - Preview large image in a dialog; automatic fallback to thumbnail if large image is unavailable
+  - Delete image when no longer needed
+
+- **Language Selector**
+  - Top‑bar language menu lets you switch between German and English
+  - Choice is remembered (cookie‑based) and applied across the app
+
+- **Move Items Between Boxes**
+  - Select one or more items in the box details table and choose "Verschieben" (Move)
+  - Pick target box by UUID and confirm; bulk operations are supported
+
 ## Development
 
 ### Prerequisites
