@@ -217,4 +217,52 @@ public class ImageStorageService {
             throw new FileStorageException("Failed to delete image", e);
         }
     }
+
+    /**
+     * Gets the last modified time of an image file for ETag/Cache validation.
+     *
+     * @param itemId The ID of the item
+     * @return Last modified time in milliseconds, or 0 if file doesn't exist
+     */
+    public long getImageLastModified(Long itemId) {
+        try {
+            String filename = itemId + THUMBNAIL_SUFFIX;
+            Path filePath = this.storageLocation.resolve(filename).normalize();
+            
+            if (!filePath.startsWith(this.storageLocation)) {
+                return 0;
+            }
+            
+            if (Files.exists(filePath)) {
+                return Files.getLastModifiedTime(filePath).toMillis();
+            }
+        } catch (IOException e) {
+            log.debug("Failed to get last modified time for item ID: {}", itemId, e);
+        }
+        return 0;
+    }
+
+    /**
+     * Gets the last modified time of a large image file.
+     *
+     * @param itemId The ID of the item
+     * @return Last modified time in milliseconds, or 0 if file doesn't exist
+     */
+    public long getLargeImageLastModified(Long itemId) {
+        try {
+            String filename = itemId + LARGE_SUFFIX;
+            Path filePath = this.storageLocation.resolve(filename).normalize();
+            
+            if (!filePath.startsWith(this.storageLocation)) {
+                return 0;
+            }
+            
+            if (Files.exists(filePath)) {
+                return Files.getLastModifiedTime(filePath).toMillis();
+            }
+        } catch (IOException e) {
+            log.debug("Failed to get last modified time for large image, item ID: {}", itemId, e);
+        }
+        return 0;
+    }
 }
