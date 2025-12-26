@@ -43,6 +43,15 @@ export default function ItemImageUpload({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+  const withApiBase = (path: string) =>
+    apiBase ? `${apiBase}${path.startsWith('/') ? path : `/${path}`}` : path;
+  const resolveImageUrl = (url?: string) => {
+    if (!url) return undefined;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return withApiBase(url.startsWith('/') ? url : `/${url}`);
+  };
+
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -177,7 +186,7 @@ export default function ItemImageUpload({
       {currentImageUrl && (
         <Box sx={{ mb: 2, textAlign: 'center' }}>
           <img
-            src={currentImageUrl}
+            src={resolveImageUrl(currentImageUrl)}
             alt="Item"
             style={{ 
               maxWidth: '200px', 
@@ -310,7 +319,7 @@ export default function ItemImageUpload({
         <DialogContent>
           <Box sx={{ textAlign: 'center', p: 2 }}>
             <img
-              src={`/api/v1/items/${itemId}/image/large`}
+              src={withApiBase(`/api/v1/items/${itemId}/image/large`)}
               alt="Item Large"
               style={{ 
                 maxWidth: '100%', 
@@ -319,7 +328,7 @@ export default function ItemImageUpload({
               }}
               onError={(e) => {
                 // Fallback to thumbnail if large image not available
-                e.currentTarget.src = currentImageUrl || '';
+                e.currentTarget.src = resolveImageUrl(currentImageUrl) || '';
               }}
             />
           </Box>

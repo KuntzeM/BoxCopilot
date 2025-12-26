@@ -114,6 +114,16 @@ export default function BoxList() {
 
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
 
+  // Build absolute API URLs for images (works in prod without nginx proxy)
+  const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+  const withApiBase = (path: string) =>
+    apiBase ? `${apiBase}${path.startsWith('/') ? path : `/${path}`}` : path;
+  const resolveImageUrl = (url?: string) => {
+    if (!url) return undefined;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return withApiBase(url.startsWith('/') ? url : `/${url}`);
+  };
+
   const selectedBoxes = useMemo(
     () => filteredBoxes.filter((b) => selectedIds.includes(b.id)),
     [filteredBoxes, selectedIds]
@@ -499,10 +509,10 @@ export default function BoxList() {
                           <Stack direction="row" alignItems="center" spacing={1.5}>
                             {item.imageUrl ? (
                               <Avatar
-                                src={item.imageUrl}
+                                src={resolveImageUrl(item.imageUrl)}
                                 alt={item.name}
                                 sx={{ width: 40, height: 40, cursor: 'pointer', flexShrink: 0 }}
-                                onClick={() => setFullImageUrl(`/api/v1/items/${item.id}/image/large`)}
+                                onClick={() => setFullImageUrl(withApiBase(`/api/v1/items/${item.id}/image/large`))}
                               />
                             ) : (
                               <Avatar sx={{ width: 40, height: 40, bgcolor: 'grey.300', flexShrink: 0 }}>
@@ -706,7 +716,7 @@ export default function BoxList() {
                 // Fallback to thumbnail if large image not available
                 const match = fullImageUrl.match(/\/api\/v1\/items\/(\d+)\/image/);
                 if (match) {
-                  e.currentTarget.src = `/api/v1/items/${match[1]}/image`;
+                  e.currentTarget.src = withApiBase(`/api/v1/items/${match[1]}/image`);
                 }
               }}
             />

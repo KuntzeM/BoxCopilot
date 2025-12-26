@@ -24,6 +24,16 @@ function PublicPreviewContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
+  // Ensure image requests go to the API origin (prod without nginx proxy)
+  const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+  const withApiBase = (path: string) =>
+    apiBase ? `${apiBase}${path.startsWith('/') ? path : `/${path}`}` : path;
+  const resolveImageUrl = (url?: string) => {
+    if (!url) return undefined;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return withApiBase(url.startsWith('/') ? url : `/${url}`);
+  };
+
   // Check if user is authenticated
   useEffect(() => {
     const checkAuth = async () => {
@@ -188,10 +198,10 @@ function PublicPreviewContent() {
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                           {isAuthenticated && item.imageUrl ? (
                             <Avatar
-                              src={item.imageUrl}
+                              src={resolveImageUrl(item.imageUrl)}
                               alt={item.name}
                               sx={{ width: 50, height: 50, cursor: 'pointer' }}
-                              onClick={() => setFullImageUrl(`/api/v1/items/${item.id}/image/large`)}
+                              onClick={() => setFullImageUrl(withApiBase(`/api/v1/items/${item.id}/image/large`))}
                             />
                           ) : (
                             <Avatar sx={{ width: 50, height: 50, bgcolor: 'grey.300' }}>
@@ -236,7 +246,7 @@ function PublicPreviewContent() {
                   // Fallback to thumbnail if large image not available
                   const match = fullImageUrl.match(/\/api\/v1\/items\/(\d+)\/image/);
                   if (match) {
-                    e.currentTarget.src = `/api/v1/items/${match[1]}/image`;
+                    e.currentTarget.src = withApiBase(`/api/v1/items/${match[1]}/image`);
                   }
                 }}
               />
