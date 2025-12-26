@@ -110,7 +110,8 @@ export default function BoxList() {
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
-  const [printOpen, setPrintOpen] = useState(false);
+  // Direct print state (render print area without dialog)
+  const [isPrinting, setIsPrinting] = useState(false);
 
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
 
@@ -128,6 +129,14 @@ export default function BoxList() {
     () => filteredBoxes.filter((b) => selectedIds.includes(b.id)),
     [filteredBoxes, selectedIds]
   );
+
+  useEffect(() => {
+    const handleAfterPrint = () => setIsPrinting(false);
+    window.addEventListener('afterprint', handleAfterPrint);
+    return () => {
+      window.removeEventListener('afterprint', handleAfterPrint);
+    };
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -245,6 +254,19 @@ export default function BoxList() {
     window.open(url, '_blank');
   };
 
+  // Direct print handler
+  const handlePrintLabels = () => {
+    if (selectedBoxes.length === 0) {
+      setSnackbar({ open: true, message: t('boxes.noBoxSelected'), severity: 'info' });
+      return;
+    }
+    setIsPrinting(true);
+    // Ensure print-area is mounted before printing
+    setTimeout(() => {
+      window.print();
+    }, 50);
+  };
+
   // Box Dialogs
   const handleOpenBoxDialog = () => {
     setBoxFormData({ currentRoom: '', targetRoom: '', description: '', isFragile: false, noStack: false });
@@ -279,26 +301,36 @@ export default function BoxList() {
     <Box sx={{ width: '100%', pb: 4 }}>
       <GlobalStyles
         styles={{
-          '@page': { size: 'A4 portrait', margin: '10mm' },
+          '@page': { size: 'A4 portrait', margin: 0 },
           '@media print': {
+            'html, body': { margin: 0, padding: 0 },
+            '*': { WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' },
             'body *': { visibility: 'hidden' },
             '.print-area, .print-area *': { visibility: 'visible' },
             '.print-area': { position: 'absolute', left: 0, top: 0, width: '100%' },
             '.print-label': {
               border: 'none',
               borderRadius: '0',
-              padding: '8px 12px',
-              height: '9.2cm',
+              padding: '10mm 12mm',
+              height: '7cm',
               boxSizing: 'border-box',
               display: 'flex',
               flexDirection: 'row',
               justifyContent: 'flex-start',
               alignItems: 'center',
               pageBreakInside: 'avoid',
-              borderBottom: '2px dashed #000',
+              position: 'relative',
             },
             '.print-label:last-child': {
               borderBottom: 'none',
+            },
+            '.print-label:not(:last-child)::after': {
+              content: '""',
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              borderTop: '1px dashed #000',
             },
           },
         }}
@@ -404,7 +436,7 @@ export default function BoxList() {
             <Button
               variant="outlined"
               startIcon={<Print />}
-              onClick={() => setPrintOpen(true)}
+              onClick={handlePrintLabels}
               disabled={selectedIds.length === 0}
             >
               {t('boxes.printLabels')}
@@ -623,63 +655,101 @@ export default function BoxList() {
         </DialogActions>
       </Dialog>
 
-      {/* Label print dialog */}
-      <Dialog open={printOpen} onClose={() => setPrintOpen(false)} maxWidth="lg" fullWidth>
-        <DialogTitle>{t('boxes.printLabels')}</DialogTitle>
-        <DialogContent>
-          {selectedBoxes.length === 0 ? (
-            <Alert severity="info">{t('boxes.noBoxSelected')}</Alert>
-          ) : (
-            <Box className="print-area" sx={{ display: 'grid', gap: 0 }}>
-              {selectedBoxes.map((box) => (
-                <Paper key={`print-${box.id}`} className="print-label" sx={{ borderColor: '#000', background: '#fff' }}>
-                  <Box sx={{ display: 'grid', placeItems: 'center', flexShrink: 0, width: '9cm', height: '9cm' }}>
-                    <QRCodeCanvas value={box.publicUrl || ''} size={240} includeMargin level="H" />
-                  </Box>
-                  <Stack direction="column" spacing={0.5} sx={{ flex: 1, justifyContent: 'flex-start', pl: 1.5 }}>
-                    <Box sx={{ height: '5cm', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center' }}>
-                      <Typography variant="h2" fontWeight={900} sx={{ lineHeight: 1, color: '#000', fontSize: '3rem' }}>
-                        {t('boxes.boxNumber', { number: box.id })}
-                      </Typography>
-                      <Typography variant="h2" fontWeight={900} sx={{ lineHeight: 1, color: '#000', fontSize: '3rem' }}>
-                        {box.currentRoom || t('boxes.targetRoom')}
-                      </Typography>
-                    </Box>
-                    {box.description && (
-                      <Typography variant="body2" sx={{ fontSize: '0.75rem', fontStyle: 'italic', color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                        {truncateToFirstLine(box.description)}
+      {/* Direct print area (rendered only for printing) */}
+      {isPrinting && selectedBoxes.length > 0 && (
+        <Box className="print-area" sx={{ display: 'grid', gap: 0 }}>
+          {selectedBoxes.map((box) => (
+            <Paper
+              key={`print-${box.id}`}
+              className="print-label"
+              elevation={0}
+              sx={{ border: 'none', boxShadow: 'none', background: '#fff', color: '#000' }}
+            >
+              {/* Left: QR Code */}
+              <Box sx={{ display: 'grid', placeItems: 'center', flexShrink: 0, width: '7cm', height: '100%' }}>
+                <QRCodeCanvas value={box.publicUrl || ''} size={160} includeMargin level="H" />
+              </Box>
+
+              {/* Right: Text content */}
+              <Stack direction="column" spacing={1} sx={{ flex: 1, pl: 2, pr: 1 }}>
+                {/* Prominent transport badges above ID */}
+                {(box.isFragile || box.noStack) && (
+                  <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+                    {box.isFragile && (
+                      <Typography
+                        sx={{
+                          fontSize: '1.1rem',
+                          fontWeight: 900,
+                          textTransform: 'uppercase',
+                          backgroundColor: '#000',
+                          color: '#fff',
+                          px: 1.5,
+                          py: 0.5,
+                          lineHeight: 1,
+                          letterSpacing: '0.04em',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 0.5,
+                        }}
+                      >
+                        <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>🔔</span>
+                        {t('boxes.fragilePrintLabel')}
                       </Typography>
                     )}
-                    
-                    {(box.isFragile || box.noStack) && (
-                      <Box sx={{ borderTop: '2px dashed #000', mt: 1.5, pt: 1.5, display: 'flex', gap: 2, alignItems: 'center' }}>
-                        {box.isFragile && (
-                          <Box sx={{ textAlign: 'center' }}>
-                            <Typography sx={{ fontSize: '48px', lineHeight: 1 }}>🔔</Typography>
-                            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#000', mt: 0.5 }}>{t('boxes.fragilePrintLabel')}</Typography>
-                          </Box>
-                        )}
-                        {box.noStack && (
-                          <Box sx={{ textAlign: 'center' }}>
-                            <Typography sx={{ fontSize: '48px', lineHeight: 1 }}>⛔</Typography>
-                            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#000', mt: 0.5 }}>{t('boxes.noStackPrintLabel')}</Typography>
-                          </Box>
-                        )}
-                      </Box>
+                    {box.noStack && (
+                      <Typography
+                        sx={{
+                          fontSize: '1.1rem',
+                          fontWeight: 900,
+                          textTransform: 'uppercase',
+                          backgroundColor: '#000',
+                          color: '#fff',
+                          px: 1.5,
+                          py: 0.5,
+                          lineHeight: 1,
+                          letterSpacing: '0.04em',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 0.5,
+                        }}
+                      >
+                        <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>⛔</span>
+                        {t('boxes.noStackPrintLabel')}
+                      </Typography>
                     )}
                   </Stack>
-                </Paper>
-              ))}
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPrintOpen(false)}>{t('boxes.close')}</Button>
-          <Button variant="contained" startIcon={<Print />} onClick={() => window.print()} disabled={selectedBoxes.length === 0}>
-            {t('boxes.print')}
-          </Button>
-        </DialogActions>
-      </Dialog>
+                )}
+                {/* Box #ID */}
+                <Typography sx={{ fontSize: '2rem', fontWeight: 800, lineHeight: 1 }}>
+                  {t('boxes.boxNumber', { number: box.id })}
+                </Typography>
+
+                {/* ZielRaum (target room) */}
+                <Typography sx={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1.2, textTransform: 'uppercase' }}>
+                   {t('boxes.targetRoom')}: {box.targetRoom || '-'}
+                </Typography>
+
+                {/* Beschreibung */}
+                {box.description && (
+                  <Typography
+                    sx={{
+                      fontSize: '0.9rem',
+                      fontStyle: 'italic',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: 'vertical',
+                    }}
+                  >
+                    {truncateToFirstLine(box.description)}
+                  </Typography>
+                )}
+              </Stack>
+            </Paper>
+          ))}
+        </Box>
+      )}
 
       <Snackbar
         open={snackbar.open}

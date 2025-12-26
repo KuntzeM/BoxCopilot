@@ -42,6 +42,7 @@ export default function ItemImageUpload({
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
   const withApiBase = (path: string) =>
@@ -206,7 +207,7 @@ export default function ItemImageUpload({
         <Button
           variant="outlined"
           startIcon={<PhotoCamera />}
-          onClick={startCamera}
+          onClick={() => cameraInputRef.current?.click()}
           disabled={!isOnline}
         >
           Foto aufnehmen
@@ -236,6 +237,14 @@ export default function ItemImageUpload({
 
       <input
         ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={handleFileSelect}
+      />
+
+      <input
+        ref={cameraInputRef}
         type="file"
         accept="image/*"
         capture="environment"
