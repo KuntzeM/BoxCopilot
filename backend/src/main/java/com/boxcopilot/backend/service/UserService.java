@@ -27,6 +27,7 @@ public class UserService {
     
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private MagicLoginTokenService magicLoginTokenService; // Optional, set later to avoid circular dependency
     
     @Value("${app.admin.username:admin}")
     private String defaultAdminUsername;
@@ -40,6 +41,13 @@ public class UserService {
     public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+    }
+    
+    /**
+     * Set magic login token service (optional, to avoid circular dependency)
+     */
+    public void setMagicLoginTokenService(MagicLoginTokenService magicLoginTokenService) {
+        this.magicLoginTokenService = magicLoginTokenService;
     }
     
     /**
@@ -125,11 +133,20 @@ public class UserService {
             AuthProvider.LOCAL,
             createUserDTO.getRole()
         );
-        user.setPasswordHash(passwordEncoder.encode(createUserDTO.getPassword()));
+        
+        // Set password only if provided (allow passwordless accounts)
+        if (createUserDTO.getPassword() != null && !createUserDTO.getPassword().isBlank()) {
+            user.setPasswordHash(passwordEncoder.encode(createUserDTO.getPassword()));
+        } else {
+            user.setPasswordHash(null);
+            log.info("Creating passwordless user: {}", createUserDTO.getUsername());
+        }
+        
         user.setEnabled(createUserDTO.getEnabled());
         
         User savedUser = userRepository.save(user);
-        log.info("Created new local user: {}", savedUser.getUsername());
+        log.info("Created new local user: {} (passwordless: {})", 
+                savedUser.getUsername(), savedUser.getPasswordHash() == null);
         
         return convertToDTO(savedUser);
     }
@@ -162,6 +179,12 @@ public class UserService {
         }
         
         if (updateUserDTO.getEnabled() != null) {
+            // If disabling user, invalidate all magic login tokens
+            if (!updateUserDTO.getEnabled() && user.getEnabled()) {
+                if (magicLoginTokenService != null) {
+                    magicLoginTokenService.invalidateAllTokensForUser(user);
+                }
+            }
             user.setEnabled(updateUserDTO.getEnabled());
         }
         
@@ -211,6 +234,11 @@ public class UserService {
         
         if (user.getUsername().equals(currentUsername)) {
             throw new IllegalArgumentException("Cannot delete currently logged-in user");
+        }
+        
+        // Invalidate all magic login tokens for this user
+        if (magicLoginTokenService != null) {
+            magicLoginTokenService.invalidateAllTokensForUser(user);
         }
         
         userRepository.delete(user);

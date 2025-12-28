@@ -3,18 +3,28 @@ package com.boxcopilot.backend.controller;
 import com.boxcopilot.backend.domain.User;
 import com.boxcopilot.backend.dto.UserPrincipalDTO;
 import com.boxcopilot.backend.service.CustomUserDetailsService;
+import com.boxcopilot.backend.service.MagicLoginTokenService;
+import com.boxcopilot.backend.service.UserService;
 import com.boxcopilot.backend.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.view.RedirectView;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import java.util.Map;
 import java.util.Optional;
 
@@ -25,9 +35,18 @@ public class AuthController {
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
     
     private final UserRepository userRepository;
+    private final MagicLoginTokenService magicLoginTokenService;
+    private final UserService userService;
     
-    public AuthController(UserRepository userRepository) {
+    @Value("${frontend.url}")
+    private String frontendUrl;
+    
+    public AuthController(UserRepository userRepository, 
+                         MagicLoginTokenService magicLoginTokenService,
+                         UserService userService) {
         this.userRepository = userRepository;
+        this.magicLoginTokenService = magicLoginTokenService;
+        this.userService = userService;
     }
 
     /**
@@ -134,5 +153,49 @@ public class AuthController {
         }
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
             .body(Map.of("error", "CSRF token not available"));
+    }
+    
+    /**
+     * Magic login endpoint - authenticate via magic link token
+     * Public endpoint that creates a session and redirects to frontend
+     */
+    @GetMapping("/auth/magic-login")
+    public RedirectView magicLogin(@RequestParam String token, HttpServletRequest request) {
+        log.info("Magic login attempt with token: {}...", token.substring(0, Math.min(8, token.length())));
+        
+        Optional<User> userOpt = magicLoginTokenService.validateToken(token);
+        
+        if (userOpt.isEmpty()) {
+            log.warn("Invalid or expired magic login token");
+            return new RedirectView(frontendUrl + "/?magicLogin=failed&reason=invalid_token");
+        }
+        
+        User user = userOpt.get();
+        
+        // Create UserDetails for the user
+        CustomUserDetailsService.CustomUserPrincipal userPrincipal = 
+            new CustomUserDetailsService.CustomUserPrincipal(user);
+        
+        // Create authentication token
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+            userPrincipal,
+            null,
+            userPrincipal.getAuthorities()
+        );
+        
+        // Set authentication in security context
+        SecurityContext securityContext = SecurityContextHolder.getContext();
+        securityContext.setAuthentication(authentication);
+        
+        // Save security context to session
+        HttpSession session = request.getSession(true);
+        session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, securityContext);
+        
+        // Update last login
+        userService.updateLastLogin(user);
+        
+        log.info("Magic login successful for user '{}', session created", user.getUsername());
+        
+        return new RedirectView(frontendUrl + "/?magicLogin=success");
     }
 }
