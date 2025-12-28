@@ -1,5 +1,5 @@
 import axios from './axiosConfig';
-import { User, CreateUserPayload, UpdateUserPayload, SetPasswordPayload, AuthProvider, Role } from '../types/models';
+import { User, CreateUserPayload, UpdateUserPayload, SetPasswordPayload, AuthProvider, Role, CreateMagicLinkPayload, MagicLinkResponse } from '../types/models';
 
 /**
  * User management service for admin operations
@@ -71,5 +71,13 @@ export const userService = {
    */
   async deleteUser(id: number): Promise<void> {
     await axios.delete(`/api/v1/admin/users/${id}`);
+  },
+
+  /**
+   * Generate magic login link for user
+   */
+  async createMagicLink(id: number, payload?: CreateMagicLinkPayload): Promise<MagicLinkResponse> {
+    const response = await axios.post<MagicLinkResponse>(`/api/v1/admin/users/${id}/magic-link`, payload || {});
+    return response.data;
   },
 };
