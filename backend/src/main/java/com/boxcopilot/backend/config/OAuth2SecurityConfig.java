@@ -1,6 +1,8 @@
 package com.boxcopilot.backend.config;
 
 import com.boxcopilot.backend.service.CustomOidcUserService;
+import com.boxcopilot.backend.service.CustomUserDetailsService;
+import com.boxcopilot.backend.service.UserService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -8,7 +10,11 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AuthenticationFailureHandler;
+import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
@@ -39,9 +45,20 @@ public class OAuth2SecurityConfig {
     private String nextcloudLogoutUrl;
 
     private final CustomOidcUserService customOidcUserService;
+    private final CustomUserDetailsService customUserDetailsService;
+    private final UserService userService;
 
-    public OAuth2SecurityConfig(CustomOidcUserService customOidcUserService) {
+    public OAuth2SecurityConfig(CustomOidcUserService customOidcUserService,
+                                CustomUserDetailsService customUserDetailsService,
+                                UserService userService) {
         this.customOidcUserService = customOidcUserService;
+        this.customUserDetailsService = customUserDetailsService;
+        this.userService = userService;
+    }
+    
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
     }
 
     @Bean
@@ -56,9 +73,12 @@ public class OAuth2SecurityConfig {
                 .csrfTokenRequestHandler(requestHandler)
             )
             .authorizeHttpRequests(auth -> auth
+                // Admin endpoints - require ADMIN role
+                .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 // Public endpoints - no authentication required
                 .requestMatchers("/api/public/**", "/api/v1/public/**").permitAll()
                 .requestMatchers("/api/v1/me", "/api/v1/csrf").permitAll()
+                .requestMatchers("/api/auth/login").permitAll()
                 .requestMatchers("/login/**", "/oauth2/**", "/error").permitAll()
                 // All other API endpoints require authentication
                 .requestMatchers("/api/**").authenticated()
@@ -66,6 +86,12 @@ public class OAuth2SecurityConfig {
             )
             .exceptionHandling(exceptions -> exceptions
                 .authenticationEntryPoint(apiAuthenticationEntryPoint())
+            )
+            .formLogin(form -> form
+                .loginProcessingUrl("/api/auth/login")
+                .successHandler(customAuthenticationSuccessHandler())
+                .failureHandler(customAuthenticationFailureHandler())
+                .permitAll()
             )
             .oauth2Login(oauth2 -> oauth2
                 .userInfoEndpoint(userInfo -> userInfo
@@ -79,7 +105,8 @@ public class OAuth2SecurityConfig {
                 .logoutSuccessHandler(oidcLogoutSuccessHandler())
                 .invalidateHttpSession(true)
                 .deleteCookies("JSESSIONID", "XSRF-TOKEN")
-            );
+            )
+            .userDetailsService(customUserDetailsService);
 
         return http.build();
     }
@@ -133,6 +160,45 @@ public class OAuth2SecurityConfig {
                 // Redirect to Nextcloud logout to end the OIDC session
                 response.sendRedirect(nextcloudLogoutUrl + "?redirect_uri=" + frontendUrl);
             }
+        };
+    }
+    
+    @Bean
+    AuthenticationSuccessHandler customAuthenticationSuccessHandler() {
+        return (request, response, authentication) -> {
+            // Update last login timestamp
+            if (authentication.getPrincipal() instanceof CustomUserDetailsService.CustomUserPrincipal) {
+                CustomUserDetailsService.CustomUserPrincipal principal = 
+                    (CustomUserDetailsService.CustomUserPrincipal) authentication.getPrincipal();
+                userService.updateLastLogin(principal.getUser());
+            }
+            
+            response.setStatus(HttpServletResponse.SC_OK);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"success\":true}");
+        };
+    }
+    
+    @Bean
+    AuthenticationFailureHandler customAuthenticationFailureHandler() {
+        return (request, response, exception) -> {
+            // Record failed login attempt
+            String username = request.getParameter("username");
+            if (username != null) {
+                userService.recordFailedLogin(username);
+            }
+            
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            
+            String errorMessage = "Invalid credentials";
+            if (exception instanceof CustomUserDetailsService.AccountLockedException) {
+                errorMessage = exception.getMessage();
+            } else if (exception instanceof CustomUserDetailsService.DisabledException) {
+                errorMessage = "Account is disabled";
+            }
+            
+            response.getWriter().write("{\"error\":\"" + errorMessage + "\"}");
         };
     }
 }
