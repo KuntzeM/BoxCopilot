@@ -326,7 +326,8 @@ public class UserService {
             user.getCreatedAt(),
             user.getLastLogin(),
             user.getFailedLoginAttempts(),
-            user.getLockedUntil()
+            user.getLockedUntil(),
+            user.getPasswordHash() != null
         );
     }
 }

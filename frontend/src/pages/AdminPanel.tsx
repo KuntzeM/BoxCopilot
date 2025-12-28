@@ -373,6 +373,15 @@ export default function AdminPanel() {
                           variant="outlined"
                           size="small"
                         />
+                        {user.authProvider === AuthProvider.LOCAL && !user.hasPassword && (
+                          <Chip
+                            label={t('admin.passwordless')}
+                            color="warning"
+                            variant="outlined"
+                            size="small"
+                            sx={{ ml: 1 }}
+                          />
+                        )}
                       </TableCell>
                       <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
                       <TableCell>

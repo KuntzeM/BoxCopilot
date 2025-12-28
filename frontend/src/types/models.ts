@@ -79,6 +79,7 @@ export interface User {
   lastLogin?: string;
   failedLoginAttempts: number;
   lockedUntil?: string;
+  hasPassword?: boolean;
 }
 
 export interface CreateUserPayload {

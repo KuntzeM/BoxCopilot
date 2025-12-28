@@ -19,6 +19,7 @@ public class UserDTO {
     private LocalDateTime lastLogin;
     private Integer failedLoginAttempts;
     private LocalDateTime lockedUntil;
+    private Boolean hasPassword;
     
     public UserDTO() {
     }
@@ -36,6 +37,22 @@ public class UserDTO {
         this.lastLogin = lastLogin;
         this.failedLoginAttempts = failedLoginAttempts;
         this.lockedUntil = lockedUntil;
+    }
+    
+    public UserDTO(Long id, String username, String name, AuthProvider authProvider, Role role, 
+                   Boolean enabled, LocalDateTime createdAt, LocalDateTime lastLogin, 
+                   Integer failedLoginAttempts, LocalDateTime lockedUntil, Boolean hasPassword) {
+        this.id = id;
+        this.username = username;
+        this.name = name;
+        this.authProvider = authProvider;
+        this.role = role;
+        this.enabled = enabled;
+        this.createdAt = createdAt;
+        this.lastLogin = lastLogin;
+        this.failedLoginAttempts = failedLoginAttempts;
+        this.lockedUntil = lockedUntil;
+        this.hasPassword = hasPassword;
     }
     
     // Getters and setters
@@ -118,5 +135,13 @@ public class UserDTO {
     
     public void setLockedUntil(LocalDateTime lockedUntil) {
         this.lockedUntil = lockedUntil;
+    }
+    
+    public Boolean getHasPassword() {
+        return hasPassword;
+    }
+    
+    public void setHasPassword(Boolean hasPassword) {
+        this.hasPassword = hasPassword;
     }
 }
