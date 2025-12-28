@@ -33,6 +33,10 @@ app:
   image:
     storage:
       path: ${APP_IMAGE_STORAGE_PATH:/var/boxcopilot/images}
+  admin:
+    username: ${ADMIN_USERNAME:admin}
+    password: ${ADMIN_PASSWORD:admin}
+    name: ${ADMIN_NAME:Administrator}
 
 logging:
   level:
