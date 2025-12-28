@@ -56,3 +56,61 @@ export interface CreateItemPayload {
 export interface UpdateItemPayload {
   name: string;
 }
+
+// User management types
+export enum AuthProvider {
+  NEXTCLOUD = 'NEXTCLOUD',
+  LOCAL = 'LOCAL'
+}
+
+export enum Role {
+  USER = 'USER',
+  ADMIN = 'ADMIN'
+}
+
+export interface User {
+  id: number;
+  username: string;
+  name?: string;
+  authProvider: AuthProvider;
+  role: Role;
+  enabled: boolean;
+  createdAt: string;
+  lastLogin?: string;
+  failedLoginAttempts: number;
+  lockedUntil?: string;
+}
+
+export interface CreateUserPayload {
+  username: string;
+  name: string;
+  password: string;
+  role: Role;
+  enabled?: boolean;
+}
+
+export interface UpdateUserPayload {
+  username?: string;
+  name?: string;
+  role?: Role;
+  enabled?: boolean;
+}
+
+export interface SetPasswordPayload {
+  password: string;
+}
+
+export interface UserPrincipal {
+  id?: number;
+  username?: string;
+  name?: string;
+  role?: Role;
+  authProvider?: AuthProvider;
+  isAdmin: boolean;
+  csrfToken?: string;
+  authenticated: boolean;
+  // Legacy OIDC fields (for backward compatibility)
+  sub?: string;
+  email?: string;
+  preferredUsername?: string;
+}

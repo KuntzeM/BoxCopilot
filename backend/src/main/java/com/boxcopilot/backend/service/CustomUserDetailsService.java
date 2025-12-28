@@ -107,7 +107,7 @@ public class CustomUserDetailsService implements UserDetailsService {
     /**
      * Exception for locked accounts
      */
-    public static class AccountLockedException extends RuntimeException {
+    public static class AccountLockedException extends org.springframework.security.authentication.LockedException {
         public AccountLockedException(String message) {
             super(message);
         }
@@ -116,7 +116,7 @@ public class CustomUserDetailsService implements UserDetailsService {
     /**
      * Exception for disabled accounts
      */
-    public static class DisabledException extends RuntimeException {
+    public static class DisabledException extends org.springframework.security.authentication.DisabledException {
         public DisabledException(String message) {
             super(message);
         }

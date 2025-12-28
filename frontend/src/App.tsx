@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { CssBaseline, Container, AppBar, Toolbar, Typography, Box, Button, CircularProgress, IconButton } from '@mui/material';
-import { Inventory2, Login, WbSunny, DarkMode, Logout } from '@mui/icons-material';
+import { Inventory2, WbSunny, DarkMode, Logout, AdminPanelSettings } from '@mui/icons-material';
 import axios from './services/axiosConfig';
 import BoxList from './pages/BoxList';
 import PublicPreview from './pages/PublicPreview';
 import BoxEditPage from './pages/BoxEditPage';
+import LoginPage from './pages/LoginPage';
+import AdminPanel from './pages/AdminPanel';
 import { CookieThemeProvider, useThemeContext } from './context/ThemeContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { useTranslation } from './hooks/useTranslation';
 import LanguageSelector from './components/LanguageSelector';
+import { UserPrincipal } from './types/models';
 
 function LoadingScreen() {
   return (
@@ -19,68 +22,44 @@ function LoadingScreen() {
   );
 }
 
-function LoginScreen({ onLogin }: { onLogin: () => void }) {
-  const { t } = useTranslation();
-  
-  return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100vh',
-        gap: 3,
-        px: 2,
-      }}
-    >
-      <Inventory2 sx={{ fontSize: 80, color: 'primary.main' }} />
-      <Typography variant="h3" component="h1" align="center">
-        {t('app.title')}
-      </Typography>
-      <Typography variant="body1" color="text.secondary" align="center">
-        {t('auth.loginPrompt')}
-      </Typography>
-      <Button
-        variant="contained"
-        size="large"
-        startIcon={<Login />}
-        onClick={onLogin}
-        sx={{ mt: 2 }}
-      >
-        {t('auth.loginButton')}
-      </Button>
-    </Box>
-  );
-}
-
 function ProtectedRoute({
   isAuthenticated,
   isLoading,
+  user,
   children,
-  onLogin,
+  requireAdmin = false,
 }: {
   isAuthenticated: boolean;
   isLoading: boolean;
+  user: UserPrincipal | null;
   children: React.ReactElement;
-  onLogin: () => void;
+  requireAdmin?: boolean;
 }) {
   const location = useLocation();
+  const navigate = useNavigate();
 
   if (isLoading) {
     return <LoadingScreen />;
   }
 
   if (!isAuthenticated) {
-    return <LoginScreen onLogin={onLogin} key={location.pathname} />;
+    return <LoginPage onLoginSuccess={() => window.location.reload()} />;
+  }
+
+  // Check admin requirement
+  if (requireAdmin && !user?.isAdmin) {
+    // Redirect non-admins away from admin routes
+    navigate('/app/boxes');
+    return null;
   }
 
   return children;
 }
 
-function AppShell({ children }: { children: React.ReactNode }) {
+function AppShell({ children, user }: { children: React.ReactNode; user: UserPrincipal | null }) {
   const { toggleTheme, mode } = useThemeContext();
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   const handleLogout = async () => {
     try {
@@ -110,6 +89,16 @@ function AppShell({ children }: { children: React.ReactNode }) {
             {mode === 'light' ? <DarkMode /> : <WbSunny />}
           </IconButton>
           <LanguageSelector />
+          {user?.isAdmin && (
+            <Button
+              color="inherit"
+              startIcon={<AdminPanelSettings />}
+              onClick={() => navigate('/app/admin')}
+              sx={{ ml: 2 }}
+            >
+              Admin
+            </Button>
+          )}
           <Button
             color="inherit"
             startIcon={<Logout />}
@@ -130,18 +119,14 @@ function AppShell({ children }: { children: React.ReactNode }) {
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<UserPrincipal | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        // Create a temporary axios instance without credentials to avoid CORS issues
-        const tempAxios = axios.create({
-          baseURL: axios.defaults.baseURL,
-          withCredentials: true,
-          timeout: 5000,
-        });
-        const response = await tempAxios.get('/api/v1/me');
+        const response = await axios.get<UserPrincipal>('/api/v1/me');
         setIsAuthenticated(response.data.authenticated === true);
+        setUser(response.data);
         // Capture CSRF token from backend and set it for subsequent unsafe requests
         if (response.data?.csrfToken) {
           axios.defaults.headers.common['X-XSRF-TOKEN'] = response.data.csrfToken;
@@ -149,6 +134,7 @@ export default function App() {
       } catch (error) {
         // If the request fails (401, network error, etc.), user is not authenticated
         setIsAuthenticated(false);
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
@@ -156,11 +142,6 @@ export default function App() {
 
     checkAuth();
   }, []);
-
-  const handleLogin = () => {
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-    window.location.href = `${apiBaseUrl}/oauth2/authorization/nextcloud`;
-  };
 
   return (
     <CookieThemeProvider>
@@ -171,8 +152,8 @@ export default function App() {
           <Route
             path="/app/boxes"
             element={
-              <ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} onLogin={handleLogin}>
-                <AppShell>
+              <ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} user={user}>
+                <AppShell user={user}>
                   <BoxList />
                 </AppShell>
               </ProtectedRoute>
@@ -181,9 +162,24 @@ export default function App() {
           <Route
             path="/app/boxes/:id/edit"
             element={
-              <ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} onLogin={handleLogin}>
-                <AppShell>
+              <ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} user={user}>
+                <AppShell user={user}>
                   <BoxEditPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/app/admin"
+            element={
+              <ProtectedRoute 
+                isAuthenticated={isAuthenticated} 
+                isLoading={isLoading} 
+                user={user}
+                requireAdmin={true}
+              >
+                <AppShell user={user}>
+                  <AdminPanel />
                 </AppShell>
               </ProtectedRoute>
             }
