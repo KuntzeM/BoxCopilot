@@ -192,4 +192,23 @@ class UserServiceTest {
         assertEquals(5, testUser.getFailedLoginAttempts());
         assertNotNull(testUser.getLockedUntil());
     }
+
+    @Test
+    void testCreateUser_PasswordlessAccount() {
+        // Arrange
+        CreateUserDTO dto = new CreateUserDTO("passwordlessuser", "Passwordless User", null, Role.USER);
+        User passwordlessUser = new User("passwordlessuser", "Passwordless User", AuthProvider.LOCAL, Role.USER);
+        passwordlessUser.setPasswordHash(null);
+        
+        when(userRepository.existsByUsername("passwordlessuser")).thenReturn(false);
+        when(userRepository.save(any(User.class))).thenReturn(passwordlessUser);
+
+        // Act
+        var result = userService.createUser(dto);
+
+        // Assert
+        assertNotNull(result);
+        verify(userRepository).save(any(User.class));
+        verify(passwordEncoder, never()).encode(anyString());
+    }
 }
