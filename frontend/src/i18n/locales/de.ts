@@ -159,6 +159,7 @@ export const de = {
     username: 'Benutzername',
     name: 'Name',
     password: 'Passwort',
+    passwordOptional: 'Passwort (optional für passwortlose Accounts)',
     role: 'Rolle',
     status: 'Status',
     authType: 'Auth-Typ',
@@ -192,6 +193,16 @@ export const de = {
     passwordSet: 'Passwort gesetzt',
     userUnlocked: 'Benutzer entsperrt',
     settings: 'Einstellungen',
+    // Magic link translations
+    generateMagicLink: 'Magic-Link generieren',
+    magicLinkTitle: 'Magic-Login-Link',
+    magicLinkGenerated: 'Magic-Link generiert',
+    magicLinkUrl: 'Login-Link',
+    magicLinkExpiry: 'Gültig bis',
+    magicLinkCopy: 'Link kopieren',
+    magicLinkCopied: 'Link in Zwischenablage kopiert',
+    magicLinkClose: 'Schließen',
+    passwordless: 'Passwortlos',
   },
 };
 

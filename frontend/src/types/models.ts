@@ -79,12 +79,13 @@ export interface User {
   lastLogin?: string;
   failedLoginAttempts: number;
   lockedUntil?: string;
+  hasPassword?: boolean;
 }
 
 export interface CreateUserPayload {
   username: string;
   name: string;
-  password: string;
+  password?: string; // Now optional for passwordless accounts
   role: Role;
   enabled?: boolean;
 }
@@ -98,6 +99,16 @@ export interface UpdateUserPayload {
 
 export interface SetPasswordPayload {
   password: string;
+}
+
+export interface CreateMagicLinkPayload {
+  expiresInHours?: number;
+}
+
+export interface MagicLinkResponse {
+  token: string;
+  url: string;
+  expiresAt: string;
 }
 
 export interface UserPrincipal {

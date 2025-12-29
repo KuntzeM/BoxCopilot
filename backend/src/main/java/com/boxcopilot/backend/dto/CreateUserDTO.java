@@ -15,7 +15,7 @@ public class CreateUserDTO {
     @NotBlank(message = "Name is required")
     private String name;
     
-    @NotBlank(message = "Password is required")
+    // Password is optional - can be null for passwordless accounts
     private String password;
     
     @NotNull(message = "Role is required")

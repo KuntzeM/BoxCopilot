@@ -161,6 +161,7 @@ export const en: TranslationKeys = {
     username: 'Username',
     name: 'Name',
     password: 'Password',
+    passwordOptional: 'Password (optional for passwordless accounts)',
     role: 'Role',
     status: 'Status',
     authType: 'Auth Type',
@@ -194,5 +195,15 @@ export const en: TranslationKeys = {
     passwordSet: 'Password set',
     userUnlocked: 'User unlocked',
     settings: 'Settings',
+    // Magic link translations
+    generateMagicLink: 'Generate Magic Link',
+    magicLinkTitle: 'Magic Login Link',
+    magicLinkGenerated: 'Magic link generated',
+    magicLinkUrl: 'Login Link',
+    magicLinkExpiry: 'Valid until',
+    magicLinkCopy: 'Copy Link',
+    magicLinkCopied: 'Link copied to clipboard',
+    magicLinkClose: 'Close',
+    passwordless: 'Passwordless',
   },
 };

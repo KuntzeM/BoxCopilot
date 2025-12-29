@@ -36,6 +36,7 @@ import {
   LockOpen as LockOpenIcon,
   AdminPanelSettings as AdminIcon,
   Person as PersonIcon,
+  Link as LinkIcon,
 } from '@mui/icons-material';
 import { useTranslation } from '../hooks/useTranslation';
 import { userService } from '../services/userService';
@@ -80,11 +81,13 @@ export default function AdminPanel() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [magicLinkDialogOpen, setMagicLinkDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   // Form state
   const [formData, setFormData] = useState<Partial<CreateUserPayload | UpdateUserPayload>>({});
   const [newPassword, setNewPassword] = useState('');
+  const [magicLinkData, setMagicLinkData] = useState<{ url: string; expiresAt: string } | null>(null);
 
   useEffect(() => {
     loadUsers();
@@ -187,6 +190,28 @@ export default function AdminPanel() {
       loadUsers();
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Failed to update role');
+    }
+  };
+
+  const handleGenerateMagicLink = async (user: User) => {
+    try {
+      const response = await userService.createMagicLink(user.id);
+      setMagicLinkData({
+        url: response.url,
+        expiresAt: response.expiresAt,
+      });
+      setSelectedUser(user);
+      setMagicLinkDialogOpen(true);
+      setSuccessMessage(t('admin.magicLinkGenerated'));
+    } catch (err: any) {
+      setError(err.response?.data?.message || err.message || 'Failed to generate magic link');
+    }
+  };
+
+  const handleCopyMagicLink = () => {
+    if (magicLinkData) {
+      navigator.clipboard.writeText(magicLinkData.url);
+      setSuccessMessage(t('admin.magicLinkCopied'));
     }
   };
 
@@ -348,6 +373,15 @@ export default function AdminPanel() {
                           variant="outlined"
                           size="small"
                         />
+                        {user.authProvider === AuthProvider.LOCAL && !user.hasPassword && (
+                          <Chip
+                            label={t('admin.passwordless')}
+                            color="warning"
+                            variant="outlined"
+                            size="small"
+                            sx={{ ml: 1 }}
+                          />
+                        )}
                       </TableCell>
                       <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
                       <TableCell>
@@ -375,6 +409,13 @@ export default function AdminPanel() {
                             <LockIcon fontSize="small" />
                           </IconButton>
                         )}
+                        <IconButton
+                          size="small"
+                          onClick={() => handleGenerateMagicLink(user)}
+                          title={t('admin.generateMagicLink')}
+                        >
+                          <LinkIcon fontSize="small" />
+                        </IconButton>
                         <IconButton
                           size="small"
                           onClick={() => handleToggleAdmin(user)}
@@ -422,11 +463,11 @@ export default function AdminPanel() {
           <TextField
             fullWidth
             margin="normal"
-            label={t('admin.password')}
+            label={t('admin.passwordOptional')}
             type="password"
             value={(formData as CreateUserPayload).password || ''}
             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-            required
+            helperText={t('admin.passwordless')}
           />
           <FormControl fullWidth margin="normal">
             <InputLabel>{t('admin.role')}</InputLabel>
@@ -539,6 +580,50 @@ export default function AdminPanel() {
           <Button onClick={() => setPasswordDialogOpen(false)}>{t('admin.cancel')}</Button>
           <Button onClick={handleSetPassword} variant="contained">
             {t('admin.save')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Magic Link Dialog */}
+      <Dialog 
+        open={magicLinkDialogOpen} 
+        onClose={() => {
+          setMagicLinkDialogOpen(false);
+          setMagicLinkData(null);
+        }} 
+        maxWidth="md" 
+        fullWidth
+      >
+        <DialogTitle>{t('admin.magicLinkTitle')}</DialogTitle>
+        <DialogContent>
+          {magicLinkData && (
+            <Box sx={{ mt: 2 }}>
+              <TextField
+                fullWidth
+                label={t('admin.magicLinkUrl')}
+                value={magicLinkData.url}
+                InputProps={{
+                  readOnly: true,
+                }}
+                margin="normal"
+                multiline
+                rows={3}
+              />
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                {t('admin.magicLinkExpiry')}: {new Date(magicLinkData.expiresAt).toLocaleString()}
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setMagicLinkDialogOpen(false);
+            setMagicLinkData(null);
+          }}>
+            {t('admin.magicLinkClose')}
+          </Button>
+          <Button onClick={handleCopyMagicLink} variant="contained" startIcon={<LinkIcon />}>
+            {t('admin.magicLinkCopy')}
           </Button>
         </DialogActions>
       </Dialog>

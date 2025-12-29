@@ -78,7 +78,7 @@ public class OAuth2SecurityConfig {
                 // Public endpoints - no authentication required
                 .requestMatchers("/api/public/**", "/api/v1/public/**").permitAll()
                 .requestMatchers("/api/v1/me", "/api/v1/csrf").permitAll()
-                .requestMatchers("/api/auth/login").permitAll()
+                .requestMatchers("/api/auth/login", "/api/v1/auth/magic-login").permitAll()
                 .requestMatchers("/login/**", "/oauth2/**", "/error").permitAll()
                 // All other API endpoints require authentication
                 .requestMatchers("/api/**").authenticated()

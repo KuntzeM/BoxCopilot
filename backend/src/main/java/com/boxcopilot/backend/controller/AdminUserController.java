@@ -2,10 +2,13 @@ package com.boxcopilot.backend.controller;
 
 import com.boxcopilot.backend.domain.AuthProvider;
 import com.boxcopilot.backend.domain.Role;
+import com.boxcopilot.backend.dto.CreateMagicLinkRequestDTO;
 import com.boxcopilot.backend.dto.CreateUserDTO;
+import com.boxcopilot.backend.dto.MagicLinkResponseDTO;
 import com.boxcopilot.backend.dto.SetPasswordDTO;
 import com.boxcopilot.backend.dto.UpdateUserDTO;
 import com.boxcopilot.backend.dto.UserDTO;
+import com.boxcopilot.backend.service.MagicLoginTokenService;
 import com.boxcopilot.backend.service.UserService;
 import com.boxcopilot.backend.service.CustomUserDetailsService;
 import jakarta.validation.Valid;
@@ -33,9 +36,11 @@ public class AdminUserController {
     private static final Logger log = LoggerFactory.getLogger(AdminUserController.class);
     
     private final UserService userService;
+    private final MagicLoginTokenService magicLoginTokenService;
     
-    public AdminUserController(UserService userService) {
+    public AdminUserController(UserService userService, MagicLoginTokenService magicLoginTokenService) {
         this.userService = userService;
+        this.magicLoginTokenService = magicLoginTokenService;
     }
     
     /**
@@ -126,6 +131,36 @@ public class AdminUserController {
         log.info("Unlocking user with id: {}", id);
         userService.unlockUser(id);
         return ResponseEntity.ok().build();
+    }
+    
+    /**
+     * Generate magic login link for a user
+     * Admin-only endpoint
+     */
+    @PostMapping("/{id}/magic-link")
+    public ResponseEntity<MagicLinkResponseDTO> generateMagicLink(
+            @PathVariable Long id,
+            @RequestBody(required = false) CreateMagicLinkRequestDTO request,
+            @AuthenticationPrincipal Object principal) {
+        
+        log.info("Generating magic link for user with id: {}", id);
+        
+        // Get current admin username for logging
+        String adminUsername = null;
+        if (principal instanceof OidcUser) {
+            OidcUser oidcUser = (OidcUser) principal;
+            adminUsername = (String) oidcUser.getClaims().get("preferred_username");
+        } else if (principal instanceof UserDetails) {
+            adminUsername = ((UserDetails) principal).getUsername();
+        }
+        
+        try {
+            MagicLinkResponseDTO response = magicLoginTokenService.generateMagicLink(id, request, adminUsername);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (IllegalArgumentException e) {
+            log.error("Error generating magic link: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        }
     }
     
     /**
