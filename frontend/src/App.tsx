@@ -12,7 +12,7 @@ import { CookieThemeProvider, useThemeContext } from './context/ThemeContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { useTranslation } from './hooks/useTranslation';
 import LanguageSelector from './components/LanguageSelector';
-import { UserPrincipal } from './types/models';
+import { Role, UserPrincipal } from './types/models';
 
 function LoadingScreen() {
   return (
@@ -20,6 +20,12 @@ function LoadingScreen() {
       <CircularProgress />
     </Box>
   );
+}
+
+function hasAdminAccess(user: UserPrincipal | null) {
+  if (!user) return false;
+  const anyUser = user as any;
+  return user.role === Role.ADMIN || user.isAdmin === true || anyUser.admin === true;
 }
 
 function ProtectedRoute({
@@ -47,7 +53,7 @@ function ProtectedRoute({
   }
 
   // Check admin requirement
-  if (requireAdmin && !user?.isAdmin) {
+  if (requireAdmin && !hasAdminAccess(user)) {
     // Redirect non-admins away from admin routes
     navigate('/app/boxes');
     return null;
@@ -76,10 +82,22 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
     <>
       <AppBar position="static" elevation={2}>
         <Toolbar>
-          <Inventory2 sx={{ mr: 2 }} />
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            {t('app.title')}
-          </Typography>
+          <Box
+            onClick={() => navigate('/app/boxes')}
+            sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 1, cursor: 'pointer' }}
+            aria-label={t('app.title')}
+          >
+            <Inventory2 />
+            <Typography variant="h6" component="div">
+              {t('app.title')}
+            </Typography>
+            {(user?.name || user?.username) && (
+              <Typography variant="body2" component="div" sx={{ opacity: 0.9 }}>
+                {`Hallo ${user.name || user.username}`}
+              </Typography>
+            )}
+          </Box>
+          <Box sx={{ flexGrow: 1 }} />
           <IconButton
             onClick={toggleTheme}
             color="inherit"
@@ -89,7 +107,7 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
             {mode === 'light' ? <DarkMode /> : <WbSunny />}
           </IconButton>
           <LanguageSelector />
-          {user?.isAdmin && (
+          {hasAdminAccess(user) && (
             <Button
               color="inherit"
               startIcon={<AdminPanelSettings />}
@@ -125,11 +143,16 @@ export default function App() {
     const checkAuth = async () => {
       try {
         const response = await axios.get<UserPrincipal>('/api/v1/me');
-        setIsAuthenticated(response.data.authenticated === true);
-        setUser(response.data);
+        const normalizedUser: UserPrincipal = {
+          ...response.data,
+          isAdmin:
+            response.data.isAdmin ?? (response.data as any).admin ?? response.data.role === Role.ADMIN,
+        };
+        setIsAuthenticated(normalizedUser.authenticated === true);
+        setUser(normalizedUser);
         // Capture CSRF token from backend and set it for subsequent unsafe requests
-        if (response.data?.csrfToken) {
-          axios.defaults.headers.common['X-XSRF-TOKEN'] = response.data.csrfToken;
+        if (normalizedUser?.csrfToken) {
+          axios.defaults.headers.common['X-XSRF-TOKEN'] = normalizedUser.csrfToken;
         }
       } catch (error) {
         // If the request fails (401, network error, etc.), user is not authenticated

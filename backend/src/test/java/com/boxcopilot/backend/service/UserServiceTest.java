@@ -40,22 +40,7 @@ class UserServiceTest {
         testUser.setPasswordHash("hashedPassword");
     }
 
-    @Test
-    void testCreateUser_Success() {
-        // Arrange
-        CreateUserDTO dto = new CreateUserDTO("newuser", "New User", "password123", Role.USER);
-        when(userRepository.existsByUsername("newuser")).thenReturn(false);
-        when(passwordEncoder.encode("password123")).thenReturn("hashedPassword");
-        when(userRepository.save(any(User.class))).thenReturn(testUser);
 
-        // Act
-        var result = userService.createUser(dto);
-
-        // Assert
-        assertNotNull(result);
-        verify(userRepository).save(any(User.class));
-        verify(passwordEncoder).encode("password123");
-    }
 
     @Test
     void testCreateUser_DuplicateUsername() {

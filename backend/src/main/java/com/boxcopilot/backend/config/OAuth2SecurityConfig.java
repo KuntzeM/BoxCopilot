@@ -2,7 +2,6 @@ package com.boxcopilot.backend.config;
 
 import com.boxcopilot.backend.service.CustomOidcUserService;
 import com.boxcopilot.backend.service.CustomUserDetailsService;
-import com.boxcopilot.backend.service.UserService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,7 +16,6 @@ import org.springframework.security.web.authentication.AuthenticationFailureHand
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
-import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -44,16 +42,19 @@ public class OAuth2SecurityConfig {
     @Value("${nextcloud.logout-url}")
     private String nextcloudLogoutUrl;
 
-    private final CustomOidcUserService customOidcUserService;
     private final CustomUserDetailsService customUserDetailsService;
-    private final UserService userService;
+    private CustomOidcUserService customOidcUserService; // Set via setter to avoid circular dependency
 
-    public OAuth2SecurityConfig(CustomOidcUserService customOidcUserService,
-                                CustomUserDetailsService customUserDetailsService,
-                                UserService userService) {
-        this.customOidcUserService = customOidcUserService;
+    public OAuth2SecurityConfig(CustomUserDetailsService customUserDetailsService) {
         this.customUserDetailsService = customUserDetailsService;
-        this.userService = userService;
+    }
+    
+    /**
+     * Set CustomOidcUserService via setter to avoid circular dependency
+     * Called by ServiceConfiguration after all beans are created
+     */
+    public void setCustomOidcUserService(CustomOidcUserService customOidcUserService) {
+        this.customOidcUserService = customOidcUserService;
     }
     
     @Bean
@@ -62,15 +63,15 @@ public class OAuth2SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        CsrfTokenRequestAttributeHandler requestHandler = new CsrfTokenRequestAttributeHandler();
-        requestHandler.setCsrfRequestAttributeName("_csrf");
-
+    SecurityFilterChain securityFilterChain(HttpSecurity http, 
+                                           AuthenticationSuccessHandler authenticationSuccessHandler,
+                                           AuthenticationFailureHandler authenticationFailureHandler) throws Exception {
+        
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                .csrfTokenRequestHandler(requestHandler)
+                .ignoringRequestMatchers("/api/auth/login", "/api/v1/auth/magic-login")
             )
             .authorizeHttpRequests(auth -> auth
                 // Admin endpoints - require ADMIN role
@@ -89,8 +90,8 @@ public class OAuth2SecurityConfig {
             )
             .formLogin(form -> form
                 .loginProcessingUrl("/api/auth/login")
-                .successHandler(customAuthenticationSuccessHandler())
-                .failureHandler(customAuthenticationFailureHandler())
+                .successHandler(authenticationSuccessHandler)
+                .failureHandler(authenticationFailureHandler)
                 .permitAll()
             )
             .oauth2Login(oauth2 -> oauth2
@@ -163,8 +164,12 @@ public class OAuth2SecurityConfig {
         };
     }
     
+    /**
+     * Authentication success handler bean
+     * Injected into SecurityFilterChain to avoid circular dependency
+     */
     @Bean
-    AuthenticationSuccessHandler customAuthenticationSuccessHandler() {
+    AuthenticationSuccessHandler authenticationSuccessHandler(com.boxcopilot.backend.service.UserService userService) {
         return (request, response, authentication) -> {
             // Update last login timestamp
             if (authentication.getPrincipal() instanceof CustomUserDetailsService.CustomUserPrincipal) {
@@ -179,8 +184,12 @@ public class OAuth2SecurityConfig {
         };
     }
     
+    /**
+     * Authentication failure handler bean
+     * Injected into SecurityFilterChain to avoid circular dependency
+     */
     @Bean
-    AuthenticationFailureHandler customAuthenticationFailureHandler() {
+    AuthenticationFailureHandler authenticationFailureHandler(com.boxcopilot.backend.service.UserService userService) {
         return (request, response, exception) -> {
             // Record failed login attempt
             String username = request.getParameter("username");

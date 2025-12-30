@@ -19,5 +19,9 @@ app:
   image:
     storage:
       path: ${APP_IMAGE_STORAGE_PATH:./data/images}
+  magiclink:
+    frontend-base-url: ${FRONTEND_URL:http://localhost:3000}
 
 # For test profile we use NoSecurityConfig which permits all requests (no auth)
+frontend:
+  url: ${FRONTEND_URL:http://localhost:3000}

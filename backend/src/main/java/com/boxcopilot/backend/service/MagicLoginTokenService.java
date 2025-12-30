@@ -11,6 +11,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,8 +31,8 @@ public class MagicLoginTokenService {
     @Value("${app.magiclink.default-valid-hours:24}")
     private int defaultValidHours;
     
-    @Value("${app.magiclink.frontend-base-url:${frontend.url}}")
-    private String frontendBaseUrl;
+    @Value("${app.magiclink.backend-base-url:}")
+    private String backendBaseUrl;
     
     public MagicLoginTokenService(MagicLoginTokenRepository tokenRepository, UserRepository userRepository) {
         this.tokenRepository = tokenRepository;
@@ -57,13 +60,35 @@ public class MagicLoginTokenService {
         MagicLoginToken token = new MagicLoginToken(tokenString, user, validHours);
         MagicLoginToken savedToken = tokenRepository.save(token);
         
-        // Build the magic login URL
-        String magicLoginUrl = frontendBaseUrl + "/magic-login?token=" + tokenString;
+        // Build the magic login URL against backend, so the session can be created server-side
+        String magicLoginUrl = UriComponentsBuilder
+            .fromUriString(resolveBaseUrl())
+            .path("/api/v1/auth/magic-login")
+            .queryParam("token", tokenString)
+            .build()
+            .toUriString();
         
         log.info("Admin '{}' generated magic login link for user '{}' (id: {}), token id: {}, expires at: {}", 
                 adminUsername, user.getUsername(), userId, savedToken.getId(), savedToken.getExpiryDate());
         
         return new MagicLinkResponseDTO(tokenString, magicLoginUrl, savedToken.getExpiryDate());
+    }
+
+    /**
+     * Determine the base URL for constructing the magic login link.
+     * Prefers explicit configuration, otherwise derives from the current request context.
+     */
+    private String resolveBaseUrl() {
+        if (StringUtils.hasText(backendBaseUrl)) {
+            return backendBaseUrl.endsWith("/")
+                    ? backendBaseUrl.substring(0, backendBaseUrl.length() - 1)
+                    : backendBaseUrl;
+        }
+
+        // Fall back to the current request context (works inside MVC request lifecycle)
+        return ServletUriComponentsBuilder.fromCurrentContextPath()
+            .build()
+            .toUriString();
     }
     
     /**

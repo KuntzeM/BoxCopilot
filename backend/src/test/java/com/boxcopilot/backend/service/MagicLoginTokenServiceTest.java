@@ -45,7 +45,7 @@ class MagicLoginTokenServiceTest {
     void setUp() {
         // Set up service with default configuration
         ReflectionTestUtils.setField(magicLoginTokenService, "defaultValidHours", 24);
-        ReflectionTestUtils.setField(magicLoginTokenService, "frontendBaseUrl", "http://localhost:5173");
+        ReflectionTestUtils.setField(magicLoginTokenService, "backendBaseUrl", "http://localhost:8080");
         
         // Create test user
         testUser = new User("testuser", "Test User", AuthProvider.LOCAL, Role.USER);
@@ -75,7 +75,7 @@ class MagicLoginTokenServiceTest {
         assertNotNull(result.getToken());
         assertNotNull(result.getUrl());
         assertNotNull(result.getExpiresAt());
-        assertTrue(result.getUrl().contains("magic-login?token="));
+        assertTrue(result.getUrl().contains("/api/v1/auth/magic-login?token="));
         verify(tokenRepository).save(any(MagicLoginToken.class));
     }
 

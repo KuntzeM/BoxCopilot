@@ -11,6 +11,8 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
+import java.io.Serial;
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Collections;
@@ -54,10 +56,13 @@ public class CustomUserDetailsService implements UserDetailsService {
     /**
      * Custom UserDetails implementation
      */
-    public static class CustomUserPrincipal implements UserDetails {
-        
+    public static class CustomUserPrincipal implements UserDetails, Serializable {
+
+        @Serial
+        private static final long serialVersionUID = 1L;
+
         private final User user;
-        
+
         public CustomUserPrincipal(User user) {
             this.user = user;
         }

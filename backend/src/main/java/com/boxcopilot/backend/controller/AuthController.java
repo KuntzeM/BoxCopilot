@@ -57,16 +57,20 @@ public class AuthController {
     public ResponseEntity<UserPrincipalDTO> getCurrentUser(
             @AuthenticationPrincipal Object principal,
             HttpServletRequest request) {
-        
-        if (principal == null) {
-            log.debug("Unauthenticated user accessing /me endpoint - returning 401");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-
-        // Get CSRF token
+        // Get CSRF token early so we can return it for anonymous users too
         CsrfToken csrfToken = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
         String csrfTokenValue = csrfToken != null ? csrfToken.getToken() : null;
-        
+
+        // Anonymous / unauthenticated: return a neutral DTO instead of 401
+        if (principal == null || principal instanceof String) {
+            UserPrincipalDTO dto = new UserPrincipalDTO();
+            dto.setAuthenticated(false);
+            dto.setAdmin(false);
+            dto.setCsrfToken(csrfTokenValue);
+            log.debug("Unauthenticated user accessing /me endpoint - returning anonymous principal info");
+            return ResponseEntity.ok(dto);
+        }
+
         UserPrincipalDTO dto;
         
         // Handle OIDC user (Nextcloud)

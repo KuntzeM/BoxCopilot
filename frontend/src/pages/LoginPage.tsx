@@ -30,6 +30,9 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
     setLoading(true);
 
     try {
+      // First, ensure CSRF token is fetched
+      await axios.get('/api/v1/csrf');
+      
       const formData = new URLSearchParams();
       formData.append('username', username);
       formData.append('password', password);
