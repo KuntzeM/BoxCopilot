@@ -78,6 +78,7 @@ public class OAuth2SecurityConfig {
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 // Public endpoints - no authentication required
                 .requestMatchers("/api/public/**", "/api/v1/public/**").permitAll()
+                .requestMatchers("/api/v1/public/items/**").permitAll()
                 .requestMatchers("/api/v1/me", "/api/v1/csrf").permitAll()
                 .requestMatchers("/api/auth/login", "/api/v1/auth/magic-login").permitAll()
                 .requestMatchers("/login/**", "/oauth2/**", "/error").permitAll()

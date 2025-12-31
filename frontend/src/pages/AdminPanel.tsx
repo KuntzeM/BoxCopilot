@@ -337,6 +337,7 @@ export default function AdminPanel() {
                   <TableCell>{t('admin.createdAt')}</TableCell>
                   <TableCell>{t('admin.lastLogin')}</TableCell>
                   <TableCell>{t('admin.failedAttempts')}</TableCell>
+                  <TableCell>Magic Link</TableCell>
                   <TableCell>{t('admin.actions')}</TableCell>
                 </TableRow>
               </TableHead>
@@ -388,6 +389,17 @@ export default function AdminPanel() {
                         {user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : '-'}
                       </TableCell>
                       <TableCell>{user.failedLoginAttempts}</TableCell>
+                      <TableCell>
+                        {user.lastMagicLinkCreatedAt ? (
+                          <Chip
+                            label={user.lastMagicLinkUsed ? t('admin.magicLinkUsed') ?? 'Used' : t('admin.magicLinkActive') ?? 'Open'}
+                            color={user.lastMagicLinkUsed ? 'default' : 'success'}
+                            size="small"
+                          />
+                        ) : (
+                          '-' 
+                        )}
+                      </TableCell>
                       <TableCell>
                         <IconButton size="small" onClick={() => openEditDialog(user)} title={t('admin.editUser')}>
                           <EditIcon fontSize="small" />

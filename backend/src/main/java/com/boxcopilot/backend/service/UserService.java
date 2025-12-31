@@ -6,6 +6,7 @@ import com.boxcopilot.backend.domain.User;
 import com.boxcopilot.backend.dto.CreateUserDTO;
 import com.boxcopilot.backend.dto.UpdateUserDTO;
 import com.boxcopilot.backend.dto.UserDTO;
+import com.boxcopilot.backend.repository.MagicLoginTokenRepository;
 import com.boxcopilot.backend.repository.UserRepository;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
@@ -27,6 +28,7 @@ public class UserService {
     
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final MagicLoginTokenRepository magicLoginTokenRepository;
     private MagicLoginTokenService magicLoginTokenService; // Optional, set later to avoid circular dependency
     
     @Value("${app.admin.username:admin}")
@@ -38,9 +40,11 @@ public class UserService {
     @Value("${app.admin.name:Administrator}")
     private String defaultAdminName;
     
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder,
+                       MagicLoginTokenRepository magicLoginTokenRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.magicLoginTokenRepository = magicLoginTokenRepository;
     }
     
     /**
@@ -104,8 +108,8 @@ public class UserService {
         }
         
         return users.stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
+            .map(this::convertToDTO)
+            .collect(Collectors.toList());
     }
     
     /**
@@ -316,7 +320,7 @@ public class UserService {
      * Convert User entity to DTO
      */
     private UserDTO convertToDTO(User user) {
-        return new UserDTO(
+        UserDTO dto = new UserDTO(
             user.getId(),
             user.getUsername(),
             user.getName(),
@@ -329,5 +333,13 @@ public class UserService {
             user.getLockedUntil(),
             user.getPasswordHash() != null
         );
+
+        magicLoginTokenRepository.findTopByUserOrderByCreatedAtDesc(user).ifPresent(token -> {
+            dto.setLastMagicLinkCreatedAt(token.getCreatedAt());
+            dto.setLastMagicLinkExpiresAt(token.getExpiryDate());
+            dto.setLastMagicLinkUsed(Boolean.TRUE.equals(token.getUsed()));
+        });
+
+        return dto;
     }
 }

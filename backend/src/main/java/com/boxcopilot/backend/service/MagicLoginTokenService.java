@@ -106,6 +106,12 @@ public class MagicLoginTokenService {
         }
         
         MagicLoginToken token = tokenOpt.get();
+
+        // Disallow reuse
+        if (Boolean.TRUE.equals(token.getUsed())) {
+            log.warn("Magic login token already used for user '{}': token id {}", token.getUser().getUsername(), token.getId());
+            return Optional.empty();
+        }
         
         // Check if token is expired
         if (token.isExpired()) {
@@ -120,7 +126,7 @@ public class MagicLoginTokenService {
             return Optional.empty();
         }
         
-        // Mark token as used (for audit purposes, but token remains reusable)
+        // Mark token as used (single-use) and persist
         token.markAsUsed();
         tokenRepository.save(token);
         

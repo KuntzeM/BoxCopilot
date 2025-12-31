@@ -10,6 +10,7 @@ public class MagicLinkResponseDTO {
     private String token;
     private String url;
     private LocalDateTime expiresAt;
+    private Boolean used;
     
     public MagicLinkResponseDTO() {
     }
@@ -18,6 +19,7 @@ public class MagicLinkResponseDTO {
         this.token = token;
         this.url = url;
         this.expiresAt = expiresAt;
+        this.used = false;
     }
     
     public String getToken() {
@@ -42,5 +44,13 @@ public class MagicLinkResponseDTO {
     
     public void setExpiresAt(LocalDateTime expiresAt) {
         this.expiresAt = expiresAt;
+    }
+
+    public Boolean getUsed() {
+        return used;
+    }
+
+    public void setUsed(Boolean used) {
+        this.used = used;
     }
 }

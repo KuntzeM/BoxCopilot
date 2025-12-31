@@ -20,6 +20,9 @@ public class UserDTO {
     private Integer failedLoginAttempts;
     private LocalDateTime lockedUntil;
     private Boolean hasPassword;
+    private LocalDateTime lastMagicLinkCreatedAt;
+    private LocalDateTime lastMagicLinkExpiresAt;
+    private Boolean lastMagicLinkUsed;
     
     public UserDTO() {
     }
@@ -143,5 +146,29 @@ public class UserDTO {
     
     public void setHasPassword(Boolean hasPassword) {
         this.hasPassword = hasPassword;
+    }
+
+    public LocalDateTime getLastMagicLinkCreatedAt() {
+        return lastMagicLinkCreatedAt;
+    }
+
+    public void setLastMagicLinkCreatedAt(LocalDateTime lastMagicLinkCreatedAt) {
+        this.lastMagicLinkCreatedAt = lastMagicLinkCreatedAt;
+    }
+
+    public LocalDateTime getLastMagicLinkExpiresAt() {
+        return lastMagicLinkExpiresAt;
+    }
+
+    public void setLastMagicLinkExpiresAt(LocalDateTime lastMagicLinkExpiresAt) {
+        this.lastMagicLinkExpiresAt = lastMagicLinkExpiresAt;
+    }
+
+    public Boolean getLastMagicLinkUsed() {
+        return lastMagicLinkUsed;
+    }
+
+    public void setLastMagicLinkUsed(Boolean lastMagicLinkUsed) {
+        this.lastMagicLinkUsed = lastMagicLinkUsed;
     }
 }

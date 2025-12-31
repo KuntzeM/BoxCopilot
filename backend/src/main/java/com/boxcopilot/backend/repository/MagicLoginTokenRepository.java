@@ -36,4 +36,6 @@ public interface MagicLoginTokenRepository extends JpaRepository<MagicLoginToken
      * Delete expired tokens
      */
     void deleteByExpiryDateBefore(LocalDateTime date);
+
+    Optional<MagicLoginToken> findTopByUserOrderByCreatedAtDesc(User user);
 }

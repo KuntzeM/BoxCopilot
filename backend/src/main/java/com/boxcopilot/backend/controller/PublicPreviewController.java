@@ -51,9 +51,13 @@ public class PublicPreviewController {
         List<BoxPreviewDTO.ItemDTO> itemDTOs = items.stream()
             .map(i -> {
                 BoxPreviewDTO.ItemDTO dto = new BoxPreviewDTO.ItemDTO(i.getId(), i.getName());
-                // Add imageUrl if item has an image
-                if (i.getImagePath() != null && !i.getImagePath().isBlank()) {
-                    dto.setImageUrl("/api/v1/items/" + i.getId() + "/image");
+                // Add imageUrl if item has an image (with cache-busting timestamp)
+                if (i.getImagePath() != null && !i.getImagePath().isBlank() && i.getImageToken() != null) {
+                    String imageUrl = "/api/v1/public/items/" + i.getImageToken() + "/image";
+                    if (i.getImageUpdatedAt() != null) {
+                        imageUrl += "?t=" + i.getImageUpdatedAt();
+                    }
+                    dto.setImageUrl(imageUrl);
                 }
                 return dto;
             })

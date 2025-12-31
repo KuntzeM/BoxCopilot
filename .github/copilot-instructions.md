@@ -242,6 +242,8 @@ BoxPilot/
 ## Development Workflows
 
 ### Running Backend Locally
+**CRITICAL: ALWAYS use Maven to run the application. NEVER execute the JAR directly.**
+
 **Required Environment Variables:**
 ```powershell
 # PowerShell syntax
@@ -253,11 +255,24 @@ $env:NEXTCLOUD_LOGOUT_URL = 'https://cloud.example.com/index.php/logout'
 $env:SPRING_PROFILES_ACTIVE = 'dev'
 ```
 
-**Run Commands:**
+**Run Commands (Maven ONLY):**
+```bash
+cd backend
+mvn spring-boot:run
+```
+
+**Alternative with specific profile:**
 ```bash
 cd backend
 mvn spring-boot:run -Dspring-boot.run.profiles=dev
 ```
+
+**NEVER do this:**
+```bash
+# ❌ WRONG - Do NOT execute JAR directly
+java -jar target/backend-*.jar
+```
+
 Backend runs on port 8080 with H2 file-based database at `./data/boxcopilot-dev`.
 
 ### Running Frontend Locally

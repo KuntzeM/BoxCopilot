@@ -80,6 +80,9 @@ export interface User {
   failedLoginAttempts: number;
   lockedUntil?: string;
   hasPassword?: boolean;
+  lastMagicLinkCreatedAt?: string;
+  lastMagicLinkExpiresAt?: string;
+  lastMagicLinkUsed?: boolean;
 }
 
 export interface CreateUserPayload {
@@ -109,6 +112,7 @@ export interface MagicLinkResponse {
   token: string;
   url: string;
   expiresAt: string;
+  used?: boolean;
 }
 
 export interface UserPrincipal {
