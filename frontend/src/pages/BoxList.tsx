@@ -544,7 +544,7 @@ export default function BoxList() {
                                 src={resolveImageUrl(item.imageUrl)}
                                 alt={item.name}
                                 sx={{ width: 40, height: 40, cursor: 'pointer', flexShrink: 0 }}
-                                onClick={() => setFullImageUrl(withApiBase(`/api/v1/items/${item.id}/image/large`))}
+                                onClick={() => setFullImageUrl(withApiBase(item.imageUrl.replace('/image', '/image/large')))}
                               />
                             ) : (
                               <Avatar sx={{ width: 40, height: 40, bgcolor: 'grey.300', flexShrink: 0 }}>
@@ -784,10 +784,8 @@ export default function BoxList() {
               }}
               onError={(e) => {
                 // Fallback to thumbnail if large image not available
-                const match = fullImageUrl.match(/\/api\/v1\/items\/(\d+)\/image/);
-                if (match) {
-                  e.currentTarget.src = withApiBase(`/api/v1/items/${match[1]}/image`);
-                }
+                const thumbnailUrl = fullImageUrl.replace('/image/large', '/image');
+                e.currentTarget.src = thumbnailUrl;
               }}
             />
           )}

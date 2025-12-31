@@ -111,7 +111,7 @@ public class ItemController {
     }
     
     /**
-     * Uploads an image for an item.
+     * Uploads an image for an item (requires authentication).
      */
     @PostMapping("/{id}/image")
     public ResponseEntity<ItemResponseDTO> uploadImage(
@@ -121,60 +121,6 @@ public class ItemController {
         ItemResponseDTO updatedItem = itemService.uploadImage(id, file);
         log.info("Image uploaded successfully for item ID: {}", id);
         return ResponseEntity.ok(updatedItem);
-    }
-    
-    /**
-     * Retrieves an item's thumbnail image.
-     * This endpoint is accessible without authentication for public preview.
-     * Supports ETag and If-None-Match for efficient client-side caching.
-     */
-    @GetMapping("/{id}/image")
-    @PreAuthorize("permitAll()")
-    public ResponseEntity<Resource> getImage(@PathVariable Long id, @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch) {
-        log.debug("Retrieving thumbnail for item ID: {}", id);
-        Resource image = imageStorageService.getImage(id);
-        long lastModified = imageStorageService.getImageLastModified(id);
-        String eTag = "\"" + id + "-" + lastModified + "\"";
-        
-        // Check If-None-Match for 304 Not Modified response
-        if (ifNoneMatch != null && ifNoneMatch.equals(eTag)) {
-            log.debug("Image not modified, returning 304 for item ID: {}", id);
-            return ResponseEntity.status(304).build();
-        }
-        
-        return ResponseEntity.ok()
-                .contentType(MediaType.IMAGE_JPEG)
-                .header(HttpHeaders.CACHE_CONTROL, "max-age=3600, must-revalidate")
-                .header(HttpHeaders.ETAG, eTag)
-                .header(HttpHeaders.LAST_MODIFIED, String.valueOf(lastModified))
-                .body(image);
-    }
-    
-    /**
-     * Retrieves an item's large image (1024px).
-     * This endpoint is accessible without authentication for public preview.
-     * Supports ETag and If-None-Match for efficient client-side caching.
-     */
-    @GetMapping("/{id}/image/large")
-    @PreAuthorize("permitAll()")
-    public ResponseEntity<Resource> getLargeImage(@PathVariable Long id, @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch) {
-        log.debug("Retrieving large image for item ID: {}", id);
-        Resource image = imageStorageService.getLargeImage(id);
-        long lastModified = imageStorageService.getLargeImageLastModified(id);
-        String eTag = "\"" + id + "-large-" + lastModified + "\"";
-        
-        // Check If-None-Match for 304 Not Modified response
-        if (ifNoneMatch != null && ifNoneMatch.equals(eTag)) {
-            log.debug("Large image not modified, returning 304 for item ID: {}", id);
-            return ResponseEntity.status(304).build();
-        }
-        
-        return ResponseEntity.ok()
-                .contentType(MediaType.IMAGE_JPEG)
-                .header(HttpHeaders.CACHE_CONTROL, "max-age=3600, must-revalidate")
-                .header(HttpHeaders.ETAG, eTag)
-                .header(HttpHeaders.LAST_MODIFIED, String.valueOf(lastModified))
-                .body(image);
     }
     
     /**

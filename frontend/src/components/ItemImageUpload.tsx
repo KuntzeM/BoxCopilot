@@ -328,7 +328,7 @@ export default function ItemImageUpload({
         <DialogContent>
           <Box sx={{ textAlign: 'center', p: 2 }}>
             <img
-              src={withApiBase(`/api/v1/items/${itemId}/image/large`)}
+              src={currentImageUrl ? resolveImageUrl(currentImageUrl.replace('/image', '/image/large')) : ''}
               alt="Item Large"
               style={{ 
                 maxWidth: '100%', 

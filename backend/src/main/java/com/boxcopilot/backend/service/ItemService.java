@@ -10,12 +10,15 @@ import com.boxcopilot.backend.repository.BoxRepository;
 import com.boxcopilot.backend.repository.ItemRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import jakarta.annotation.PostConstruct;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -38,6 +41,11 @@ public class ItemService {
         this.boxRepository = boxRepository;
         this.itemMapper = itemMapper;
         this.imageStorageService = imageStorageService;
+    }
+
+    @PostConstruct
+    public void initImageTokens() {
+        ensureImageTokens();
     }
 
     /**
@@ -65,10 +73,7 @@ public class ItemService {
                 log.error("Box not found with UUID: {}", boxUuid);
                 return new ResourceNotFoundException("Box not found with UUID: " + boxUuid);
             });
-        
-        List<ItemResponseDTO> items = itemRepository.findAll().stream()
-            .filter(item -> item.getBox().equals(box))
-            .sorted(Comparator.comparing(Item::getName, String.CASE_INSENSITIVE_ORDER))
+        List<ItemResponseDTO> items = itemRepository.findByBox_UuidOrderByNameAsc(box.getUuid()).stream()
             .map(itemMapper::toResponseDTO)
             .collect(Collectors.toList());
         log.debug("Service: Found {} items for box: {}", items.size(), boxUuid);
@@ -88,6 +93,9 @@ public class ItemService {
 
         Item item = itemMapper.toEntity(requestDTO);
         item.setBox(box);
+        if (item.getImageToken() == null || item.getImageToken().isBlank()) {
+            item.setImageToken(UUID.randomUUID().toString());
+        }
         
         Item savedItem = itemRepository.save(item);
         log.info("Service: Item created with ID: {}, Name: {}", savedItem.getId(), savedItem.getName());
@@ -186,6 +194,7 @@ public class ItemService {
         // Save new image
         String imagePath = imageStorageService.saveImage(itemId, file);
         item.setImagePath(imagePath);
+        item.setImageUpdatedAt(System.currentTimeMillis());
         Item savedItem = itemRepository.save(item);
         
         log.info("Service: Image uploaded successfully for item ID: {}", itemId);
@@ -193,7 +202,7 @@ public class ItemService {
     }
     
     /**
-     * Deletes the image associated with an item.
+     * Deletes the image associated with an item (requires authentication).
      */
     public ItemResponseDTO deleteImage(Long itemId) {
         log.info("Service: Deleting image for item ID: {}", itemId);
@@ -206,6 +215,7 @@ public class ItemService {
         if (item.getImagePath() != null && !item.getImagePath().isBlank()) {
             imageStorageService.deleteImage(item.getImagePath());
             item.setImagePath(null);
+            item.setImageUpdatedAt(null);
             Item savedItem = itemRepository.save(item);
             log.info("Service: Image deleted successfully for item ID: {}", itemId);
             return itemMapper.toResponseDTO(savedItem);
@@ -262,6 +272,58 @@ public class ItemService {
             }
         }
         log.info("Service: Successfully moved {} out of {} items to box: {}", movedCount, itemIds.size(), targetBoxUuid);
+    }
+
+    /**
+     * Retrieve thumbnail image by opaque token for public access.
+     */
+    @Transactional(readOnly = true)
+    public Resource getImageByToken(String token) {
+        Item item = itemRepository.findByImageToken(token)
+            .orElseThrow(() -> new ResourceNotFoundException("Item not found for image token"));
+        return imageStorageService.getImage(item.getId());
+    }
+
+    /**
+     * Retrieve large image by opaque token for public access.
+     */
+    @Transactional(readOnly = true)
+    public Resource getLargeImageByToken(String token) {
+        Item item = itemRepository.findByImageToken(token)
+            .orElseThrow(() -> new ResourceNotFoundException("Item not found for image token"));
+        return imageStorageService.getLargeImage(item.getId());
+    }
+
+    @Transactional(readOnly = true)
+    public long getImageLastModifiedByToken(String token) {
+        Item item = itemRepository.findByImageToken(token)
+            .orElseThrow(() -> new ResourceNotFoundException("Item not found for image token"));
+        return imageStorageService.getImageLastModified(item.getId());
+    }
+
+    @Transactional(readOnly = true)
+    public long getLargeImageLastModifiedByToken(String token) {
+        Item item = itemRepository.findByImageToken(token)
+            .orElseThrow(() -> new ResourceNotFoundException("Item not found for image token"));
+        return imageStorageService.getLargeImageLastModified(item.getId());
+    }
+
+    /**
+     * Backfill missing image tokens (for legacy items without tokens).
+     */
+    @Transactional
+    public void ensureImageTokens() {
+        List<Item> items = itemRepository.findAll().stream()
+            .filter(i -> i.getImageToken() == null || i.getImageToken().isBlank())
+            .toList();
+        if (items.isEmpty()) {
+            return;
+        }
+        for (Item item : items) {
+            item.setImageToken(UUID.randomUUID().toString());
+        }
+        itemRepository.saveAll(items);
+        log.info("Backfilled image tokens for {} items", items.size());
     }
 }
 

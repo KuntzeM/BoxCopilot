@@ -39,6 +39,7 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
     schemas: public
+    validate-on-migrate: false
 
 frontend:
   url: ${FRONTEND_URL}
@@ -48,6 +49,10 @@ app:
   image:
     storage:
       path: ${APP_IMAGE_STORAGE_PATH:/var/boxcopilot/images}
+  admin:
+    username: ${ADMIN_USERNAME:admin}
+    password: ${ADMIN_PASSWORD:admin}
+    name: ${ADMIN_NAME:Administrator}
 
 logging:
   level:

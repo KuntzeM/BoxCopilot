@@ -1,5 +1,6 @@
 package com.boxcopilot.backend.service;
 
+import com.boxcopilot.backend.domain.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
@@ -7,14 +8,24 @@ import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Service;
 
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class CustomOidcUserService extends OidcUserService {
 
     private static final Logger log = LoggerFactory.getLogger(CustomOidcUserService.class);
+    
+    private final UserService userService;
+    
+    public CustomOidcUserService(UserService userService) {
+        this.userService = userService;
+    }
 
     @Override
     public OidcUser loadUser(OidcUserRequest userRequest) throws OAuth2AuthenticationException {
@@ -31,13 +42,16 @@ public class CustomOidcUserService extends OidcUserService {
         String name = (String) claims.get("name");
         String preferredUsername = (String) claims.get("preferred_username");
 
-        // Log user authentication
-        log.info("OIDC user authenticated - username: {}, email: {}, subject: {}", preferredUsername, email, sub);
+        // Create or update user in database
+        User user = userService.createOrUpdateOidcUser(sub, preferredUsername, name, email);
+        
+        // Add role-based authorities
+        Set<GrantedAuthority> authorities = new HashSet<>(oidcUser.getAuthorities());
+        authorities.add(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
 
-        // Return the OidcUser with all claims intact
-        // The nameAttributeKey is "sub" by default for OIDC
+        // Return the OidcUser with updated authorities
         return new DefaultOidcUser(
-            oidcUser.getAuthorities(),
+            authorities,
             oidcUser.getIdToken(),
             oidcUser.getUserInfo(),
             "sub"
