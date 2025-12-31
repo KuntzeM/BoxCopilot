@@ -39,6 +39,7 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
     schemas: public
+    validate-on-migrate: false
 
 frontend:
   url: ${FRONTEND_URL}
