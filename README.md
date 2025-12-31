@@ -18,32 +18,65 @@
 
 ## Core Features
 
+### Box & Item Management
 - 📦 **Box Management** - Track boxes with current location and target room assignments
 - 📝 **Item Inventory** - Maintain detailed lists of contents for each box
 - 🔍 **Global Search** - Quickly find which box contains specific items
 - 🔗 **Public QR Sharing** - Share box contents with movers/family via scannable QR codes (no authentication required)
 - 🖨️ **Bulk Label Printing** - Print multiple box labels with QR codes at once
-- 🌙 **Dark Mode** - Toggle between light/dark themes with cookie persistence
-- 🔐 **Nextcloud Authentication** - Secure login via OpenID Connect (OIDC)
-
-- 📷 **Item Images** - Capture via camera, upload from file, preview large images, and delete if needed
-- 🌐 **Multi‑Language** - Switch between languages (DE/EN) using the language selector; preference is persisted
+- 📷 **Item Images** - Upload via camera or file, view thumbnails and large previews, publicly shareable
 - 🔀 **Move Items** - Move single or multiple items between boxes with a guided dialog
+
+### Authentication & User Management
+- 🔐 **Dual Authentication** - Login via Nextcloud (OIDC) or local credentials
+- 👥 **User Management** - Admin panel for creating, editing, and managing users
+- 🔑 **Magic Login Links** - Passwordless authentication via time-limited, single-use tokens
+- 🛡️ **Role-Based Access Control** - USER and ADMIN roles with different permissions
+- 🔒 **Account Security** - Automatic lockout after 5 failed login attempts (1 hour)
+- ⚡ **Auto-User Creation** - OIDC users are automatically registered on first login
+
+### User Experience
+- 🌙 **Dark Mode** - Toggle between light/dark themes with cookie persistence
+- 🌐 **Multi‑Language** - Switch between languages (DE/EN) with persistent preference
 
 ### Feature Highlights
 
-- **Capture & Upload Item Images**
-  - Open item image management from the box details table (camera or file upload)
-  - Preview large image in a dialog; automatic fallback to thumbnail if large image is unavailable
-  - Delete image when no longer needed
+**Item Image Management**
+- **Upload**: Capture via camera or upload from file (requires login)
+- **Public Access**: Images are accessible via secure token-based URLs (no login required)
+- **Two Sizes**: Automatic thumbnail (200x200px) and large image (1024px) generation
+- **Preview**: View large images in full-screen dialog with automatic fallback to thumbnail
+- **Delete**: Remove images when no longer needed (requires login)
+- **Cache-Busting**: Automatic timestamp-based cache invalidation for instant updates
 
-- **Language Selector**
-  - Top‑bar language menu lets you switch between German and English
-  - Choice is remembered (cookie‑based) and applied across the app
+**User Management & Authentication**
+- **Admin Panel**: Create and manage users (ADMIN role required)
+  - Create users with username, email, name, and optional password
+  - Assign USER or ADMIN roles
+  - Enable/disable accounts
+  - Generate magic login links for passwordless access
+- **Magic Login Links**: 
+  - Generate secure, time-limited (24 hours default) single-use login tokens
+  - Perfect for temporary access or users without passwords
+  - Old tokens are automatically invalidated when generating new ones
+  - Accessible via `/api/v1/auth/magic-login?token={uuid}`
+- **Dual Authentication**:
+  - **Nextcloud/OIDC**: Automatic user creation on first login with username conflict resolution
+  - **Local Login**: Traditional username/password authentication
+  - **Form Login**: Available at `/login` with redirect after authentication
+- **Security Features**:
+  - Account lockout after 5 failed login attempts for 1 hour
+  - Failed attempt tracking with automatic reset on successful login
+  - Password encryption using BCrypt
+  - Session management via JDBC (dev) or Redis (prod)
 
-- **Move Items Between Boxes**
-  - Select one or more items in the box details table and choose "Verschieben" (Move)
-  - Pick target box by UUID and confirm; bulk operations are supported
+**Language & Localization**
+- Top‑bar language menu lets you switch between German and English
+- Choice is remembered (cookie‑based) and applied across the app
+
+**Move Items Between Boxes**
+- Select one or more items in the box details table and choose "Verschieben" (Move)
+- Pick target box by UUID and confirm; bulk operations are supported
 
 ## Development
 
@@ -53,11 +86,32 @@
 - Maven 3.9+
 
 ### Backend
+
+**Required Environment Variables:**
+```powershell
+# PowerShell
+$env:FRONTEND_URL = 'http://localhost:3000'
+$env:CLIENT_ID = 'your-nextcloud-client-id'
+$env:CLIENT_SECRET = 'your-nextcloud-client-secret'
+$env:NEXTCLOUD_URL = 'https://cloud.example.com'
+$env:NEXTCLOUD_LOGOUT_URL = 'https://cloud.example.com/index.php/logout'
+$env:SPRING_PROFILES_ACTIVE = 'dev'
+```
+
+**Run Backend (Maven ONLY - never execute JAR directly):**
 ```bash
 cd backend
-mvn spring-boot:run -Dspring-boot.run.profiles=dev
+mvn spring-boot:run
 ```
-Runs on port 8080 with H2 in-memory database.
+Runs on port 8080 with H2 file-based database at `./data/boxcopilot-dev`.
+
+**Default Admin User:**  
+On first startup, a default admin account is created:
+- Username: `admin`
+- Password: `admin`
+- Role: `ADMIN`
+
+**Important:** Change the default password immediately after first login.
 
 ### Frontend
 ```bash
@@ -65,14 +119,49 @@ cd frontend
 npm install
 npm run dev
 ```
-Runs on port 5173 with Vite dev server.
+Runs on port 5173 with Vite dev server. API calls are proxied to `http://localhost:8080`.
 
 ### Configuration Profiles
-- `dev` - H2 database, JDBC sessions, OIDC enabled
-- `prod` - PostgreSQL, Redis sessions, OIDC enabled
-- `test` - H2 in-memory, security disabled
+- `dev` - H2 file database, JDBC sessions, OIDC enabled, dual authentication
+- `prod` - PostgreSQL, Redis sessions, OIDC enabled, dual authentication
+- `test` - H2 in-memory, security disabled for testing
 
 See [application-*.yml](backend/src/main/resources/) for profile configurations.
+
+### API Endpoints
+
+**Authentication:**
+- `POST /login` - Form-based login (username + password)
+- `GET /oauth2/authorization/nextcloud` - Initiate OIDC login
+- `GET /api/v1/auth/magic-login?token={uuid}` - Magic link authentication
+- `POST /api/v1/auth/logout` - Logout current user
+- `GET /api/v1/me` - Get current user info
+
+**User Management (ADMIN only):**
+- `GET /api/v1/admin/users` - List all users
+- `POST /api/v1/admin/users` - Create new user
+- `PUT /api/v1/admin/users/{id}` - Update user
+- `DELETE /api/v1/admin/users/{id}` - Delete user
+- `POST /api/v1/admin/users/{id}/magic-link` - Generate magic login link
+
+**Boxes (authenticated):**
+- `GET /api/v1/boxes` - List all boxes
+- `POST /api/v1/boxes` - Create box
+- `PUT /api/v1/boxes/{id}` - Update box
+- `DELETE /api/v1/boxes/{id}` - Delete box
+
+**Items (authenticated):**
+- `GET /api/v1/items` - List all items
+- `POST /api/v1/items` - Create item
+- `PUT /api/v1/items/{id}` - Update item
+- `DELETE /api/v1/items/{id}` - Delete item
+- `POST /api/v1/items/{id}/image` - Upload item image
+- `DELETE /api/v1/items/{id}/image` - Delete item image
+
+**Public Access (no authentication):**
+- `GET /api/v1/public/{uuid}` - Get box preview by UUID
+- `GET /api/v1/public/items/{token}/image` - Get item thumbnail
+- `GET /api/v1/public/items/{token}/image/large` - Get large item image
 
 ## Production Deployment
 
