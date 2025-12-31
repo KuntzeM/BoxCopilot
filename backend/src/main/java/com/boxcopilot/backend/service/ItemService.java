@@ -202,29 +202,7 @@ public class ItemService {
     }
     
     /**
-     * Retrieves the image for an item by ID.
-     */
-    @Transactional(readOnly = true)
-    public Resource getImage(Long itemId) {
-        log.debug("Service: Retrieving image for item ID: {}", itemId);
-        Item item = itemRepository.findById(itemId)
-            .orElseThrow(() -> {
-                log.error("Cannot retrieve image - Item not found with ID: {}", itemId);
-                return new ResourceNotFoundException("Item not found with ID: " + itemId);
-            });
-        
-        if (item.getImagePath() == null || item.getImagePath().isBlank()) {
-            log.debug("Service: No image found for item ID: {}", itemId);
-            throw new ResourceNotFoundException("No image found for item ID: " + itemId);
-        }
-        
-        Resource imageResource = imageStorageService.getImage(itemId);
-        log.debug("Service: Retrieved image for item ID: {}", itemId);
-        return imageResource;
-    }
-    
-    /**
-     * Deletes the image associated with an item.
+     * Deletes the image associated with an item (requires authentication).
      */
     public ItemResponseDTO deleteImage(Long itemId) {
         log.info("Service: Deleting image for item ID: {}", itemId);

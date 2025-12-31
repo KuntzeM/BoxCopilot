@@ -128,9 +128,9 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
   };
 
   const handleImageClick = (itemId: number, imageUrl: string) => {
-    // Load the large image URL
-    const largeImageUrl = withApiBase(`/api/v1/items/${itemId}/image/large`);
-    setFullImageUrl(largeImageUrl);
+    // Convert thumbnail URL to large image URL
+    const largeImageUrl = imageUrl.replace('/image', '/image/large');
+    setFullImageUrl(withApiBase(largeImageUrl));
   };
 
   const handleManageImage = (itemId: number, currentImageUrl?: string) => {
@@ -331,10 +331,8 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
               }}
               onError={(e) => {
                 // If large image fails, fall back to thumbnail
-                const match = fullImageUrl.match(/\/api\/v1\/items\/(\d+)\/image/);
-                if (match) {
-                  e.currentTarget.src = withApiBase(`/api/v1/items/${match[1]}/image`);
-                }
+                const thumbnailUrl = fullImageUrl.replace('/image/large', '/image');
+                e.currentTarget.src = thumbnailUrl;
               }}
             />
           )}

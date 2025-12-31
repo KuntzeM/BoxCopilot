@@ -111,20 +111,7 @@ public class ItemController {
     }
     
     /**
-     * Retrieves the image for an item.
-     */
-    @GetMapping("/{id}/image")
-    public ResponseEntity<Resource> getImage(@PathVariable Long id) {
-        log.debug("Fetching image for item ID: {}", id);
-        Resource imageResource = itemService.getImage(id);
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + imageResource.getFilename() + "\"")
-                .contentType(MediaType.IMAGE_JPEG)
-                .body(imageResource);
-    }
-
-    /**
-     * Uploads an image for an item.
+     * Uploads an image for an item (requires authentication).
      */
     @PostMapping("/{id}/image")
     public ResponseEntity<ItemResponseDTO> uploadImage(
