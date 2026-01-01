@@ -175,7 +175,7 @@ export default function BoxList() {
       const boxes = await fetchBoxes();
 
       const withUrls = boxes
-        .sort((a, b) => b.id - a.id) // Neueste zuerst
+        .sort((a, b) => b.id - a.id) // Newest first
         .map((b) => ({
           ...b,
           publicUrl: `${window.location.origin}/public/${b.uuid}`,
