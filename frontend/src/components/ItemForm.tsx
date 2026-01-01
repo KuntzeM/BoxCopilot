@@ -49,6 +49,9 @@ const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = fal
           <Button
             type="submit"
             variant="contained"
+            size="large"
+            fullWidth
+            sx={{ minHeight: 56 }}
             disabled={!formData.name.trim() || isSubmitting || isLoading}
           >
             {t('items.add')}

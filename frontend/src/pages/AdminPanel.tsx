@@ -27,6 +27,14 @@ import {
   Snackbar,
   Switch,
   FormControlLabel,
+  Fab,
+  useMediaQuery,
+  useTheme,
+  Card,
+  CardContent,
+  Stack,
+  Divider,
+  Collapse,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -37,6 +45,9 @@ import {
   AdminPanelSettings as AdminIcon,
   Person as PersonIcon,
   Link as LinkIcon,
+  FilterList as FilterIcon,
+  ExpandMore,
+  ExpandLess,
 } from '@mui/icons-material';
 import { useTranslation } from '../hooks/useTranslation';
 import { userService } from '../services/userService';
@@ -65,11 +76,15 @@ function TabPanel(props: TabPanelProps) {
 
 export default function AdminPanel() {
   const { t } = useTranslation();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  
   const [tabValue, setTabValue] = useState(0);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
 
   // Filters
   const [roleFilter, setRoleFilter] = useState<Role | 'all'>('all');
@@ -261,6 +276,115 @@ export default function AdminPanel() {
     return user.lockedUntil && new Date(user.lockedUntil) > new Date();
   };
 
+  const renderUserCard = (user: User) => (
+    <Card key={user.id} sx={{ mb: 2 }}>
+      <CardContent>
+        <Stack spacing={2}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <Box>
+              <Typography variant="h6">{user.name}</Typography>
+              <Typography variant="body2" color="text.secondary">@{user.username}</Typography>
+            </Box>
+            {getStatusChip(user)}
+          </Box>
+
+          <Stack direction="row" spacing={1} flexWrap="wrap">
+            <Chip
+              label={user.role === Role.ADMIN ? t('admin.admin') : t('admin.user')}
+              color={user.role === Role.ADMIN ? 'primary' : 'default'}
+              size="small"
+              icon={user.role === Role.ADMIN ? <AdminIcon /> : <PersonIcon />}
+            />
+            <Chip
+              label={user.authProvider === AuthProvider.NEXTCLOUD ? t('admin.nextcloud') : t('admin.local')}
+              variant="outlined"
+              size="small"
+            />
+            {user.authProvider === AuthProvider.LOCAL && !user.hasPassword && (
+              <Chip
+                label={t('admin.passwordless')}
+                color="warning"
+                variant="outlined"
+                size="small"
+              />
+            )}
+          </Stack>
+
+          <Divider />
+
+          <Stack direction="row" spacing={1} flexWrap="wrap">
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<EditIcon />}
+              onClick={() => openEditDialog(user)}
+              fullWidth={isMobile}
+              sx={{ minHeight: 44 }}
+            >
+              {t('admin.editUser')}
+            </Button>
+            {isUserLocked(user) && (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<LockOpenIcon />}
+                onClick={() => handleUnlockUser(user)}
+                fullWidth={isMobile}
+                sx={{ minHeight: 44 }}
+              >
+                {t('admin.unlock')}
+              </Button>
+            )}
+            {user.authProvider === AuthProvider.LOCAL && (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<LockIcon />}
+                onClick={() => openPasswordDialog(user)}
+                fullWidth={isMobile}
+                sx={{ minHeight: 44 }}
+              >
+                {t('admin.setPassword')}
+              </Button>
+            )}
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<LinkIcon />}
+              onClick={() => handleGenerateMagicLink(user)}
+              fullWidth={isMobile}
+              sx={{ minHeight: 44 }}
+            >
+              Magic Link
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              color="error"
+              startIcon={<DeleteIcon />}
+              onClick={() => openDeleteDialog(user)}
+              fullWidth={isMobile}
+              sx={{ minHeight: 44 }}
+            >
+              {t('admin.deleteUser')}
+            </Button>
+          </Stack>
+
+          <Box>
+            <Typography variant="caption" color="text.secondary">
+              Erstellt: {new Date(user.createdAt).toLocaleDateString()}
+            </Typography>
+            {user.lastLogin && (
+              <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
+                Login: {new Date(user.lastLogin).toLocaleDateString()}
+              </Typography>
+            )}
+          </Box>
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -275,58 +399,85 @@ export default function AdminPanel() {
 
         <TabPanel value={tabValue} index={0}>
           {/* User Management Tab */}
-          <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-            <FormControl sx={{ minWidth: 150 }}>
-              <InputLabel>{t('admin.filterRole')}</InputLabel>
-              <Select
-                value={roleFilter}
-                label={t('admin.filterRole')}
-                onChange={(e) => setRoleFilter(e.target.value as Role | 'all')}
-              >
-                <MenuItem value="all">{t('admin.all')}</MenuItem>
-                <MenuItem value={Role.USER}>{t('admin.user')}</MenuItem>
-                <MenuItem value={Role.ADMIN}>{t('admin.admin')}</MenuItem>
-              </Select>
-            </FormControl>
-
-            <FormControl sx={{ minWidth: 150 }}>
-              <InputLabel>{t('admin.filterAuthType')}</InputLabel>
-              <Select
-                value={authTypeFilter}
-                label={t('admin.filterAuthType')}
-                onChange={(e) => setAuthTypeFilter(e.target.value as AuthProvider | 'all')}
-              >
-                <MenuItem value="all">{t('admin.all')}</MenuItem>
-                <MenuItem value={AuthProvider.LOCAL}>{t('admin.local')}</MenuItem>
-                <MenuItem value={AuthProvider.NEXTCLOUD}>{t('admin.nextcloud')}</MenuItem>
-              </Select>
-            </FormControl>
-
-            <FormControl sx={{ minWidth: 150 }}>
-              <InputLabel>{t('admin.filterStatus')}</InputLabel>
-              <Select
-                value={statusFilter}
-                label={t('admin.filterStatus')}
-                onChange={(e) => setStatusFilter(e.target.value as any)}
-              >
-                <MenuItem value="all">{t('admin.all')}</MenuItem>
-                <MenuItem value="active">{t('admin.active')}</MenuItem>
-                <MenuItem value="inactive">{t('admin.inactive')}</MenuItem>
-                <MenuItem value="locked">{t('admin.locked')}</MenuItem>
-              </Select>
-            </FormControl>
-
-            <Box sx={{ flexGrow: 1 }} />
-
-            <Button variant="contained" startIcon={<AddIcon />} onClick={openCreateDialog}>
-              {t('admin.createUser')}
+          <Box sx={{ mb: 3 }}>
+            {/* Filters Section */}
+            <Button
+              variant="outlined"
+              startIcon={showFilters ? <ExpandLess /> : <ExpandMore />}
+              onClick={() => setShowFilters(!showFilters)}
+              sx={{ mb: 2, minHeight: 44 }}
+              fullWidth={isMobile}
+            >
+              <FilterIcon sx={{ mr: 1 }} />
+              Filter {showFilters ? 'ausblenden' : 'anzeigen'}
             </Button>
+
+            <Collapse in={showFilters}>
+              <Stack 
+                direction={isMobile ? 'column' : 'row'} 
+                spacing={2} 
+                sx={{ mb: 3 }}
+              >
+                <FormControl fullWidth>
+                  <InputLabel>{t('admin.filterRole')}</InputLabel>
+                  <Select
+                    value={roleFilter}
+                    label={t('admin.filterRole')}
+                    onChange={(e) => setRoleFilter(e.target.value as Role | 'all')}
+                  >
+                    <MenuItem value="all">{t('admin.all')}</MenuItem>
+                    <MenuItem value={Role.USER}>{t('admin.user')}</MenuItem>
+                    <MenuItem value={Role.ADMIN}>{t('admin.admin')}</MenuItem>
+                  </Select>
+                </FormControl>
+
+                <FormControl fullWidth>
+                  <InputLabel>{t('admin.filterAuthType')}</InputLabel>
+                  <Select
+                    value={authTypeFilter}
+                    label={t('admin.filterAuthType')}
+                    onChange={(e) => setAuthTypeFilter(e.target.value as AuthProvider | 'all')}
+                  >
+                    <MenuItem value="all">{t('admin.all')}</MenuItem>
+                    <MenuItem value={AuthProvider.LOCAL}>{t('admin.local')}</MenuItem>
+                    <MenuItem value={AuthProvider.NEXTCLOUD}>{t('admin.nextcloud')}</MenuItem>
+                  </Select>
+                </FormControl>
+
+                <FormControl fullWidth>
+                  <InputLabel>{t('admin.filterStatus')}</InputLabel>
+                  <Select
+                    value={statusFilter}
+                    label={t('admin.filterStatus')}
+                    onChange={(e) => setStatusFilter(e.target.value as any)}
+                  >
+                    <MenuItem value="all">{t('admin.all')}</MenuItem>
+                    <MenuItem value="active">{t('admin.active')}</MenuItem>
+                    <MenuItem value="inactive">{t('admin.inactive')}</MenuItem>
+                    <MenuItem value="locked">{t('admin.locked')}</MenuItem>
+                  </Select>
+                </FormControl>
+              </Stack>
+            </Collapse>
+
+            {!isMobile && (
+              <Button 
+                variant="contained" 
+                startIcon={<AddIcon />} 
+                onClick={openCreateDialog}
+                sx={{ mb: 2, minHeight: 44 }}
+              >
+                {t('admin.createUser')}
+              </Button>
+            )}
           </Box>
 
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-          <TableContainer>
-            <Table>
+          {/* Desktop: Table View */}
+          {!isMobile && (
+            <TableContainer component={Paper}>
+              <Table>
               <TableHead>
                 <TableRow>
                   <TableCell>{t('admin.username')}</TableCell>
@@ -442,6 +593,22 @@ export default function AdminPanel() {
               </TableBody>
             </Table>
           </TableContainer>
+          )}
+
+          {/* Mobile: Card View */}
+          {isMobile && (
+            <Box>
+              {loading ? (
+                <Box sx={{ textAlign: 'center', py: 4 }}>
+                  <Typography>{t('app.loading')}</Typography>
+                </Box>
+              ) : users.length === 0 ? (
+                <Alert severity="info">No users found</Alert>
+              ) : (
+                users.map(renderUserCard)
+              )}
+            </Box>
+          )}
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
@@ -502,9 +669,23 @@ export default function AdminPanel() {
             label={t('admin.enabled')}
           />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCreateDialogOpen(false)}>{t('admin.cancel')}</Button>
-          <Button onClick={handleCreateUser} variant="contained">
+        <DialogActions sx={{ p: 2 }}>
+          <Button 
+            onClick={() => setCreateDialogOpen(false)}
+            fullWidth
+            size="large"
+            variant="outlined"
+            sx={{ minHeight: 56 }}
+          >
+            {t('admin.cancel')}
+          </Button>
+          <Button 
+            onClick={handleCreateUser} 
+            variant="contained"
+            fullWidth
+            size="large"
+            sx={{ minHeight: 56 }}
+          >
             {t('admin.save')}
           </Button>
         </DialogActions>
@@ -550,9 +731,23 @@ export default function AdminPanel() {
             label={t('admin.enabled')}
           />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)}>{t('admin.cancel')}</Button>
-          <Button onClick={handleUpdateUser} variant="contained">
+        <DialogActions sx={{ p: 2 }}>
+          <Button 
+            onClick={() => setEditDialogOpen(false)}
+            fullWidth
+            size="large"
+            variant="outlined"
+            sx={{ minHeight: 56 }}
+          >
+            {t('admin.cancel')}
+          </Button>
+          <Button 
+            onClick={handleUpdateUser} 
+            variant="contained"
+            fullWidth
+            size="large"
+            sx={{ minHeight: 56 }}
+          >
             {t('admin.save')}
           </Button>
         </DialogActions>
@@ -566,9 +761,24 @@ export default function AdminPanel() {
             {t('admin.deleteConfirm', { username: selectedUser?.username })}
           </Typography>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>{t('admin.cancel')}</Button>
-          <Button onClick={handleDeleteUser} variant="contained" color="error">
+        <DialogActions sx={{ p: 2 }}>
+          <Button 
+            onClick={() => setDeleteDialogOpen(false)}
+            fullWidth
+            size="large"
+            variant="outlined"
+            sx={{ minHeight: 56 }}
+          >
+            {t('admin.cancel')}
+          </Button>
+          <Button 
+            onClick={handleDeleteUser} 
+            variant="contained" 
+            color="error"
+            fullWidth
+            size="large"
+            sx={{ minHeight: 56 }}
+          >
             {t('boxes.delete')}
           </Button>
         </DialogActions>
@@ -588,9 +798,23 @@ export default function AdminPanel() {
             required
           />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPasswordDialogOpen(false)}>{t('admin.cancel')}</Button>
-          <Button onClick={handleSetPassword} variant="contained">
+        <DialogActions sx={{ p: 2 }}>
+          <Button 
+            onClick={() => setPasswordDialogOpen(false)}
+            fullWidth
+            size="large"
+            variant="outlined"
+            sx={{ minHeight: 56 }}
+          >
+            {t('admin.cancel')}
+          </Button>
+          <Button 
+            onClick={handleSetPassword} 
+            variant="contained"
+            fullWidth
+            size="large"
+            sx={{ minHeight: 56 }}
+          >
             {t('admin.save')}
           </Button>
         </DialogActions>
@@ -627,14 +851,27 @@ export default function AdminPanel() {
             </Box>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => {
-            setMagicLinkDialogOpen(false);
-            setMagicLinkData(null);
-          }}>
+        <DialogActions sx={{ p: 2 }}>
+          <Button 
+            onClick={() => {
+              setMagicLinkDialogOpen(false);
+              setMagicLinkData(null);
+            }}
+            fullWidth
+            size="large"
+            variant="outlined"
+            sx={{ minHeight: 56 }}
+          >
             {t('admin.magicLinkClose')}
           </Button>
-          <Button onClick={handleCopyMagicLink} variant="contained" startIcon={<LinkIcon />}>
+          <Button 
+            onClick={handleCopyMagicLink} 
+            variant="contained" 
+            startIcon={<LinkIcon />}
+            fullWidth
+            size="large"
+            sx={{ minHeight: 56 }}
+          >
             {t('admin.magicLinkCopy')}
           </Button>
         </DialogActions>
@@ -647,6 +884,23 @@ export default function AdminPanel() {
         onClose={() => setSuccessMessage(null)}
         message={successMessage}
       />
+
+      {/* FAB for Creating User (Mobile) */}
+      {isMobile && (
+        <Fab
+          color="primary"
+          aria-label={t('admin.createUser')}
+          onClick={openCreateDialog}
+          sx={{
+            position: 'fixed',
+            bottom: 80,
+            right: 16,
+            zIndex: 1000,
+          }}
+        >
+          <AddIcon />
+        </Fab>
+      )}
     </Box>
   );
 }
