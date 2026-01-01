@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Alert,
@@ -48,6 +48,7 @@ import {
   MoreVert,
 } from '@mui/icons-material';
 import { QRCodeCanvas } from 'qrcode.react';
+import { List as VirtualList } from 'react-window';
 import { Box as BoxModel, Item, CreateBoxPayload } from '../types/models';
 import { fetchBoxes, createBox, deleteBox } from '../services/boxService';
 import { searchItems } from '../services/itemService';
@@ -349,6 +350,104 @@ export default function BoxList() {
     handleCloseDrawer();
   };
 
+  // Render a single box card (for both regular and virtualized rendering)
+  const renderBoxCard = useCallback((box: BoxModel) => (
+    <Paper key={box.id} sx={{ borderRadius: 2, boxShadow: 2 }}>
+      <Box sx={{ p: 2 }}>
+        <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" flexWrap="wrap">
+          <Stack direction="row" spacing={2} alignItems="center" sx={{ flex: 1, minWidth: 200 }}>
+            <Checkbox
+              checked={selectedIds.includes(box.id)}
+              onChange={() => toggleSelect(box.id)}
+              inputProps={{ 'aria-label': t('boxes.selectBox', { number: box.id }) }}
+            />
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="h6">{t('boxes.boxNumber', { number: box.id })}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                {t('boxes.current')}: {box.currentRoom || '-'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {t('boxes.target')}: {box.targetRoom || '-'}
+              </Typography>
+              {box.description && (
+                <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mt: 0.5 }}>
+                  {truncateToFirstLine(box.description)}
+                </Typography>
+              )}
+              <BoxHandlingBadges box={box} />
+            </Box>
+          </Stack>
+
+          <Stack direction="row" spacing={0.5} flexWrap="wrap" justifyContent="flex-end">
+            <IconButton
+              size="medium"
+              title={t('boxes.actions')}
+              onClick={() => handleOpenBoxActions(box)}
+              color="primary"
+              sx={{ minWidth: 48, minHeight: 48 }}
+            >
+              <MoreVert />
+            </IconButton>
+          </Stack>
+        </Stack>
+      </Box>
+
+      <Divider />
+
+      <Box sx={{ p: 2 }}>
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          onClick={() => toggleExpandBox(box.id)}
+          sx={{ cursor: 'pointer', userSelect: 'none' }}
+        >
+          {expandedBoxes.has(box.id) ? <ExpandLess /> : <ExpandMore />}
+          <Typography variant="subtitle1" fontWeight={700}>
+            {t('items.itemsCount', { count: box.items?.length || 0 })}
+          </Typography>
+        </Stack>
+
+        <Collapse in={expandedBoxes.has(box.id)} timeout="auto" unmountOnExit>
+          <Stack spacing={1.5} sx={{ mt: 2 }}>
+            {box.items && box.items.length > 0 ? (
+              box.items.map((item) => (
+                <Paper key={item.id} variant="outlined" sx={{ p: 1.25, borderRadius: 1.5 }}>
+                  <Stack direction="row" alignItems="center" spacing={1.5}>
+                    {item.imageUrl ? (
+                      <Avatar
+                        src={resolveImageUrl(item.imageUrl)}
+                        alt={item.name}
+                        loading="lazy"
+                        sx={{ width: 40, height: 40, cursor: 'pointer', flexShrink: 0 }}
+                        onClick={() => setFullImageUrl(withApiBase(item.imageUrl.replace('/image', '/image/large')))}
+                      />
+                    ) : (
+                      <Avatar sx={{ width: 40, height: 40, bgcolor: 'grey.300', flexShrink: 0 }}>
+                        📦
+                      </Avatar>
+                    )}
+                    <Box sx={{ flex: 1, minWidth: 160 }}>
+                      <Typography variant="body2" fontWeight={500}>
+                        {item.name}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                </Paper>
+              ))
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                {t('items.noItemsInBox')}
+              </Typography>
+            )}
+          </Stack>
+        </Collapse>
+      </Box>
+    </Paper>
+  ), [selectedIds, expandedBoxes, t, resolveImageUrl, withApiBase]);
+
+  const useVirtualization = filteredBoxes.length > 50;
+
   return (
     <Box sx={{ width: '100%', pb: 4 }}>
       <GlobalStyles
@@ -492,102 +591,23 @@ export default function BoxList() {
         <Paper sx={{ p: 3, textAlign: 'center' }}>{t('boxes.loadingBoxes')}</Paper>
       ) : filteredBoxes.length === 0 ? (
         <Alert severity="info">{t('boxes.noBoxesFound')}</Alert>
+      ) : useVirtualization ? (
+        <Box sx={{ height: 600, width: '100%' }}>
+          <VirtualList
+            defaultHeight={600}
+            rowCount={filteredBoxes.length}
+            rowHeight={200}
+          >
+            {({ index, style }) => (
+              <Box style={style} sx={{ px: 0, py: 1 }}>
+                {renderBoxCard(filteredBoxes[index])}
+              </Box>
+            )}
+          </VirtualList>
+        </Box>
       ) : (
         <Stack spacing={2}>
-          {filteredBoxes.map((box) => (
-            <Paper key={box.id} sx={{ borderRadius: 2, boxShadow: 2 }}>
-              <Box sx={{ p: 2 }}>
-                <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" flexWrap="wrap">
-                  <Stack direction="row" spacing={2} alignItems="center" sx={{ flex: 1, minWidth: 200 }}>
-                    <Checkbox
-                      checked={selectedIds.includes(box.id)}
-                      onChange={() => toggleSelect(box.id)}
-                      inputProps={{ 'aria-label': t('boxes.selectBox', { number: box.id }) }}
-                    />
-                    <Box sx={{ flex: 1 }}>
-                      <Typography variant="h6">{t('boxes.boxNumber', { number: box.id })}</Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {t('boxes.current')}: {box.currentRoom || '-'}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {t('boxes.target')}: {box.targetRoom || '-'}
-                      </Typography>
-                      {box.description && (
-                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mt: 0.5 }}>
-                          {truncateToFirstLine(box.description)}
-                        </Typography>
-                      )}
-                      <BoxHandlingBadges box={box} />
-                    </Box>
-                  </Stack>
-
-                  <Stack direction="row" spacing={0.5} flexWrap="wrap" justifyContent="flex-end">
-                    <IconButton
-                      size="medium"
-                      title={t('boxes.actions')}
-                      onClick={() => handleOpenBoxActions(box)}
-                      color="primary"
-                      sx={{ minWidth: 48, minHeight: 48 }}
-                    >
-                      <MoreVert />
-                    </IconButton>
-                  </Stack>
-                </Stack>
-              </Box>
-
-              <Divider />
-
-              <Box sx={{ p: 2 }}>
-                <Stack
-                  direction="row"
-                  spacing={1}
-                  alignItems="center"
-                  onClick={() => toggleExpandBox(box.id)}
-                  sx={{ cursor: 'pointer', userSelect: 'none' }}
-                >
-                  {expandedBoxes.has(box.id) ? <ExpandLess /> : <ExpandMore />}
-                  <Typography variant="subtitle1" fontWeight={700}>
-                    {t('items.itemsCount', { count: box.items?.length || 0 })}
-                  </Typography>
-                </Stack>
-
-                <Collapse in={expandedBoxes.has(box.id)} timeout="auto" unmountOnExit>
-                  <Stack spacing={1.5} sx={{ mt: 2 }}>
-                    {box.items && box.items.length > 0 ? (
-                      box.items.map((item) => (
-                        <Paper key={item.id} variant="outlined" sx={{ p: 1.25, borderRadius: 1.5 }}>
-                          <Stack direction="row" alignItems="center" spacing={1.5}>
-                            {item.imageUrl ? (
-                              <Avatar
-                                src={resolveImageUrl(item.imageUrl)}
-                                alt={item.name}
-                                loading="lazy"
-                                sx={{ width: 40, height: 40, cursor: 'pointer', flexShrink: 0 }}
-                                onClick={() => setFullImageUrl(withApiBase(item.imageUrl.replace('/image', '/image/large')))}
-                              />
-                            ) : (
-                              <Avatar sx={{ width: 40, height: 40, bgcolor: 'grey.300', flexShrink: 0 }}>
-                                📦
-                              </Avatar>
-                            )}
-                            <Box sx={{ flex: 1, minWidth: 160 }}>
-                              <Typography variant="body2" fontWeight={500}>
-                                {item.name}
-                              </Typography>
-                            </Box>
-                          </Stack>
-                        </Paper>
-                      ))
-                    ) : (
-                      <Typography variant="body2" color="text.secondary">
-                        {t('items.noItemsInBox')}
-                      </Typography>
-                    )}
-                  </Stack>
-                </Collapse>
-              </Box>
-            </Paper>
-          ))}
+          {filteredBoxes.map((box) => renderBoxCard(box))}
         </Stack>
       )}
 
