@@ -167,7 +167,7 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
               >
                 {mode === 'light' ? <DarkMode /> : <WbSunny />}
               </IconButton>
-              <LanguageSelector />
+              <LanguageSelector variant="icon" />
               {hasAdminAccess(user) && (
                 <Button
                   color="inherit"
@@ -218,19 +218,18 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
             <Divider />
 
             {/* Theme Toggle */}
-            <ListItemButton onClick={handleMobileThemeToggle} sx={{ minHeight: 56 }}>
-              <ListItemIcon>
-                {mode === 'dark' ? <WbSunny /> : <DarkMode />}
-              </ListItemIcon>
-              <ListItemText primary={t('theme.toggleDarkMode')} />
-            </ListItemButton>
-
-            {/* Language Selector */}
             <ListItem sx={{ minHeight: 56 }}>
-              <ListItemIcon>
-                <LanguageIcon />
-              </ListItemIcon>
-              <LanguageSelector />
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                <IconButton
+                  onClick={handleMobileThemeToggle}
+                  color="inherit"
+                  aria-label={t('theme.toggleDarkMode')}
+                  size="large"
+                >
+                  {mode === 'dark' ? <WbSunny /> : <DarkMode />}
+                </IconButton>
+                <LanguageSelector variant="icon" buttonSx={{ ml: 0 }} />
+              </Box>
             </ListItem>
 
             <Divider />

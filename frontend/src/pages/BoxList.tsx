@@ -98,6 +98,7 @@ export default function BoxList() {
 
   const [allBoxes, setAllBoxes] = useState<BoxModel[]>([]);
   const [filteredBoxes, setFilteredBoxes] = useState<BoxModel[]>([]);
+  const [matchedItemIds, setMatchedItemIds] = useState<Set<number>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [itemQuery, setItemQuery] = useState('');
   const [roomQuery, setRoomQuery] = useState('');
@@ -196,6 +197,7 @@ export default function BoxList() {
     setRoomQuery('');
     setFilterFragile(false);
     setFilterNoStack(false);
+    setMatchedItemIds(new Set());
     setFilteredBoxes(allBoxes);
   };
 
@@ -212,7 +214,10 @@ export default function BoxList() {
       if (itemTerm) {
         const items = await searchItems(itemTerm);
         const ids = new Set(items.map((i) => i.boxId));
+        setMatchedItemIds(new Set(items.map((i) => i.id)));
         next = next.filter((b) => ids.has(b.id));
+      } else {
+        setMatchedItemIds(new Set());
       }
 
       if (filterFragile) {
@@ -228,6 +233,7 @@ export default function BoxList() {
         setSnackbar({ open: true, message: t('errors.noSearchResults'), severity: 'info' });
       }
     } catch (error) {
+      setMatchedItemIds(new Set());
       setSnackbar({ open: true, message: t('errors.searchFailed'), severity: 'error' });
     }
   };
@@ -412,7 +418,18 @@ export default function BoxList() {
           <Stack spacing={1.5} sx={{ mt: 2 }}>
             {box.items && box.items.length > 0 ? (
               box.items.map((item) => (
-                <Paper key={item.id} variant="outlined" sx={{ p: 1.25, borderRadius: 1.5 }}>
+                <Paper
+                  key={item.id}
+                  variant="outlined"
+                  sx={{
+                    p: 1.25,
+                    borderRadius: 1.5,
+                    borderColor: matchedItemIds.has(item.id) ? theme.palette.primary.main : undefined,
+                    backgroundColor: matchedItemIds.has(item.id)
+                      ? theme.palette.primary.main + '22'
+                      : undefined,
+                  }}
+                >
                   <Stack direction="row" alignItems="center" spacing={1.5}>
                     {item.imageUrl ? (
                       <Avatar
@@ -444,7 +461,7 @@ export default function BoxList() {
         </Collapse>
       </Box>
     </Paper>
-  ), [selectedIds, expandedBoxes, t, resolveImageUrl, withApiBase]);
+  ), [selectedIds, expandedBoxes, t, resolveImageUrl, withApiBase, matchedItemIds, theme]);
 
   const useVirtualization = filteredBoxes.length > 50;
 
