@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Card, CardContent, CircularProgress, Container, Typography, Alert, Stack, Divider, Chip, AppBar, Toolbar, IconButton, Paper, Dialog, DialogTitle, DialogContent, DialogActions, Button, Avatar } from '@mui/material';
 import { Brightness4, Brightness7, Close, Edit } from '@mui/icons-material';
-import { QRCodeCanvas } from 'qrcode.react';
 import axios from '../services/axiosConfig';
 import { fetchPublicPreview } from '../services/publicPreviewService';
 import { BoxPreview } from '../types/models';
@@ -94,8 +93,6 @@ function PublicPreviewContent() {
     );
   }
 
-  const publicUrl = `${window.location.origin}/public/${token}`;
-
   return (
     <>
       <AppBar position="static" color="default" elevation={1}>
@@ -111,11 +108,16 @@ function PublicPreviewContent() {
               {t('boxes.edit') || 'Bearbeiten'}
             </Button>
           )}
-          <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
-            <IconButton onClick={toggleTheme} color="inherit" aria-label={t('theme.toggle')}>
+          <Box sx={{ display: 'flex', gap: 1, ml: 'auto', alignItems: 'center' }}>
+            <IconButton
+              onClick={toggleTheme}
+              color="inherit"
+              aria-label={t('theme.toggle')}
+              size="medium"
+            >
               {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
             </IconButton>
-            <LanguageSelector />
+            <LanguageSelector variant="icon" />
           </Box>
         </Toolbar>
       </AppBar>
@@ -144,32 +146,22 @@ function PublicPreviewContent() {
                 </Alert>
               )}
               
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-                <Box>
-                  <Typography variant="h5" fontWeight={700}>
-                    {t('boxes.boxNumber', { number: data.id })}
+              {/* Box Info */}
+              <Box>
+                <Typography variant="h5" fontWeight={700}>
+                  {t('boxes.boxNumber', { number: data.id })}
+                </Typography>
+                <Typography variant="body1" sx={{ mt: 0.5 }}>
+                  {t('boxes.current')}: <strong>{data.currentRoom || '-'}</strong>
+                </Typography>
+                <Typography variant="body1">
+                  {t('boxes.target')}: <strong>{data.targetRoom || '-'}</strong>
+                </Typography>
+                {data.description && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
+                    {truncateToFirstLine(data.description)}
                   </Typography>
-                  <Typography variant="body1" sx={{ mt: 0.5 }}>
-                    {t('boxes.current')}: <strong>{data.currentRoom || '-'}</strong>
-                  </Typography>
-                  <Typography variant="body1">
-                    {t('boxes.target')}: <strong>{data.targetRoom || '-'}</strong>
-                  </Typography>
-                  {data.description && (
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
-                      {truncateToFirstLine(data.description)}
-                    </Typography>
-                  )}
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                    {t('boxes.uuid')}: {data.uuid}
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'grid', placeItems: 'center' }}>
-                  <QRCodeCanvas value={publicUrl} size={120} includeMargin />
-                  <Typography variant="caption" sx={{ mt: 1 }}>
-                    {t('boxes.publicLink')}
-                  </Typography>
-                </Box>
+                )}
               </Box>
 
               <Divider />
@@ -200,6 +192,7 @@ function PublicPreviewContent() {
                             <Avatar
                               src={resolveImageUrl(item.imageUrl)}
                               alt={item.name}
+                              loading="lazy"
                               sx={{ width: 50, height: 50, cursor: 'pointer' }}
                               onClick={() => item.imageUrl && setFullImageUrl(withApiBase(item.imageUrl.replace('/image', '/image/large')))}
                             />

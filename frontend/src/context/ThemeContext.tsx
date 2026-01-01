@@ -26,7 +26,7 @@ interface CookieThemeProviderProps {
 export const CookieThemeProvider: React.FC<CookieThemeProviderProps> = ({ children }) => {
   const [mode, setMode] = useState<ThemeMode>(() => {
     const savedMode = Cookies.get('theme-mode') as ThemeMode | undefined;
-    return savedMode && (savedMode === 'light' || savedMode === 'dark') ? savedMode : 'light';
+    return savedMode && (savedMode === 'light' || savedMode === 'dark') ? savedMode : 'dark';
   });
 
   useEffect(() => {
@@ -42,10 +42,10 @@ export const CookieThemeProvider: React.FC<CookieThemeProviderProps> = ({ childr
             ? {
                 // Light mode palette
                 primary: {
-                  main: '#1976d2',
+                  main: '#c95f26',
                 },
                 secondary: {
-                  main: '#dc004e',
+                  main: '#2196F3',
                 },
                 background: {
                   default: '#f5f5f5',
@@ -59,10 +59,10 @@ export const CookieThemeProvider: React.FC<CookieThemeProviderProps> = ({ childr
             : {
                 // Dark mode palette
                 primary: {
-                  main: '#90caf9',
+                  main: '#c95f26',
                 },
                 secondary: {
-                  main: '#f48fb1',
+                  main: '#42A5F5',
                 },
                 background: {
                   default: '#121212',
@@ -76,6 +76,32 @@ export const CookieThemeProvider: React.FC<CookieThemeProviderProps> = ({ childr
         },
         typography: {
           fontFamily: 'Roboto, sans-serif',
+        },
+        components: {
+          MuiButton: {
+            styleOverrides: {
+              sizeLarge: {
+                minHeight: 56,
+                fontSize: '1.1rem',
+              },
+            },
+          },
+          MuiFab: {
+            styleOverrides: {
+              root: {
+                width: 56,
+                height: 56,
+              },
+            },
+          },
+          MuiIconButton: {
+            styleOverrides: {
+              root: {
+                minWidth: 44,
+                minHeight: 44,
+              },
+            },
+          },
         },
       }),
     [mode],

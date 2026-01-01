@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Alert,
@@ -23,6 +23,13 @@ import {
   useMediaQuery,
   useTheme,
   Avatar,
+  Fab,
+  Drawer,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  ListItemButton,
 } from '@mui/material';
 import {
   Add,
@@ -38,8 +45,10 @@ import {
   BrokenImage,
   DoNotDisturb,
   Close,
+  MoreVert,
 } from '@mui/icons-material';
 import { QRCodeCanvas } from 'qrcode.react';
+import { List as VirtualList } from 'react-window';
 import { Box as BoxModel, Item, CreateBoxPayload } from '../types/models';
 import { fetchBoxes, createBox, deleteBox } from '../services/boxService';
 import { searchItems } from '../services/itemService';
@@ -89,6 +98,7 @@ export default function BoxList() {
 
   const [allBoxes, setAllBoxes] = useState<BoxModel[]>([]);
   const [filteredBoxes, setFilteredBoxes] = useState<BoxModel[]>([]);
+  const [matchedItemIds, setMatchedItemIds] = useState<Set<number>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [itemQuery, setItemQuery] = useState('');
   const [roomQuery, setRoomQuery] = useState('');
@@ -114,6 +124,10 @@ export default function BoxList() {
   const [isPrinting, setIsPrinting] = useState(false);
 
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
+
+  // State for box actions drawer
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedBoxForActions, setSelectedBoxForActions] = useState<BoxModel | null>(null);
 
   // Build absolute API URLs for images (works in prod without nginx proxy)
   const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
@@ -161,10 +175,12 @@ export default function BoxList() {
     try {
       const boxes = await fetchBoxes();
 
-      const withUrls = boxes.map((b) => ({
-        ...b,
-        publicUrl: `${window.location.origin}/public/${b.uuid}`,
-      })) as BoxModel[];
+      const withUrls = boxes
+        .sort((a, b) => b.id - a.id) // Newest first
+        .map((b) => ({
+          ...b,
+          publicUrl: `${window.location.origin}/public/${b.uuid}`,
+        })) as BoxModel[];
 
       setAllBoxes(withUrls);
       setFilteredBoxes(withUrls);
@@ -181,6 +197,7 @@ export default function BoxList() {
     setRoomQuery('');
     setFilterFragile(false);
     setFilterNoStack(false);
+    setMatchedItemIds(new Set());
     setFilteredBoxes(allBoxes);
   };
 
@@ -197,7 +214,10 @@ export default function BoxList() {
       if (itemTerm) {
         const items = await searchItems(itemTerm);
         const ids = new Set(items.map((i) => i.boxId));
+        setMatchedItemIds(new Set(items.map((i) => i.id)));
         next = next.filter((b) => ids.has(b.id));
+      } else {
+        setMatchedItemIds(new Set());
       }
 
       if (filterFragile) {
@@ -213,6 +233,7 @@ export default function BoxList() {
         setSnackbar({ open: true, message: t('errors.noSearchResults'), severity: 'info' });
       }
     } catch (error) {
+      setMatchedItemIds(new Set());
       setSnackbar({ open: true, message: t('errors.searchFailed'), severity: 'error' });
     }
   };
@@ -297,6 +318,153 @@ export default function BoxList() {
     }
   };
 
+  const handleOpenBoxActions = (box: BoxModel) => {
+    setSelectedBoxForActions(box);
+    setDrawerOpen(true);
+  };
+
+  const handleCloseDrawer = () => {
+    setDrawerOpen(false);
+    setSelectedBoxForActions(null);
+  };
+
+  const handleDrawerEdit = () => {
+    if (selectedBoxForActions) {
+      navigate(`/app/boxes/${selectedBoxForActions.id}/edit`);
+    }
+    handleCloseDrawer();
+  };
+
+  const handleDrawerCopyLink = async () => {
+    if (selectedBoxForActions?.publicUrl) {
+      await handleCopyLink(selectedBoxForActions.publicUrl);
+    }
+    handleCloseDrawer();
+  };
+
+  const handleDrawerOpenLink = () => {
+    if (selectedBoxForActions?.publicUrl) {
+      handleOpenPublicLink(selectedBoxForActions.publicUrl);
+    }
+    handleCloseDrawer();
+  };
+
+  const handleDrawerDelete = () => {
+    if (selectedBoxForActions) {
+      setDeleteConfirmId(selectedBoxForActions.id);
+    }
+    handleCloseDrawer();
+  };
+
+  // Render a single box card (for both regular and virtualized rendering)
+  const renderBoxCard = useCallback((box: BoxModel) => (
+    <Paper key={box.id} sx={{ borderRadius: 2, boxShadow: 2 }}>
+      <Box sx={{ p: 2 }}>
+        <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" flexWrap="wrap">
+          <Stack direction="row" spacing={2} alignItems="center" sx={{ flex: 1, minWidth: 200 }}>
+            <Checkbox
+              checked={selectedIds.includes(box.id)}
+              onChange={() => toggleSelect(box.id)}
+              inputProps={{ 'aria-label': t('boxes.selectBox', { number: box.id }) }}
+            />
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="h6">{t('boxes.boxNumber', { number: box.id })}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                {t('boxes.current')}: {box.currentRoom || '-'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {t('boxes.target')}: {box.targetRoom || '-'}
+              </Typography>
+              {box.description && (
+                <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mt: 0.5 }}>
+                  {truncateToFirstLine(box.description)}
+                </Typography>
+              )}
+              <BoxHandlingBadges box={box} />
+            </Box>
+          </Stack>
+
+          <Stack direction="row" spacing={0.5} flexWrap="wrap" justifyContent="flex-end">
+            <IconButton
+              size="medium"
+              title={t('boxes.actions')}
+              onClick={() => handleOpenBoxActions(box)}
+              color="primary"
+              sx={{ minWidth: 48, minHeight: 48 }}
+            >
+              <MoreVert />
+            </IconButton>
+          </Stack>
+        </Stack>
+      </Box>
+
+      <Divider />
+
+      <Box sx={{ p: 2 }}>
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          onClick={() => toggleExpandBox(box.id)}
+          sx={{ cursor: 'pointer', userSelect: 'none' }}
+        >
+          {expandedBoxes.has(box.id) ? <ExpandLess /> : <ExpandMore />}
+          <Typography variant="subtitle1" fontWeight={700}>
+            {t('items.itemsCount', { count: box.items?.length || 0 })}
+          </Typography>
+        </Stack>
+
+        <Collapse in={expandedBoxes.has(box.id)} timeout="auto" unmountOnExit>
+          <Stack spacing={1.5} sx={{ mt: 2 }}>
+            {box.items && box.items.length > 0 ? (
+              box.items.map((item) => (
+                <Paper
+                  key={item.id}
+                  variant="outlined"
+                  sx={{
+                    p: 1.25,
+                    borderRadius: 1.5,
+                    borderColor: matchedItemIds.has(item.id) ? theme.palette.primary.main : undefined,
+                    backgroundColor: matchedItemIds.has(item.id)
+                      ? theme.palette.primary.main + '22'
+                      : undefined,
+                  }}
+                >
+                  <Stack direction="row" alignItems="center" spacing={1.5}>
+                    {item.imageUrl ? (
+                      <Avatar
+                        src={resolveImageUrl(item.imageUrl)}
+                        alt={item.name}
+                        loading="lazy"
+                        sx={{ width: 40, height: 40, cursor: 'pointer', flexShrink: 0 }}
+                        onClick={() => setFullImageUrl(withApiBase(item.imageUrl.replace('/image', '/image/large')))}
+                      />
+                    ) : (
+                      <Avatar sx={{ width: 40, height: 40, bgcolor: 'grey.300', flexShrink: 0 }}>
+                        📦
+                      </Avatar>
+                    )}
+                    <Box sx={{ flex: 1, minWidth: 160 }}>
+                      <Typography variant="body2" fontWeight={500}>
+                        {item.name}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                </Paper>
+              ))
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                {t('items.noItemsInBox')}
+              </Typography>
+            )}
+          </Stack>
+        </Collapse>
+      </Box>
+    </Paper>
+  ), [selectedIds, expandedBoxes, t, resolveImageUrl, withApiBase, matchedItemIds, theme]);
+
+  const useVirtualization = filteredBoxes.length > 50;
+
   return (
     <Box sx={{ width: '100%', pb: 4 }}>
       <GlobalStyles
@@ -339,7 +507,7 @@ export default function BoxList() {
       <Stack spacing={2} sx={{ mb: 2 }}>
         <Paper sx={{ p: 2, borderRadius: 2, boxShadow: 2 }}>
           <Stack spacing={2}>
-            <Stack direction={isMobile ? 'column' : 'row'} spacing={2} alignItems={isMobile ? 'stretch' : 'center'}>
+            <Stack direction="column" spacing={2}>
               <TextField
                 fullWidth
                 label={t('boxes.itemName')}
@@ -354,29 +522,15 @@ export default function BoxList() {
                 value={roomQuery}
                 onChange={(e) => setRoomQuery(e.target.value)}
               />
-              {!isMobile && (
-                <Button 
-                  variant="outlined" 
-                  onClick={handleResetFilter}
-                  size="small"
-                  sx={{ minWidth: '120px' }}
-                >
-                  {t('boxes.reset')}
-                </Button>
-              )}
-            </Stack>
-            
-            {/* Mobile Reset Button */}
-            {isMobile && (
               <Button 
-                fullWidth 
+                fullWidth
                 variant="outlined" 
                 onClick={handleResetFilter}
                 size="small"
               >
-                {t('boxes.resetFilters')}
+                {t('boxes.reset')}
               </Button>
-            )}
+            </Stack>
 
             {/* Advanced Filters Toggle */}
             <Button
@@ -441,9 +595,11 @@ export default function BoxList() {
             >
               {t('boxes.printLabels')}
             </Button>
-            <Button variant="contained" startIcon={<Add />} onClick={handleOpenBoxDialog}>
-              {t('boxes.createNew')}
-            </Button>
+            {!isMobile && (
+              <Button variant="contained" startIcon={<Add />} onClick={handleOpenBoxDialog}>
+                {t('boxes.createNew')}
+              </Button>
+            )}
           </Stack>
         </Stack>
       </Stack>
@@ -452,123 +608,23 @@ export default function BoxList() {
         <Paper sx={{ p: 3, textAlign: 'center' }}>{t('boxes.loadingBoxes')}</Paper>
       ) : filteredBoxes.length === 0 ? (
         <Alert severity="info">{t('boxes.noBoxesFound')}</Alert>
+      ) : useVirtualization ? (
+        <Box sx={{ height: 600, width: '100%' }}>
+          <VirtualList
+            defaultHeight={600}
+            rowCount={filteredBoxes.length}
+            rowHeight={200}
+          >
+            {({ index, style }) => (
+              <Box style={style} sx={{ px: 0, py: 1 }}>
+                {renderBoxCard(filteredBoxes[index])}
+              </Box>
+            )}
+          </VirtualList>
+        </Box>
       ) : (
         <Stack spacing={2}>
-          {filteredBoxes.map((box) => (
-            <Paper key={box.id} sx={{ borderRadius: 2, boxShadow: 2 }}>
-              <Box sx={{ p: 2 }}>
-                <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" flexWrap="wrap">
-                  <Stack direction="row" spacing={2} alignItems="center" sx={{ flex: 1, minWidth: 200 }}>
-                    <Checkbox
-                      checked={selectedIds.includes(box.id)}
-                      onChange={() => toggleSelect(box.id)}
-                      inputProps={{ 'aria-label': t('boxes.selectBox', { number: box.id }) }}
-                    />
-                    <Box sx={{ flex: 1 }}>
-                      <Typography variant="h6">{t('boxes.boxNumber', { number: box.id })}</Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {t('boxes.current')}: {box.currentRoom || '-'}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {t('boxes.target')}: {box.targetRoom || '-'}
-                      </Typography>
-                      {box.description && (
-                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mt: 0.5 }}>
-                          {truncateToFirstLine(box.description)}
-                        </Typography>
-                      )}
-                      <BoxHandlingBadges box={box} />
-                    </Box>
-                  </Stack>
-
-                  <Stack direction="row" spacing={0.5} flexWrap="wrap" justifyContent="flex-end">
-                    <IconButton
-                      size="small"
-                      title={t('boxes.edit')}
-                      onClick={() => navigate(`/app/boxes/${box.id}/edit`)}
-                      color="primary"
-                    >
-                      <Edit fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      title={t('boxes.copyPublicLink')}
-                      onClick={() => handleCopyLink(box.publicUrl)}
-                    >
-                      <ContentCopy fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      title={t('boxes.openPublicLink')}
-                      onClick={() => handleOpenPublicLink(box.publicUrl)}
-                      color="info"
-                    >
-                      <OpenInNew fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      title={t('boxes.delete')}
-                      color="error"
-                      onClick={() => setDeleteConfirmId(box.id)}
-                    >
-                      <Delete fontSize="small" />
-                    </IconButton>
-                  </Stack>
-                </Stack>
-              </Box>
-
-              <Divider />
-
-              <Box sx={{ p: 2 }}>
-                <Stack
-                  direction="row"
-                  spacing={1}
-                  alignItems="center"
-                  onClick={() => toggleExpandBox(box.id)}
-                  sx={{ cursor: 'pointer', userSelect: 'none' }}
-                >
-                  {expandedBoxes.has(box.id) ? <ExpandLess /> : <ExpandMore />}
-                  <Typography variant="subtitle1" fontWeight={700}>
-                    {t('items.itemsCount', { count: box.items?.length || 0 })}
-                  </Typography>
-                </Stack>
-
-                <Collapse in={expandedBoxes.has(box.id)} timeout="auto" unmountOnExit>
-                  <Stack spacing={1.5} sx={{ mt: 2 }}>
-                    {box.items && box.items.length > 0 ? (
-                      box.items.map((item) => (
-                        <Paper key={item.id} variant="outlined" sx={{ p: 1.25, borderRadius: 1.5 }}>
-                          <Stack direction="row" alignItems="center" spacing={1.5}>
-                            {item.imageUrl ? (
-                              <Avatar
-                                src={resolveImageUrl(item.imageUrl)}
-                                alt={item.name}
-                                sx={{ width: 40, height: 40, cursor: 'pointer', flexShrink: 0 }}
-                                onClick={() => setFullImageUrl(withApiBase(item.imageUrl.replace('/image', '/image/large')))}
-                              />
-                            ) : (
-                              <Avatar sx={{ width: 40, height: 40, bgcolor: 'grey.300', flexShrink: 0 }}>
-                                📦
-                              </Avatar>
-                            )}
-                            <Box sx={{ flex: 1, minWidth: 160 }}>
-                              <Typography variant="body2" fontWeight={500}>
-                                {item.name}
-                              </Typography>
-                            </Box>
-                          </Stack>
-                        </Paper>
-                      ))
-                    ) : (
-                      <Typography variant="body2" color="text.secondary">
-                        {t('items.noItemsInBox')}
-                      </Typography>
-                    )}
-                  </Stack>
-                </Collapse>
-              </Box>
-            </Paper>
-          ))}
+          {filteredBoxes.map((box) => renderBoxCard(box))}
         </Stack>
       )}
 
@@ -794,6 +850,81 @@ export default function BoxList() {
           <Button onClick={() => setFullImageUrl(null)}>Schließen</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Floating Action Button for Mobile */}
+      {isMobile && (
+        <Fab
+          color="primary"
+          aria-label={t('boxes.createNew')}
+          onClick={handleOpenBoxDialog}
+          sx={{
+            position: 'fixed',
+            bottom: 80,
+            right: 16,
+            zIndex: 1000,
+          }}
+        >
+          <Add />
+        </Fab>
+      )}
+
+      {/* Bottom Sheet for Box Actions */}
+      <Drawer
+        anchor="bottom"
+        open={drawerOpen}
+        onClose={handleCloseDrawer}
+        PaperProps={{
+          sx: {
+            borderTopLeftRadius: 16,
+            borderTopRightRadius: 16,
+            maxHeight: '70vh',
+          },
+        }}
+      >
+        <Box sx={{ p: 2 }}>
+          <Typography variant="h6" sx={{ mb: 2, textAlign: 'center' }}>
+            {selectedBoxForActions ? t('boxes.boxNumber', { number: selectedBoxForActions.id }) : ''}
+          </Typography>
+          <List>
+            <ListItemButton
+              onClick={handleDrawerEdit}
+              sx={{ minHeight: 56, borderRadius: 1, mb: 1 }}
+            >
+              <ListItemIcon>
+                <Edit color="primary" />
+              </ListItemIcon>
+              <ListItemText primary={t('boxes.edit')} />
+            </ListItemButton>
+            <ListItemButton
+              onClick={handleDrawerCopyLink}
+              sx={{ minHeight: 56, borderRadius: 1, mb: 1 }}
+            >
+              <ListItemIcon>
+                <ContentCopy />
+              </ListItemIcon>
+              <ListItemText primary={t('boxes.copyPublicLink')} />
+            </ListItemButton>
+            <ListItemButton
+              onClick={handleDrawerOpenLink}
+              sx={{ minHeight: 56, borderRadius: 1, mb: 1 }}
+            >
+              <ListItemIcon>
+                <OpenInNew color="info" />
+              </ListItemIcon>
+              <ListItemText primary={t('boxes.openPublicLink')} />
+            </ListItemButton>
+            <ListItemButton
+              onClick={handleDrawerDelete}
+              sx={{ minHeight: 56, borderRadius: 1, mb: 1 }}
+            >
+              <ListItemIcon>
+                <Delete color="error" />
+              </ListItemIcon>
+              <ListItemText primary={t('boxes.delete')} />
+            </ListItemButton>
+          </List>
+        </Box>
+      </Drawer>
     </Box>
   );
 }
