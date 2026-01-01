@@ -1,12 +1,6 @@
 import React, { useState } from 'react';
 import {
   Box,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Paper,
   IconButton,
   Dialog,
@@ -27,6 +21,7 @@ import {
   ListItemText,
   useMediaQuery,
   useTheme,
+  Stack,
 } from '@mui/material';
 import { 
   Edit, 
@@ -222,99 +217,144 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
         </Toolbar>
       )}
 
-      <TableContainer component={Paper} sx={{ mt: 3 }}>
-        <Table>
-          <TableHead>
-            <TableRow sx={{ backgroundColor: 'primary.main' }}>
-              <TableCell padding="checkbox" sx={{ color: 'white' }}>
-                <Checkbox
-                  checked={selectedItems.size === items.length && items.length > 0}
-                  indeterminate={selectedItems.size > 0 && selectedItems.size < items.length}
-                  onChange={handleSelectAll}
-                  sx={{ color: 'white' }}
+      {/* Card-based layout for items */}
+      <Stack spacing={1} sx={{ mt: 2 }}>
+        {items.map((item) => (
+          <Paper
+            key={item.id}
+            variant="outlined"
+            onClick={() => handleSelectItem(item.id)}
+            sx={{
+              p: 1.5,
+              borderRadius: 1.5,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              backgroundColor: selectedItems.has(item.id)
+                ? 'primary.light'
+                : 'background.paper',
+              borderColor: selectedItems.has(item.id)
+                ? 'primary.main'
+                : 'divider',
+              borderWidth: selectedItems.has(item.id) ? 2 : 1,
+              '&:hover': {
+                boxShadow: 1,
+                backgroundColor: selectedItems.has(item.id)
+                  ? 'primary.light'
+                  : 'action.hover',
+              },
+              userSelect: 'none',
+            }}
+          >
+            {/* Image */}
+            <Box sx={{ flexShrink: 0 }}>
+              {item.imageUrl ? (
+                <Avatar
+                  src={resolveImageUrl(item.imageUrl)}
+                  alt={item.name}
+                  loading="lazy"
+                  sx={{ width: 48, height: 48, cursor: 'pointer' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleImageClick(item.id, item.imageUrl!);
+                  }}
                 />
-              </TableCell>
-              <TableCell sx={{ color: 'white' }}>Bild</TableCell>
-              <TableCell sx={{ color: 'white' }}>{t('items.name')}</TableCell>
-              <TableCell sx={{ color: 'white' }}>{t('items.actions')}</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {items.map((item) => (
-              <TableRow key={item.id} hover>
-                <TableCell padding="checkbox">
-                  <Checkbox
-                    checked={selectedItems.has(item.id)}
-                    onChange={() => handleSelectItem(item.id)}
-                  />
-                </TableCell>
-                <TableCell>
-                  {item.imageUrl ? (
-                    <Avatar
-                      src={resolveImageUrl(item.imageUrl)}
-                      alt={item.name}
-                      loading="lazy"
-                      sx={{ width: 50, height: 50, cursor: 'pointer' }}
-                      onClick={() => handleImageClick(item.id, item.imageUrl!)}
-                    />
-                  ) : (
-                    <Avatar sx={{ width: 50, height: 50, bgcolor: 'grey.300' }}>
-                      📦
-                    </Avatar>
-                  )}
-                </TableCell>
-                <TableCell>{item.name}</TableCell>
-                <TableCell>
-                  {isMobile ? (
-                    <IconButton
-                      size="medium"
-                      onClick={() => handleOpenItemActions(item)}
-                      sx={{ minWidth: 48, minHeight: 48 }}
-                    >
-                      <MoreVert />
-                    </IconButton>
-                  ) : (
-                    <>
-                      <IconButton
-                        size="small"
-                        color="primary"
-                        onClick={() => handleManageImage(item.id, item.imageUrl)}
-                        title="Bild verwalten"
-                      >
-                        <ImageIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        color="info"
-                        onClick={() => handleMoveSingle(item.id)}
-                        title="Verschieben"
-                      >
-                        <DriveFileMove fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        color="primary"
-                        onClick={() => handleEditClick(item)}
-                        title={t('items.edit')}
-                      >
-                        <Edit fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => setDeleteConfirm(item.id)}
-                        title={t('items.delete')}
-                      >
-                        <Delete fontSize="small" />
-                      </IconButton>
-                    </>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+              ) : (
+                <Avatar sx={{ width: 48, height: 48, bgcolor: 'grey.300' }}>
+                  📦
+                </Avatar>
+              )}
+            </Box>
+
+            {/* Item Name */}
+            <Typography
+              variant="body2"
+              sx={{
+                flex: 1,
+                fontWeight: 500,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                color: selectedItems.has(item.id)
+                  ? 'primary.dark'
+                  : 'text.primary',
+              }}
+            >
+              {item.name}
+            </Typography>
+
+            {/* Checkmark indicator for selected */}
+            {selectedItems.has(item.id) && (
+              <Typography
+                sx={{
+                  flexShrink: 0,
+                  fontSize: '1.25rem',
+                  color: 'primary.main',
+                }}
+              >
+                ✓
+              </Typography>
+            )}
+
+            {/* Actions */}
+            <Box
+              sx={{ flexShrink: 0, display: 'flex', gap: 0.5 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {isMobile ? (
+                <IconButton
+                  size="small"
+                  onClick={() => handleOpenItemActions(item)}
+                  sx={{ minWidth: 40, minHeight: 40 }}
+                >
+                  <MoreVert fontSize="small" />
+                </IconButton>
+              ) : (
+                <>
+                  <IconButton
+                    size="small"
+                    color="primary"
+                    onClick={() => handleManageImage(item.id, item.imageUrl)}
+                    title="Bild verwalten"
+                    sx={{ minWidth: 36, minHeight: 36 }}
+                  >
+                    <ImageIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    color="info"
+                    onClick={() => handleMoveSingle(item.id)}
+                    title="Verschieben"
+                    sx={{ minWidth: 36, minHeight: 36 }}
+                  >
+                    <DriveFileMove fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    color="primary"
+                    onClick={() => handleEditClick(item)}
+                    title={t('items.edit')}
+                    sx={{ minWidth: 36, minHeight: 36 }}
+                  >
+                    <Edit fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    color="error"
+                    onClick={() => setDeleteConfirm(item.id)}
+                    title={t('items.delete')}
+                    sx={{ minWidth: 36, minHeight: 36 }}
+                  >
+                    <Delete fontSize="small" />
+                  </IconButton>
+                </>
+              )}
+            </Box>
+          </Paper>
+        ))}
+      </Stack>
 
       {/* Edit Dialog */}
       <Dialog open={editingItem !== null} onClose={() => !isLoading && setEditingItem(null)} maxWidth="sm" fullWidth>
