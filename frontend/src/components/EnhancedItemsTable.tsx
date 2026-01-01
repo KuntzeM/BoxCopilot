@@ -195,6 +195,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
                     <Avatar
                       src={resolveImageUrl(item.imageUrl)}
                       alt={item.name}
+                      loading="lazy"
                       sx={{ width: 50, height: 50, cursor: 'pointer' }}
                       onClick={() => handleImageClick(item.id, item.imageUrl!)}
                     />

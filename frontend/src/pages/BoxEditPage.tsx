@@ -188,7 +188,7 @@ const BoxEditPage: React.FC = () => {
   }
 
   return (
-    <Box>
+    <Box sx={{ pb: 20 }}> {/* Add padding to prevent sticky bar overlap */}
       <Button
         startIcon={<ArrowBack />}
         onClick={() => navigate('/app/boxes')}
@@ -203,25 +203,6 @@ const BoxEditPage: React.FC = () => {
         </Typography>
         <BoxForm data={formData} onChange={setFormData} />
       </Paper>
-
-      <Stack direction="row" gap={2} sx={{ mb: 3 }}>
-        <Button
-          variant="contained"
-          onClick={handleSave}
-          disabled={isSaving}
-          size="large"
-        >
-          {isSaving ? t('success.saving') : t('boxes.saveAndReturn')}
-        </Button>
-        <Button
-          variant="outlined"
-          onClick={() => navigate('/app/boxes')}
-          disabled={isSaving}
-          size="large"
-        >
-          {t('boxes.cancel')}
-        </Button>
-      </Stack>
 
       <Paper sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" sx={{ mb: 2 }}>
@@ -238,6 +219,45 @@ const BoxEditPage: React.FC = () => {
         />
         <ItemForm onAddItem={handleAddItem} boxUuid={box.uuid} isLoading={isSaving} />
       </Paper>
+
+      {/* Sticky Bottom Bar */}
+      <Box
+        sx={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          p: 2,
+          bgcolor: 'background.paper',
+          borderTop: 1,
+          borderColor: 'divider',
+          zIndex: 1000,
+          boxShadow: '0 -2px 8px rgba(0, 0, 0, 0.1)',
+        }}
+      >
+        <Stack direction="column" spacing={2} sx={{ maxWidth: 'lg', mx: 'auto' }}>
+          <Button
+            variant="contained"
+            onClick={handleSave}
+            disabled={isSaving}
+            size="large"
+            fullWidth
+            sx={{ minHeight: 56 }}
+          >
+            {isSaving ? t('success.saving') : t('boxes.saveAndReturn')}
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={() => navigate('/app/boxes')}
+            disabled={isSaving}
+            size="large"
+            fullWidth
+            sx={{ minHeight: 56 }}
+          >
+            {t('boxes.cancel')}
+          </Button>
+        </Stack>
+      </Box>
 
       <Snackbar
         open={snackbar !== null}

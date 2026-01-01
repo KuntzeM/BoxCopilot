@@ -23,6 +23,13 @@ import {
   useMediaQuery,
   useTheme,
   Avatar,
+  Fab,
+  Drawer,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  ListItemButton,
 } from '@mui/material';
 import {
   Add,
@@ -38,6 +45,7 @@ import {
   BrokenImage,
   DoNotDisturb,
   Close,
+  MoreVert,
 } from '@mui/icons-material';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Box as BoxModel, Item, CreateBoxPayload } from '../types/models';
@@ -115,6 +123,10 @@ export default function BoxList() {
 
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
 
+  // State for box actions drawer
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedBoxForActions, setSelectedBoxForActions] = useState<BoxModel | null>(null);
+
   // Build absolute API URLs for images (works in prod without nginx proxy)
   const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
   const withApiBase = (path: string) =>
@@ -161,10 +173,12 @@ export default function BoxList() {
     try {
       const boxes = await fetchBoxes();
 
-      const withUrls = boxes.map((b) => ({
-        ...b,
-        publicUrl: `${window.location.origin}/public/${b.uuid}`,
-      })) as BoxModel[];
+      const withUrls = boxes
+        .sort((a, b) => b.id - a.id) // Neueste zuerst
+        .map((b) => ({
+          ...b,
+          publicUrl: `${window.location.origin}/public/${b.uuid}`,
+        })) as BoxModel[];
 
       setAllBoxes(withUrls);
       setFilteredBoxes(withUrls);
@@ -297,6 +311,44 @@ export default function BoxList() {
     }
   };
 
+  const handleOpenBoxActions = (box: BoxModel) => {
+    setSelectedBoxForActions(box);
+    setDrawerOpen(true);
+  };
+
+  const handleCloseDrawer = () => {
+    setDrawerOpen(false);
+    setSelectedBoxForActions(null);
+  };
+
+  const handleDrawerEdit = () => {
+    if (selectedBoxForActions) {
+      navigate(`/app/boxes/${selectedBoxForActions.id}/edit`);
+    }
+    handleCloseDrawer();
+  };
+
+  const handleDrawerCopyLink = async () => {
+    if (selectedBoxForActions?.publicUrl) {
+      await handleCopyLink(selectedBoxForActions.publicUrl);
+    }
+    handleCloseDrawer();
+  };
+
+  const handleDrawerOpenLink = () => {
+    if (selectedBoxForActions?.publicUrl) {
+      handleOpenPublicLink(selectedBoxForActions.publicUrl);
+    }
+    handleCloseDrawer();
+  };
+
+  const handleDrawerDelete = () => {
+    if (selectedBoxForActions) {
+      setDeleteConfirmId(selectedBoxForActions.id);
+    }
+    handleCloseDrawer();
+  };
+
   return (
     <Box sx={{ width: '100%', pb: 4 }}>
       <GlobalStyles
@@ -339,7 +391,7 @@ export default function BoxList() {
       <Stack spacing={2} sx={{ mb: 2 }}>
         <Paper sx={{ p: 2, borderRadius: 2, boxShadow: 2 }}>
           <Stack spacing={2}>
-            <Stack direction={isMobile ? 'column' : 'row'} spacing={2} alignItems={isMobile ? 'stretch' : 'center'}>
+            <Stack direction="column" spacing={2}>
               <TextField
                 fullWidth
                 label={t('boxes.itemName')}
@@ -354,29 +406,15 @@ export default function BoxList() {
                 value={roomQuery}
                 onChange={(e) => setRoomQuery(e.target.value)}
               />
-              {!isMobile && (
-                <Button 
-                  variant="outlined" 
-                  onClick={handleResetFilter}
-                  size="small"
-                  sx={{ minWidth: '120px' }}
-                >
-                  {t('boxes.reset')}
-                </Button>
-              )}
-            </Stack>
-            
-            {/* Mobile Reset Button */}
-            {isMobile && (
               <Button 
-                fullWidth 
+                fullWidth
                 variant="outlined" 
                 onClick={handleResetFilter}
                 size="small"
               >
-                {t('boxes.resetFilters')}
+                {t('boxes.reset')}
               </Button>
-            )}
+            </Stack>
 
             {/* Advanced Filters Toggle */}
             <Button
@@ -441,9 +479,11 @@ export default function BoxList() {
             >
               {t('boxes.printLabels')}
             </Button>
-            <Button variant="contained" startIcon={<Add />} onClick={handleOpenBoxDialog}>
-              {t('boxes.createNew')}
-            </Button>
+            {!isMobile && (
+              <Button variant="contained" startIcon={<Add />} onClick={handleOpenBoxDialog}>
+                {t('boxes.createNew')}
+              </Button>
+            )}
           </Stack>
         </Stack>
       </Stack>
@@ -483,35 +523,13 @@ export default function BoxList() {
 
                   <Stack direction="row" spacing={0.5} flexWrap="wrap" justifyContent="flex-end">
                     <IconButton
-                      size="small"
-                      title={t('boxes.edit')}
-                      onClick={() => navigate(`/app/boxes/${box.id}/edit`)}
+                      size="medium"
+                      title={t('boxes.actions')}
+                      onClick={() => handleOpenBoxActions(box)}
                       color="primary"
+                      sx={{ minWidth: 48, minHeight: 48 }}
                     >
-                      <Edit fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      title={t('boxes.copyPublicLink')}
-                      onClick={() => handleCopyLink(box.publicUrl)}
-                    >
-                      <ContentCopy fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      title={t('boxes.openPublicLink')}
-                      onClick={() => handleOpenPublicLink(box.publicUrl)}
-                      color="info"
-                    >
-                      <OpenInNew fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      title={t('boxes.delete')}
-                      color="error"
-                      onClick={() => setDeleteConfirmId(box.id)}
-                    >
-                      <Delete fontSize="small" />
+                      <MoreVert />
                     </IconButton>
                   </Stack>
                 </Stack>
@@ -543,6 +561,7 @@ export default function BoxList() {
                               <Avatar
                                 src={resolveImageUrl(item.imageUrl)}
                                 alt={item.name}
+                                loading="lazy"
                                 sx={{ width: 40, height: 40, cursor: 'pointer', flexShrink: 0 }}
                                 onClick={() => setFullImageUrl(withApiBase(item.imageUrl.replace('/image', '/image/large')))}
                               />
@@ -794,6 +813,81 @@ export default function BoxList() {
           <Button onClick={() => setFullImageUrl(null)}>Schließen</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Floating Action Button for Mobile */}
+      {isMobile && (
+        <Fab
+          color="primary"
+          aria-label={t('boxes.createNew')}
+          onClick={handleOpenBoxDialog}
+          sx={{
+            position: 'fixed',
+            bottom: 80,
+            right: 16,
+            zIndex: 1000,
+          }}
+        >
+          <Add />
+        </Fab>
+      )}
+
+      {/* Bottom Sheet for Box Actions */}
+      <Drawer
+        anchor="bottom"
+        open={drawerOpen}
+        onClose={handleCloseDrawer}
+        PaperProps={{
+          sx: {
+            borderTopLeftRadius: 16,
+            borderTopRightRadius: 16,
+            maxHeight: '70vh',
+          },
+        }}
+      >
+        <Box sx={{ p: 2 }}>
+          <Typography variant="h6" sx={{ mb: 2, textAlign: 'center' }}>
+            {selectedBoxForActions ? t('boxes.boxNumber', { number: selectedBoxForActions.id }) : ''}
+          </Typography>
+          <List>
+            <ListItemButton
+              onClick={handleDrawerEdit}
+              sx={{ minHeight: 56, borderRadius: 1, mb: 1 }}
+            >
+              <ListItemIcon>
+                <Edit color="primary" />
+              </ListItemIcon>
+              <ListItemText primary={t('boxes.edit')} />
+            </ListItemButton>
+            <ListItemButton
+              onClick={handleDrawerCopyLink}
+              sx={{ minHeight: 56, borderRadius: 1, mb: 1 }}
+            >
+              <ListItemIcon>
+                <ContentCopy />
+              </ListItemIcon>
+              <ListItemText primary={t('boxes.copyPublicLink')} />
+            </ListItemButton>
+            <ListItemButton
+              onClick={handleDrawerOpenLink}
+              sx={{ minHeight: 56, borderRadius: 1, mb: 1 }}
+            >
+              <ListItemIcon>
+                <OpenInNew color="info" />
+              </ListItemIcon>
+              <ListItemText primary={t('boxes.openPublicLink')} />
+            </ListItemButton>
+            <ListItemButton
+              onClick={handleDrawerDelete}
+              sx={{ minHeight: 56, borderRadius: 1, mb: 1 }}
+            >
+              <ListItemIcon>
+                <Delete color="error" />
+              </ListItemIcon>
+              <ListItemText primary={t('boxes.delete')} />
+            </ListItemButton>
+          </List>
+        </Box>
+      </Drawer>
     </Box>
   );
 }

@@ -144,29 +144,32 @@ function PublicPreviewContent() {
                 </Alert>
               )}
               
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-                <Box>
-                  <Typography variant="h5" fontWeight={700}>
-                    {t('boxes.boxNumber', { number: data.id })}
+              {/* Box Info */}
+              <Box>
+                <Typography variant="h5" fontWeight={700}>
+                  {t('boxes.boxNumber', { number: data.id })}
+                </Typography>
+                <Typography variant="body1" sx={{ mt: 0.5 }}>
+                  {t('boxes.current')}: <strong>{data.currentRoom || '-'}</strong>
+                </Typography>
+                <Typography variant="body1">
+                  {t('boxes.target')}: <strong>{data.targetRoom || '-'}</strong>
+                </Typography>
+                {data.description && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
+                    {truncateToFirstLine(data.description)}
                   </Typography>
-                  <Typography variant="body1" sx={{ mt: 0.5 }}>
-                    {t('boxes.current')}: <strong>{data.currentRoom || '-'}</strong>
-                  </Typography>
-                  <Typography variant="body1">
-                    {t('boxes.target')}: <strong>{data.targetRoom || '-'}</strong>
-                  </Typography>
-                  {data.description && (
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
-                      {truncateToFirstLine(data.description)}
-                    </Typography>
-                  )}
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                    {t('boxes.uuid')}: {data.uuid}
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'grid', placeItems: 'center' }}>
-                  <QRCodeCanvas value={publicUrl} size={120} includeMargin />
-                  <Typography variant="caption" sx={{ mt: 1 }}>
+                )}
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                  {t('boxes.uuid')}: {data.uuid}
+                </Typography>
+              </Box>
+
+              {/* QR Code - Centered Below */}
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                <Box sx={{ textAlign: 'center' }}>
+                  <QRCodeCanvas value={publicUrl} size={160} includeMargin />
+                  <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
                     {t('boxes.publicLink')}
                   </Typography>
                 </Box>
@@ -200,6 +203,7 @@ function PublicPreviewContent() {
                             <Avatar
                               src={resolveImageUrl(item.imageUrl)}
                               alt={item.name}
+                              loading="lazy"
                               sx={{ width: 50, height: 50, cursor: 'pointer' }}
                               onClick={() => item.imageUrl && setFullImageUrl(withApiBase(item.imageUrl.replace('/image', '/image/large')))}
                             />
