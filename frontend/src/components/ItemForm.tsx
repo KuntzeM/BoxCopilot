@@ -18,7 +18,6 @@ import {
 import {
   PhotoCamera,
   Upload,
-  Close,
   Delete,
 } from '@mui/icons-material';
 import { CreateItemPayload } from '../types/models';
@@ -45,26 +44,19 @@ const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = fal
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showPhotoOptions, setShowPhotoOptions] = useState(false);
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [stream, setStream] = useState<MediaStream | null>(null);
   const [failureDialogOpen, setFailureDialogOpen] = useState(false);
   const [failedItemId, setFailedItemId] = useState<number | null>(null);
 
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
       if (imagePreview) {
         URL.revokeObjectURL(imagePreview);
       }
     };
-  }, [stream, imagePreview]);
+  }, [imagePreview]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -76,60 +68,6 @@ const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = fal
     }
   };
 
-  const startCamera = async () => {
-    try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-      });
-      setStream(mediaStream);
-      setIsCameraOpen(true);
-      
-      setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = mediaStream;
-          videoRef.current.play().catch(err => {
-            console.error('Error playing video:', err);
-          });
-        }
-      }, 100);
-    } catch (error) {
-      console.error('Camera access error:', error);
-    }
-  };
-
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      setStream(null);
-    }
-    setIsCameraOpen(false);
-  };
-
-  const capturePhoto = () => {
-    if (!videoRef.current || !canvasRef.current) return;
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
-
-    if (!context) return;
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    context.drawImage(video, 0, 0);
-
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-
-      const file = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
-      setSelectedImage(file);
-      const preview = URL.createObjectURL(file);
-      setImagePreview(preview);
-      stopCamera();
-      setShowPhotoOptions(false);
-    }, 'image/jpeg', 0.9);
-  };
-
   const removePhoto = () => {
     if (imagePreview) {
       URL.revokeObjectURL(imagePreview);
@@ -139,14 +77,14 @@ const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = fal
   };
 
   const handleKeepItem = async () => {
+    // Trigger reload to show the item without photo
+    await onAddItem(formData);
+    onSuccess?.(t('success.itemAdded'));
     setFailureDialogOpen(false);
     setFailedItemId(null);
     setFormData({ boxUuid, name: '' });
     removePhoto();
     setUploadProgress(0);
-    // Trigger reload to show the item without photo
-    await onAddItem(formData);
-    onSuccess?.(t('success.itemAdded'));
   };
 
   const handleDeleteFailedItem = async () => {
@@ -283,12 +221,10 @@ const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = fal
                   bgcolor: 'background.paper',
                   '&:hover': { bgcolor: 'error.main', color: 'white' },
                 }}
+                aria-label={t('items.removePhoto')}
               >
                 <Delete />
               </IconButton>
-              <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
-                {t('items.removePhoto')}
-              </Typography>
             </Box>
           )}
 
@@ -331,49 +267,6 @@ const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = fal
           style={{ display: 'none' }}
           onChange={handleFileSelect}
         />
-
-        {/* Camera Dialog */}
-        <Dialog open={isCameraOpen} onClose={stopCamera} maxWidth="md" fullWidth>
-          <DialogTitle>
-            {t('items.takePhoto')}
-            <IconButton
-              onClick={stopCamera}
-              sx={{ position: 'absolute', right: 8, top: 8 }}
-            >
-              <Close />
-            </IconButton>
-          </DialogTitle>
-          <DialogContent>
-            <Box sx={{ position: 'relative', width: '100%', paddingTop: '75%' }}>
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                onLoadedMetadata={(e) => {
-                  const video = e.target as HTMLVideoElement;
-                  video.play().catch(err => console.error('Play error:', err));
-                }}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  backgroundColor: '#000',
-                }}
-              />
-            </Box>
-            <canvas ref={canvasRef} style={{ display: 'none' }} />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={stopCamera}>{t('items.cancel')}</Button>
-            <Button variant="contained" onClick={capturePhoto}>
-              {t('items.takePhoto')}
-            </Button>
-          </DialogActions>
-        </Dialog>
 
         {/* Failure Dialog */}
         <Dialog 
