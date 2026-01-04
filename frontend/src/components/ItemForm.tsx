@@ -25,7 +25,7 @@ import { useTranslation } from '../hooks/useTranslation';
 import { createItem, uploadItemImage, deleteItem } from '../services/itemService';
 
 interface ItemFormProps {
-  onAddItem: (data: CreateItemPayload) => Promise<void>;
+  onAddItem: () => Promise<void>;
   boxUuid: string;
   isLoading?: boolean;
   onSuccess?: (message: string) => void;
@@ -42,7 +42,6 @@ const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = fal
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [showPhotoOptions, setShowPhotoOptions] = useState(false);
   const [failureDialogOpen, setFailureDialogOpen] = useState(false);
   const [failedItemId, setFailedItemId] = useState<number | null>(null);
@@ -78,13 +77,12 @@ const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = fal
 
   const handleKeepItem = async () => {
     // Trigger reload to show the item without photo
-    await onAddItem(formData);
+    await onAddItem();
     onSuccess?.(t('success.itemAdded'));
     setFailureDialogOpen(false);
     setFailedItemId(null);
     setFormData({ boxUuid, name: '' });
     removePhoto();
-    setUploadProgress(0);
   };
 
   const handleDeleteFailedItem = async () => {
@@ -100,7 +98,6 @@ const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = fal
     setFailedItemId(null);
     setFormData({ boxUuid, name: '' });
     removePhoto();
-    setUploadProgress(0);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -108,18 +105,15 @@ const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = fal
     if (!formData.name.trim()) return;
 
     setIsSubmitting(true);
-    setUploadProgress(0);
 
     try {
       // Step 1: Create item
       const newItem = await createItem(formData);
-      setUploadProgress(50);
 
       // Step 2: Upload photo if selected
       if (selectedImage) {
         try {
           await uploadItemImage(newItem.id, selectedImage);
-          setUploadProgress(100);
         } catch (uploadError) {
           console.error('Photo upload failed:', uploadError);
           // Show failure dialog
@@ -131,11 +125,10 @@ const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = fal
       }
 
       // Success: trigger reload to show new item and reset form
-      await onAddItem(formData);
+      await onAddItem();
       onSuccess?.(t('success.itemAdded'));
       setFormData({ boxUuid, name: '' });
       removePhoto();
-      setUploadProgress(0);
     } catch (err) {
       console.error('Error creating item:', err);
       onError?.(t('errors.itemAddFailed'));
@@ -229,11 +222,11 @@ const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = fal
           )}
 
           {/* Upload progress */}
-          {isSubmitting && uploadProgress > 0 && (
+          {isSubmitting && selectedImage && (
             <Box>
-              <LinearProgress variant="determinate" value={uploadProgress} />
+              <LinearProgress />
               <Typography variant="caption" color="text.secondary" textAlign="center" display="block" sx={{ mt: 0.5 }}>
-                {t('items.uploadProgress')} {uploadProgress}%
+                {t('items.uploadProgress')}
               </Typography>
             </Box>
           )}
@@ -270,9 +263,13 @@ const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = fal
 
         {/* Failure Dialog */}
         <Dialog 
-          open={failureDialogOpen} 
-          onClose={handleKeepItem}
-          disableEscapeKeyDown={false}
+          open={failureDialogOpen}
+          disableEscapeKeyDown={true}
+          onClose={(event, reason) => {
+            if (reason === 'backdropClick') {
+              return; // Prevent closing on backdrop click
+            }
+          }}
         >
           <DialogTitle>{t('items.photoUploadFailedTitle')}</DialogTitle>
           <DialogContent>

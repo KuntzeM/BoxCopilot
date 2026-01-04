@@ -107,7 +107,7 @@ const BoxEditPage: React.FC = () => {
     }
   };
 
-  const handleAddItem = async (payload: CreateItemPayload) => {
+  const handleAddItem = async () => {
     // Just reload the box and items - ItemForm now handles creation
     await loadBoxAndItems();
   };
