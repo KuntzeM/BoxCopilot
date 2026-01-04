@@ -1,198 +1,242 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Box,
-  TextField,
-  Button,
-  Card,
-  CardContent,
-  Typography,
-  Stack,
-  IconButton,
-  Collapse,
-  LinearProgress,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
+  TextField,
+  Button,
+  Box,
+  IconButton,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  Alert,
 } from '@mui/material';
-import {
-  PhotoCamera,
-  Upload,
-  Delete,
-} from '@mui/icons-material';
-import { CreateItemPayload } from '../types/models';
-import { useTranslation } from '../hooks/useTranslation';
-import { createItem, uploadItemImage, deleteItem } from '../services/itemService';
+import { PhotoCamera, CameraAlt, Upload, Delete } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
+import { Item } from '../types';
 
 interface ItemFormProps {
-  onAddItem: () => Promise<void>;
-  boxUuid: string;
-  isLoading?: boolean;
-  onSuccess?: (message: string) => void;
-  onError?: (message: string) => void;
+  open: boolean;
+  onClose: () => void;
+  onSubmit: (item: Omit<Item, 'id' | 'box_id'>, image?: File) => Promise<void>;
+  initialData?: Item;
+  mode: 'add' | 'edit';
 }
 
-const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = false, onSuccess, onError }) => {
+const ItemForm: React.FC<ItemFormProps> = ({
+  open,
+  onClose,
+  onSubmit,
+  initialData,
+  mode,
+}) => {
   const { t } = useTranslation();
-  const [formData, setFormData] = useState<CreateItemPayload>({
-    boxUuid,
-    name: '',
-  });
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string>('');
   const [showPhotoOptions, setShowPhotoOptions] = useState(false);
-  const [failureDialogOpen, setFailureDialogOpen] = useState(false);
-  const [failedItemId, setFailedItemId] = useState<number | null>(null);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [photoAnchorEl, setPhotoAnchorEl] = useState<null | HTMLElement>(null);
 
   useEffect(() => {
-    return () => {
-      if (imagePreview) {
-        URL.revokeObjectURL(imagePreview);
+    if (initialData) {
+      setName(initialData.name);
+      setDescription(initialData.description || '');
+      setQuantity(initialData.quantity);
+      if (initialData.image_url) {
+        setImagePreview(initialData.image_url);
       }
-    };
-  }, [imagePreview]);
+    } else {
+      resetForm();
+    }
+  }, [initialData, open]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       setSelectedImage(file);
       const preview = URL.createObjectURL(file);
-      setImagePreview(preview);
+      // Validate that the URL is a blob URL to prevent XSS
+      if (preview.startsWith('blob:')) {
+        setImagePreview(preview);
+      }
       setShowPhotoOptions(false);
     }
   };
 
+  const handleCameraCapture = (event: React.ChangeEvent<HTMLInputElement>) => {
+    handleFileSelect(event);
+  };
+
   const removePhoto = () => {
-    if (imagePreview) {
-      URL.revokeObjectURL(imagePreview);
-    }
     setSelectedImage(null);
-    setImagePreview(null);
-  };
-
-  const handleKeepItem = async () => {
-    // Trigger reload to show the item without photo
-    await onAddItem();
-    onSuccess?.(t('success.itemAdded'));
-    setFailureDialogOpen(false);
-    setFailedItemId(null);
-    setFormData({ boxUuid, name: '' });
-    removePhoto();
-  };
-
-  const handleDeleteFailedItem = async () => {
-    if (failedItemId) {
-      try {
-        await deleteItem(failedItemId);
-      } catch (error) {
-        console.error('Error deleting failed item:', error);
-        onError?.(t('errors.itemDeleteFailed'));
-      }
+    setImagePreview('');
+    if (initialData) {
+      initialData.image_url = '';
     }
-    setFailureDialogOpen(false);
-    setFailedItemId(null);
-    setFormData({ boxUuid, name: '' });
-    removePhoto();
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.name.trim()) return;
+  const resetForm = () => {
+    setName('');
+    setDescription('');
+    setQuantity(1);
+    setSelectedImage(null);
+    setImagePreview('');
+    setError('');
+  };
+
+  const handleSubmit = async () => {
+    if (!name.trim()) {
+      setError(t('items.nameRequired'));
+      return;
+    }
 
     setIsSubmitting(true);
+    setError('');
 
     try {
-      // Step 1: Create item
-      const newItem = await createItem(formData);
-
-      // Step 2: Upload photo if selected
-      if (selectedImage) {
-        try {
-          await uploadItemImage(newItem.id, selectedImage);
-        } catch (uploadError) {
-          console.error('Photo upload failed:', uploadError);
-          // Show failure dialog
-          setFailedItemId(newItem.id);
-          setFailureDialogOpen(true);
-          setIsSubmitting(false);
-          return;
-        }
-      }
-
-      // Success: trigger reload to show new item and reset form
-      await onAddItem();
-      onSuccess?.(t('success.itemAdded'));
-      setFormData({ boxUuid, name: '' });
-      removePhoto();
+      await onSubmit(
+        {
+          name: name.trim(),
+          description: description.trim(),
+          quantity,
+          image_url: initialData?.image_url || '',
+        },
+        selectedImage || undefined
+      );
+      resetForm();
+      onClose();
     } catch (err) {
-      console.error('Error creating item:', err);
-      onError?.(t('errors.itemAddFailed'));
+      setError(err instanceof Error ? err.message : t('items.addError'));
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const handleClose = () => {
+    if (!isSubmitting) {
+      resetForm();
+      onClose();
+    }
+  };
+
+  const handlePhotoMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setPhotoAnchorEl(event.currentTarget);
+    setShowPhotoOptions(true);
+  };
+
+  const handlePhotoMenuClose = () => {
+    setPhotoAnchorEl(null);
+    setShowPhotoOptions(false);
+  };
+
   return (
-    <Card sx={{ mt: 3 }}>
-      <CardContent>
-        <Typography variant="h6" sx={{ mb: 2 }}>
-          {t('items.addNew')}
-        </Typography>
-        <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <Dialog 
+      open={open} 
+      onClose={handleClose} 
+      maxWidth="sm" 
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: 2,
+          mx: 2,
+        }
+      }}
+    >
+      <DialogTitle>
+        {mode === 'add' ? t('items.addItem') : t('items.editItem')}
+      </DialogTitle>
+      <DialogContent>
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
+        
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
           <TextField
+            autoFocus
             label={t('items.name')}
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             fullWidth
             required
-            disabled={isSubmitting || isLoading}
+            disabled={isSubmitting}
+            error={!name.trim() && error !== ''}
           />
 
-          {/* Photo upload button */}
+          <TextField
+            label={t('items.description')}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            fullWidth
+            multiline
+            rows={3}
+            disabled={isSubmitting}
+          />
+
+          <TextField
+            label={t('items.quantity')}
+            type="number"
+            value={quantity}
+            onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+            fullWidth
+            disabled={isSubmitting}
+            inputProps={{ min: 1 }}
+          />
+
+          {/* Photo options button */}
           <Button
             variant="outlined"
-            size="large"
+            startIcon={<PhotoCamera />}
+            onClick={handlePhotoMenuOpen}
+            disabled={isSubmitting}
             fullWidth
-            onClick={() => setShowPhotoOptions(!showPhotoOptions)}
-            disabled={isSubmitting || isLoading}
-            sx={{ minHeight: 56 }}
           >
-            {t('items.addPhoto')} {selectedImage ? '✓' : ''}
+            {imagePreview ? t('items.changePhoto') : t('items.addPhoto')}
           </Button>
 
-          {/* Photo options (collapsed) */}
-          <Collapse in={showPhotoOptions}>
-            <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
-              <Button
-                variant="outlined"
-                startIcon={<PhotoCamera />}
-                onClick={() => cameraInputRef.current?.click()}
-                disabled={isSubmitting || isLoading}
-                fullWidth
-                sx={{ minHeight: 56 }}
-              >
-                {t('items.takePhoto')}
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<Upload />}
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isSubmitting || isLoading}
-                fullWidth
-                sx={{ minHeight: 56 }}
-              >
-                {t('items.uploadPhoto')}
-              </Button>
-            </Stack>
-          </Collapse>
+          {/* Photo options menu */}
+          <Menu
+            anchorEl={photoAnchorEl}
+            open={showPhotoOptions}
+            onClose={handlePhotoMenuClose}
+          >
+            <MenuItem component="label">
+              <ListItemIcon>
+                <CameraAlt />
+              </ListItemIcon>
+              <ListItemText>{t('items.takePhoto')}</ListItemText>
+              <input
+                type="file"
+                hidden
+                accept="image/*"
+                capture="environment"
+                onChange={handleCameraCapture}
+              />
+            </MenuItem>
+            <MenuItem component="label">
+              <ListItemIcon>
+                <Upload />
+              </ListItemIcon>
+              <ListItemText>{t('items.uploadPhoto')}</ListItemText>
+              <input
+                type="file"
+                hidden
+                accept="image/*"
+                onChange={handleFileSelect}
+              />
+            </MenuItem>
+          </Menu>
 
           {/* Image preview */}
-          {imagePreview && (
+          {imagePreview && imagePreview.startsWith('blob:') && (
             <Box sx={{ position: 'relative', textAlign: 'center', mt: 1 }}>
               <img
                 src={imagePreview}
@@ -220,71 +264,26 @@ const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = fal
               </IconButton>
             </Box>
           )}
-
-          {/* Submit progress */}
-          {isSubmitting && (
-            <Box>
-              <LinearProgress />
-              <Typography variant="caption" color="text.secondary" textAlign="center" display="block" sx={{ mt: 0.5 }}>
-                {selectedImage ? t('items.uploadProgress') : t('success.saving')}
-              </Typography>
-            </Box>
-          )}
-
-          {/* Submit button */}
-          <Button
-            type="submit"
-            variant="contained"
-            size="large"
-            fullWidth
-            sx={{ minHeight: 56 }}
-            disabled={!formData.name.trim() || isSubmitting || isLoading}
-          >
-            {isSubmitting ? (selectedImage ? t('items.uploadProgress') : t('success.saving')) : t('items.add')}
-          </Button>
         </Box>
+      </DialogContent>
 
-        {/* Hidden file inputs */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          style={{ display: 'none' }}
-          onChange={handleFileSelect}
-        />
-        <input
-          ref={cameraInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          style={{ display: 'none' }}
-          onChange={handleFileSelect}
-        />
-
-        {/* Failure Dialog */}
-        <Dialog 
-          open={failureDialogOpen}
-          disableEscapeKeyDown
-          onClose={(_, reason) => {
-            // Prevent closing via backdrop click
-            if (reason !== 'backdropClick') return;
-          }}
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={handleClose} disabled={isSubmitting}>
+          {t('common.cancel')}
+        </Button>
+        <Button
+          onClick={handleSubmit}
+          variant="contained"
+          disabled={isSubmitting || !name.trim()}
         >
-          <DialogTitle>{t('items.photoUploadFailedTitle')}</DialogTitle>
-          <DialogContent>
-            <Typography>{t('items.photoUploadFailedMessage')}</Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={handleDeleteFailedItem} color="error">
-              {t('items.deleteItemQuestion')}
-            </Button>
-            <Button variant="contained" onClick={handleKeepItem}>
-              {t('items.keepItem')}
-            </Button>
-          </DialogActions>
-        </Dialog>
-      </CardContent>
-    </Card>
+          {isSubmitting
+            ? t('common.saving')
+            : mode === 'add'
+            ? t('items.add')
+            : t('items.save')}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 };
 
