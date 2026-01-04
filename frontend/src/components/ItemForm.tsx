@@ -221,12 +221,12 @@ const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = fal
             </Box>
           )}
 
-          {/* Upload progress */}
-          {isSubmitting && selectedImage && (
+          {/* Submit progress */}
+          {isSubmitting && (
             <Box>
               <LinearProgress />
               <Typography variant="caption" color="text.secondary" textAlign="center" display="block" sx={{ mt: 0.5 }}>
-                {t('items.uploadProgress')}
+                {selectedImage ? t('items.uploadProgress') : t('success.saving')}
               </Typography>
             </Box>
           )}
@@ -240,7 +240,7 @@ const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = fal
             sx={{ minHeight: 56 }}
             disabled={!formData.name.trim() || isSubmitting || isLoading}
           >
-            {isSubmitting ? t('items.uploadProgress') : t('items.add')}
+            {isSubmitting ? (selectedImage ? t('items.uploadProgress') : t('success.saving')) : t('items.add')}
           </Button>
         </Box>
 
@@ -264,12 +264,7 @@ const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = fal
         {/* Failure Dialog */}
         <Dialog 
           open={failureDialogOpen}
-          disableEscapeKeyDown={true}
-          onClose={(event, reason) => {
-            if (reason === 'backdropClick') {
-              return; // Prevent closing on backdrop click
-            }
-          }}
+          disableEscapeKeyDown
         >
           <DialogTitle>{t('items.photoUploadFailedTitle')}</DialogTitle>
           <DialogContent>
