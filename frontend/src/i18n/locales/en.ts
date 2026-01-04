@@ -3,6 +3,11 @@
 import { TranslationKeys } from './de';
 
 export const en: TranslationKeys = {
+  common: {
+    cancel: 'Cancel',
+    add: 'Add',
+    saving: 'Saving...',
+  },
   app: {
     title: 'BoxCopilot',
     loading: 'Loading...',
@@ -55,7 +60,7 @@ export const en: TranslationKeys = {
     
     // Box list
     boxNumber: 'Box #{{number}}',
-    editBox: 'Edit Box #{{number}}',
+    editBox: 'Box #{{number}}',
     noBoxesFound: 'No boxes found.',
     loadingBoxes: 'Loading boxes...',
     selectBox: 'Select box {{number}}',
@@ -95,10 +100,14 @@ export const en: TranslationKeys = {
     items: 'Items',
     name: 'Name',
     actions: 'Actions',
+    itemName: 'Item Name',
+    itemNamePlaceholder: 'e.g. Hammer',
     
     // Actions
     add: 'Add',
     addNew: 'Add New Item',
+    addPhoto: 'Add Photo (Optional)',
+    changePhoto: 'Change Photo',
     edit: 'Edit',
     editItem: 'Edit Item',
     delete: 'Delete',
@@ -107,7 +116,6 @@ export const en: TranslationKeys = {
     cancel: 'Cancel',
     
     // Photo upload
-    addPhoto: 'Add Photo',
     takePhoto: 'Take Photo',
     uploadPhoto: 'Upload',
     removePhoto: 'Remove Photo',
@@ -148,6 +156,8 @@ export const en: TranslationKeys = {
     boxCreated: 'Box created',
     boxDeleted: 'Box deleted',
     itemAdded: 'Item added',
+    itemCreated: 'Item added successfully',
+    itemCreatedButImageFailed: 'Item created but photo upload failed',
     itemUpdated: 'Item updated',
     itemDeleted: 'Item deleted',
     linkCopied: 'Public link copied',

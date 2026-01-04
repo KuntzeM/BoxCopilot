@@ -1,19 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Button, Paper, Typography, Alert, CircularProgress, Stack, Snackbar } from '@mui/material';
-import { ArrowBack } from '@mui/icons-material';
+import { Box, Button, Paper, Typography, Alert, CircularProgress, Stack, Snackbar, Collapse, useMediaQuery, useTheme } from '@mui/material';
+import { ArrowBack, Save, ExpandMore, ExpandLess } from '@mui/icons-material';
 import * as boxService from '../services/boxService';
 import * as itemService from '../services/itemService';
-import { Box as BoxType, Item, CreateItemPayload, UpdateItemPayload } from '../types/models';
+import { Box as BoxType, Item, CreateItemPayload, UpdateItemPayload, UserPrincipal } from '../types/models';
 import BoxForm, { BoxFormData } from '../components/BoxForm';
 import EnhancedItemsTable from '../components/EnhancedItemsTable';
-import ItemForm from '../components/ItemForm';
+import { ItemForm } from '../components/ItemForm';
 import { useTranslation } from '../hooks/useTranslation';
+import axios from '../services/axiosConfig';
 
 const BoxEditPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const [box, setBox] = useState<BoxType | null>(null);
   const [items, setItems] = useState<Item[]>([]);
@@ -21,8 +24,23 @@ const BoxEditPage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [snackbar, setSnackbar] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
+  const [expandBoxAttributes, setExpandBoxAttributes] = useState(false);
+  const [user, setUser] = useState<UserPrincipal | null>(null);
 
   const boxId = id ? parseInt(id) : null;
+
+  useEffect(() => {
+    // Load current user
+    const loadUser = async () => {
+      try {
+        const response = await axios.get('/api/me');
+        setUser(response.data);
+      } catch (error) {
+        console.error('Failed to load user:', error);
+      }
+    };
+    loadUser();
+  }, []);
 
   const loadBoxAndItems = async () => {
     if (!boxId) return;
@@ -182,7 +200,19 @@ const BoxEditPage: React.FC = () => {
   }
 
   return (
-    <Box sx={{ pb: 20 }}> {/* Add padding to prevent sticky bar overlap */}
+    <Box>
+      {/* Mobile: Show Username */}
+      {isMobile && user && (
+        <Box sx={{ mb: 2, p: 2, bgcolor: 'primary.light', borderRadius: 1 }}>
+          <Typography variant="subtitle2" color="textSecondary">
+            {t('auth.username')}
+          </Typography>
+          <Typography variant="h6" fontWeight={600}>
+            {user.name || user.username}
+          </Typography>
+        </Box>
+      )}
+
       <Button
         startIcon={<ArrowBack />}
         onClick={() => navigate('/app/boxes')}
@@ -192,16 +222,48 @@ const BoxEditPage: React.FC = () => {
       </Button>
 
       <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h5" sx={{ mb: 3 }}>
-          {t('boxes.editBox', { number: box.id })}
-        </Typography>
-        <BoxForm data={formData} onChange={setFormData} />
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          onClick={() => setExpandBoxAttributes(!expandBoxAttributes)}
+          sx={{ cursor: 'pointer', userSelect: 'none', mb: expandBoxAttributes ? 2 : 0 }}
+        >
+          {expandBoxAttributes ? <ExpandLess /> : <ExpandMore />}
+          <Typography variant="h5">
+            {t('boxes.editBox', { number: box.id })}
+          </Typography>
+        </Stack>
+
+        <Collapse in={expandBoxAttributes} timeout="auto" unmountOnExit>
+          <BoxForm data={formData} onChange={setFormData} />
+          
+          <Button
+            variant="contained"
+            startIcon={<Save />}
+            onClick={handleSave}
+            disabled={isSaving}
+            fullWidth
+            sx={{ mt: 3 }}
+          >
+            {isSaving ? t('common.saving') : t('boxes.saveAndReturn')}
+          </Button>
+        </Collapse>
       </Paper>
 
       <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" sx={{ mb: 2 }}>
-          {t('boxes.items')}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Typography variant="h6">
+            {t('boxes.items')}
+          </Typography>
+          <ItemForm 
+            onAddItem={handleAddItem} 
+            boxUuid={box.uuid} 
+            isLoading={isSaving}
+            onSuccess={handleSuccess}
+            onError={handleError}
+          />
+        </Box>
         <EnhancedItemsTable
           items={items}
           onUpdateItem={handleUpdateItem}
@@ -211,53 +273,7 @@ const BoxEditPage: React.FC = () => {
           onError={handleError}
           onSuccess={handleSuccess}
         />
-        <ItemForm 
-          onAddItem={handleAddItem} 
-          boxUuid={box.uuid} 
-          isLoading={isSaving}
-          onSuccess={handleSuccess}
-          onError={handleError}
-        />
       </Paper>
-
-      {/* Sticky Bottom Bar */}
-      <Box
-        sx={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          p: 2,
-          bgcolor: 'background.paper',
-          borderTop: 1,
-          borderColor: 'divider',
-          zIndex: 1000,
-          boxShadow: '0 -2px 8px rgba(0, 0, 0, 0.1)',
-        }}
-      >
-        <Stack direction="column" spacing={2} sx={{ maxWidth: 'lg', mx: 'auto' }}>
-          <Button
-            variant="contained"
-            onClick={handleSave}
-            disabled={isSaving}
-            size="large"
-            fullWidth
-            sx={{ minHeight: 56 }}
-          >
-            {isSaving ? t('success.saving') : t('boxes.saveAndReturn')}
-          </Button>
-          <Button
-            variant="outlined"
-            onClick={() => navigate('/app/boxes')}
-            disabled={isSaving}
-            size="large"
-            fullWidth
-            sx={{ minHeight: 56 }}
-          >
-            {t('boxes.cancel')}
-          </Button>
-        </Stack>
-      </Box>
 
       <Snackbar
         open={snackbar !== null}

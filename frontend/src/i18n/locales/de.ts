@@ -1,6 +1,11 @@
 // German translations (default language)
 
 export const de = {
+  common: {
+    cancel: 'Abbrechen',
+    add: 'Hinzufügen',
+    saving: 'Wird gespeichert...',
+  },
   app: {
     title: 'BoxCopilot',
     loading: 'Lädt...',
@@ -53,7 +58,7 @@ export const de = {
     
     // Box list
     boxNumber: 'Box #{{number}}',
-    editBox: 'Box #{{number}} bearbeiten',
+    editBox: 'Box #{{number}}',
     noBoxesFound: 'Keine Boxen gefunden.',
     loadingBoxes: 'Lade Boxen...',
     selectBox: 'Box {{number}} auswählen',
@@ -93,10 +98,14 @@ export const de = {
     items: 'Items',
     name: 'Name',
     actions: 'Aktionen',
+    itemName: 'Item-Name',
+    itemNamePlaceholder: 'z.B. Hammer',
     
     // Actions
     add: 'Hinzufügen',
     addNew: 'Neues Item hinzufügen',
+    addPhoto: 'Foto hinzufügen (optional)',
+    changePhoto: 'Foto ändern',
     edit: 'Bearbeiten',
     editItem: 'Item bearbeiten',
     delete: 'Löschen',
@@ -105,7 +114,6 @@ export const de = {
     cancel: 'Abbrechen',
     
     // Photo upload
-    addPhoto: 'Foto hinzufügen',
     takePhoto: 'Foto aufnehmen',
     uploadPhoto: 'Hochladen',
     removePhoto: 'Foto entfernen',
@@ -146,6 +154,8 @@ export const de = {
     boxCreated: 'Box erstellt',
     boxDeleted: 'Box gelöscht',
     itemAdded: 'Item hinzugefügt',
+    itemCreated: 'Item erfolgreich hinzugefügt',
+    itemCreatedButImageFailed: 'Item erstellt, aber Foto-Upload fehlgeschlagen',
     itemUpdated: 'Item aktualisiert',
     itemDeleted: 'Item gelöscht',
     linkCopied: 'Public Link kopiert',

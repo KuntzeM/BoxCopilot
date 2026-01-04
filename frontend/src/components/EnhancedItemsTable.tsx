@@ -357,24 +357,25 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
       </Stack>
 
       {/* Edit Dialog */}
-      <Dialog open={editingItem !== null} onClose={() => !isLoading && setEditingItem(null)} maxWidth="sm" fullWidth>
+      <Dialog open={editingItem !== null} onClose={() => !isLoading && setEditingItem(null)} maxWidth="xs" fullWidth>
         <DialogTitle>{t('items.editItem')}</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+        <DialogContent sx={{ pt: 3, pb: 2 }}>
           <TextField
             label={t('items.name')}
             value={editData.name}
             onChange={(e) => setEditData({ ...editData, name: e.target.value })}
             fullWidth
+            variant="outlined"
+            autoFocus
+            InputLabelProps={{
+              shrink: true,
+            }}
           />
         </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
+        <DialogActions sx={{ p: 2, gap: 1 }}>
           <Button 
             onClick={() => setEditingItem(null)} 
             disabled={isLoading}
-            fullWidth
-            size="large"
-            variant="outlined"
-            sx={{ minHeight: 56 }}
           >
             {t('items.cancel')}
           </Button>
@@ -382,9 +383,6 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
             onClick={handleEditSave} 
             variant="contained" 
             disabled={isLoading || !editData.name.trim()}
-            fullWidth
-            size="large"
-            sx={{ minHeight: 56 }}
           >
             {t('items.save')}
           </Button>
