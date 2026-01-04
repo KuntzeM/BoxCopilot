@@ -265,6 +265,10 @@ const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = fal
         <Dialog 
           open={failureDialogOpen}
           disableEscapeKeyDown
+          onClose={(_, reason) => {
+            // Prevent closing via backdrop click
+            if (reason !== 'backdropClick') return;
+          }}
         >
           <DialogTitle>{t('items.photoUploadFailedTitle')}</DialogTitle>
           <DialogContent>
