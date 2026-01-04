@@ -104,6 +104,19 @@ export const de = {
     save: 'Speichern',
     cancel: 'Abbrechen',
     
+    // Photo upload
+    addPhoto: 'Foto hinzufügen',
+    takePhoto: 'Foto aufnehmen',
+    uploadPhoto: 'Hochladen',
+    removePhoto: 'Foto entfernen',
+    uploadProgress: 'Wird hochgeladen...',
+    uploadFailed: 'Foto-Upload fehlgeschlagen',
+    keepWithoutPhoto: 'Item ohne Foto behalten',
+    deleteItemQuestion: 'Item löschen',
+    photoUploadFailedTitle: 'Foto-Upload fehlgeschlagen',
+    photoUploadFailedMessage: 'Item wurde ohne Foto erstellt. Möchten Sie es behalten oder löschen?',
+    keepItem: 'Item behalten',
+    
     // Messages
     noItems: 'Keine Items vorhanden',
     noItemsInBox: 'Keine Items in dieser Box.',

@@ -106,6 +106,19 @@ export const en: TranslationKeys = {
     save: 'Save',
     cancel: 'Cancel',
     
+    // Photo upload
+    addPhoto: 'Add Photo',
+    takePhoto: 'Take Photo',
+    uploadPhoto: 'Upload',
+    removePhoto: 'Remove Photo',
+    uploadProgress: 'Uploading...',
+    uploadFailed: 'Photo upload failed',
+    keepWithoutPhoto: 'Keep item without photo',
+    deleteItemQuestion: 'Delete Item',
+    photoUploadFailedTitle: 'Photo Upload Failed',
+    photoUploadFailedMessage: 'Item was created without photo. Would you like to keep it or delete it?',
+    keepItem: 'Keep Item',
+    
     // Messages
     noItems: 'No items available',
     noItemsInBox: 'No items in this box.',
