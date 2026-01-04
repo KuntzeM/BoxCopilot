@@ -108,14 +108,8 @@ const BoxEditPage: React.FC = () => {
   };
 
   const handleAddItem = async (payload: CreateItemPayload) => {
-    try {
-      const newItem = await itemService.createItem(payload);
-      setItems([...items, newItem]);
-      setSnackbar({ message: t('success.itemAdded'), severity: 'success' });
-    } catch (err) {
-      setSnackbar({ message: t('errors.itemAddFailed'), severity: 'error' });
-      console.error(err);
-    }
+    // Just reload the box and items - ItemForm now handles creation
+    await loadBoxAndItems();
   };
 
   const handleUpdateItem = async (itemId: number, data: UpdateItemPayload) => {
@@ -217,7 +211,13 @@ const BoxEditPage: React.FC = () => {
           onError={handleError}
           onSuccess={handleSuccess}
         />
-        <ItemForm onAddItem={handleAddItem} boxUuid={box.uuid} isLoading={isSaving} />
+        <ItemForm 
+          onAddItem={handleAddItem} 
+          boxUuid={box.uuid} 
+          isLoading={isSaving}
+          onSuccess={handleSuccess}
+          onError={handleError}
+        />
       </Paper>
 
       {/* Sticky Bottom Bar */}

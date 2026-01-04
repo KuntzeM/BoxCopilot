@@ -29,9 +29,11 @@ interface ItemFormProps {
   onAddItem: (data: CreateItemPayload) => Promise<void>;
   boxUuid: string;
   isLoading?: boolean;
+  onSuccess?: (message: string) => void;
+  onError?: (message: string) => void;
 }
 
-const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = false }) => {
+const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = false, onSuccess, onError }) => {
   const { t } = useTranslation();
   const [formData, setFormData] = useState<CreateItemPayload>({
     boxUuid,
@@ -136,12 +138,15 @@ const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = fal
     setImagePreview(null);
   };
 
-  const handleKeepItem = () => {
+  const handleKeepItem = async () => {
     setFailureDialogOpen(false);
     setFailedItemId(null);
     setFormData({ boxUuid, name: '' });
     removePhoto();
     setUploadProgress(0);
+    // Trigger reload to show the item without photo
+    await onAddItem(formData);
+    onSuccess?.(t('success.itemAdded'));
   };
 
   const handleDeleteFailedItem = async () => {
@@ -150,6 +155,7 @@ const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = fal
         await deleteItem(failedItemId);
       } catch (error) {
         console.error('Error deleting failed item:', error);
+        onError?.(t('errors.itemDeleteFailed'));
       }
     }
     setFailureDialogOpen(false);
@@ -186,13 +192,15 @@ const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = fal
         }
       }
 
-      // Success: reload items and reset form
+      // Success: trigger reload to show new item and reset form
       await onAddItem(formData);
+      onSuccess?.(t('success.itemAdded'));
       setFormData({ boxUuid, name: '' });
       removePhoto();
       setUploadProgress(0);
     } catch (err) {
       console.error('Error creating item:', err);
+      onError?.(t('errors.itemAddFailed'));
     } finally {
       setIsSubmitting(false);
     }
@@ -368,7 +376,11 @@ const ItemForm: React.FC<ItemFormProps> = ({ onAddItem, boxUuid, isLoading = fal
         </Dialog>
 
         {/* Failure Dialog */}
-        <Dialog open={failureDialogOpen} onClose={() => {}}>
+        <Dialog 
+          open={failureDialogOpen} 
+          onClose={handleKeepItem}
+          disableEscapeKeyDown={false}
+        >
           <DialogTitle>{t('items.photoUploadFailedTitle')}</DialogTitle>
           <DialogContent>
             <Typography>{t('items.photoUploadFailedMessage')}</Typography>
