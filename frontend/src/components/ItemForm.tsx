@@ -239,51 +239,56 @@ export const ItemForm: React.FC<ItemFormProps> = ({
     setCameraMode('none');
   };
 
-  const startCamera = async (mode?: 'user' | 'environment') => {
+  const startCamera = async (requestedMode?: 'user' | 'environment') => {
     try {
-      // Use passed mode parameter, or fall back to current state
-      const cameraMode = mode !== undefined ? mode : facingMode;
-      console.log('Starting camera with facingMode:', cameraMode, '(requested:', mode, ', current state:', facingMode, ')');
+      // Determine which camera to use - explicit parameter takes precedence
+      const targetMode = requestedMode !== undefined ? requestedMode : facingMode;
+      console.log('[Camera] Starting camera - requested:', requestedMode, ', current state:', facingMode, ', target:', targetMode);
       
+      // Use exact constraint for better control on mobile devices
       const constraints: MediaStreamConstraints = {
         video: {
-          facingMode: { ideal: cameraMode },
+          facingMode: { exact: targetMode },
           width: { ideal: 1280 },
           height: { ideal: 720 },
         },
         audio: false,
       };
 
-      console.log('Requesting camera access with constraints:', constraints);
+      console.log('[Camera] Requesting with exact facingMode:', targetMode);
       let mediaStream: MediaStream;
       
       try {
         mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (primaryError) {
-        console.warn('Primary camera request failed, trying without facingMode constraint:', primaryError);
-        // Fallback: try without facingMode constraint
-        const fallbackConstraints: MediaStreamConstraints = {
+        console.log('[Camera] Success with exact constraint');
+      } catch (exactError) {
+        console.warn('[Camera] Exact constraint failed, trying ideal:', exactError);
+        // Fallback to ideal if exact fails
+        const idealConstraints: MediaStreamConstraints = {
           video: {
+            facingMode: { ideal: targetMode },
             width: { ideal: 1280 },
             height: { ideal: 720 },
           },
           audio: false,
         };
-        mediaStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+        mediaStream = await navigator.mediaDevices.getUserMedia(idealConstraints);
+        console.log('[Camera] Success with ideal constraint');
       }
       
-      console.log('Camera access granted, stream:', mediaStream);
-      
-      // Get the actual facing mode from the track
+      // Get actual camera info
       const videoTrack = mediaStream.getVideoTracks()[0];
       const settings = videoTrack.getSettings() as any;
-      console.log('Actual camera settings:', settings);
-      
       const capabilities = videoTrack.getCapabilities() as any;
+      
+      console.log('[Camera] Active camera - facingMode:', settings.facingMode, 'deviceId:', settings.deviceId);
+      console.log('[Camera] Capabilities:', capabilities);
 
       // Check for flash/torch
       if (capabilities.torch) {
         setHasFlash(true);
+      } else {
+        setHasFlash(false);
       }
 
       // Check for zoom
@@ -295,12 +300,14 @@ export const ItemForm: React.FC<ItemFormProps> = ({
         setZoom(capabilities.zoom.min || 1);
       }
 
-      // Set state with the camera mode
-      setFacingMode(cameraMode);
+      // Update state - THIS IS CRITICAL: Update facingMode to reflect actual camera
+      setFacingMode(targetMode);
       setStream(mediaStream);
       setCameraMode('preview');
+      
+      console.log('[Camera] Camera started successfully with facingMode:', targetMode);
     } catch (err) {
-      console.error('Camera error:', err);
+      console.error('[Camera] Failed to start camera:', err);
       setError(t('errors.cameraAccessFailed') || 'Camera access failed');
       setCameraMode('none');
     }
@@ -321,25 +328,28 @@ export const ItemForm: React.FC<ItemFormProps> = ({
   };
 
   const switchCamera = async () => {
-    console.log('Switching camera from:', facingMode);
+    console.log('[Camera] Switch requested - current facingMode:', facingMode);
+    
+    // Calculate new mode BEFORE stopping camera
+    const newMode = facingMode === 'user' ? 'environment' : 'user';
+    console.log('[Camera] Switching to:', newMode);
     
     // Stop current camera
     if (stream) {
-      stream.getTracks().forEach(track => track.stop());
+      stream.getTracks().forEach(track => {
+        track.stop();
+        console.log('[Camera] Stopped track:', track.label);
+      });
       setStream(null);
     }
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
     
-    // Switch to the other camera
-    const newMode = facingMode === 'user' ? 'environment' : 'user';
-    console.log('Switching camera to:', newMode);
+    // Wait for cleanup
+    await new Promise(resolve => setTimeout(resolve, 300));
     
-    // Wait for cleanup to complete
-    await new Promise(resolve => setTimeout(resolve, 200));
-    
-    // Start with new mode (setFacingMode will be called inside startCamera)
+    // Start with explicit new mode - DO NOT update state here, let startCamera handle it
     await startCamera(newMode);
   };
 
