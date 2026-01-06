@@ -60,6 +60,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSelectingFile, setIsSelectingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   
@@ -100,6 +101,10 @@ export const ItemForm: React.FC<ItemFormProps> = ({
   };
 
   const handleClose = () => {
+    // Prevent closing while file selection is in progress
+    if (isSelectingFile) {
+      return;
+    }
     setOpen(false);
     setName('');
     setImageFile(null);
@@ -110,19 +115,36 @@ export const ItemForm: React.FC<ItemFormProps> = ({
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Prevent any default behavior and event propagation
     e.preventDefault();
     e.stopPropagation();
     
     const file = e.target.files?.[0];
-    if (!file) return;
+    
+    // Always reset the selecting state
+    setIsSelectingFile(false);
+    
+    if (!file) {
+      // Reset input value to allow selecting the same file again
+      if (e.target) {
+        e.target.value = '';
+      }
+      return;
+    }
 
     if (file.size > 5 * 1024 * 1024) {
       setError(t('errors.imageTooLarge') || 'Image too large');
+      if (e.target) {
+        e.target.value = '';
+      }
       return;
     }
 
     if (!file.type.startsWith('image/')) {
       setError(t('errors.invalidImageType') || 'Invalid image type');
+      if (e.target) {
+        e.target.value = '';
+      }
       return;
     }
 
@@ -131,7 +153,18 @@ export const ItemForm: React.FC<ItemFormProps> = ({
     reader.onloadend = () => {
       setImagePreview(reader.result as string);
     };
+    reader.onerror = () => {
+      setError(t('errors.imageReadFailed') || 'Failed to read image');
+      if (e.target) {
+        e.target.value = '';
+      }
+    };
     reader.readAsDataURL(file);
+    
+    // Reset input value to allow selecting the same file again
+    if (e.target) {
+      e.target.value = '';
+    }
   };
 
   const handleRemoveImage = async () => {
@@ -249,7 +282,8 @@ export const ItemForm: React.FC<ItemFormProps> = ({
       {/* Dialog */}
       <Dialog 
         open={open} 
-        onClose={handleClose} 
+        onClose={handleClose}
+        disableEscapeKeyDown={isSelectingFile}
         maxWidth="sm" 
         fullWidth
       >
@@ -324,6 +358,11 @@ export const ItemForm: React.FC<ItemFormProps> = ({
               type="file"
               accept="image/*"
               onChange={handleImageSelect}
+              onCancel={() => setIsSelectingFile(false)}
+              onBlur={() => {
+                // Reset selecting state after a delay to ensure onChange fires first
+                setTimeout(() => setIsSelectingFile(false), 300);
+              }}
               style={{ display: 'none' }}
               disabled={submitting}
             />
@@ -333,6 +372,11 @@ export const ItemForm: React.FC<ItemFormProps> = ({
               accept="image/*"
               capture="environment"
               onChange={handleImageSelect}
+              onCancel={() => setIsSelectingFile(false)}
+              onBlur={() => {
+                // Reset selecting state after a delay to ensure onChange fires first
+                setTimeout(() => setIsSelectingFile(false), 300);
+              }}
               style={{ display: 'none' }}
               disabled={submitting}
             />
@@ -341,8 +385,13 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                 <Box sx={{ flex: 1 }}>
                   <IconButton
                     color="primary"
-                    onClick={() => cameraInputRef.current?.click()}
-                    disabled={submitting}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsSelectingFile(true);
+                      cameraInputRef.current?.click();
+                    }}
+                    disabled={submitting || isSelectingFile}
                     size="large"
                     sx={{ width: '100%', justifyContent: 'center' }}
                   >
@@ -354,8 +403,13 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                 <Box sx={{ flex: 1 }}>
                   <IconButton
                     color="primary"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={submitting}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsSelectingFile(true);
+                      fileInputRef.current?.click();
+                    }}
+                    disabled={submitting || isSelectingFile}
                     size="large"
                     sx={{ width: '100%', justifyContent: 'center' }}
                   >
