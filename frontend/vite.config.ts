@@ -9,6 +9,22 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    define: {
+      'global': 'globalThis',
+    },
+    resolve: {
+      alias: {
+        'buffer': 'buffer/',
+      },
+    },
+    optimizeDeps: {
+      include: ['buffer'],
+      esbuildOptions: {
+        define: {
+          global: 'globalThis',
+        },
+      },
+    },
     server: {
       port,
       proxy: {

@@ -16,67 +16,33 @@
 ![Label Printing](docs/screenshots/label-printing.png)
 *Print labels with QR codes for easy scanning*
 
-## Core Features
+## Features
 
-### Box & Item Management
-- 📦 **Box Management** - Track boxes with current location and target room assignments
-- 📝 **Item Inventory** - Maintain detailed lists of contents for each box
-- 🔍 **Global Search** - Quickly find which box contains specific items
-- 🔗 **Public QR Sharing** - Share box contents with movers/family via scannable QR codes (no authentication required)
-- 🖨️ **Bulk Label Printing** - Print multiple box labels with QR codes at once
-- 📷 **Item Images** - Upload via camera or file, view thumbnails and large previews, publicly shareable
-- 🔀 **Move Items** - Move single or multiple items between boxes with a guided dialog
+- Boxes
+  - Create boxes with current room, target room, description, and handling flags (Fragile, Do not stack).
+  - List and filter boxes: search by item name, filter by target room, and optionally show only fragile/no‑stack boxes.
+  - Quick actions per box: copy/open public link, edit, delete, and expand to preview items.
+  - Public sharing: per‑box UUID public page shows box details and items (no login required).
+  - Label printing: select boxes and generate an A4 PDF (3 labels/page) with QR codes to the public page, target room, and handling badges.
 
-### Authentication & User Management
-- 🔐 **Dual Authentication** - Login via Nextcloud (OIDC) or local credentials
-- 👥 **User Management** - Admin panel for creating, editing, and managing users
-- 🔑 **Magic Login Links** - Passwordless authentication via time-limited, single-use tokens
-- 🛡️ **Role-Based Access Control** - USER and ADMIN roles with different permissions
-- 🔒 **Account Security** - Automatic lockout after 5 failed login attempts (1 hour)
-- ⚡ **Auto-User Creation** - OIDC users are automatically registered on first login
+- Items
+  - Create, edit, and delete items within a box.
+  - Bulk move: move one or many items to another box.
+  - Images: add via in‑app camera or gallery, view thumbnail and full‑size preview, and delete images when needed.
 
-### User Experience
-- 🌙 **Dark Mode** - Toggle between light/dark themes with cookie persistence
-- 🌐 **Multi‑Language** - Switch between languages (DE/EN) with persistent preference
+- Camera (mobile‑friendly)
+  - In‑app camera with front/rear switch, pinch‑to‑zoom, torch/flash when supported, and capture/retake/accept flow.
 
-### Feature Highlights
+- Public Preview
+  - Read‑only preview at `/public/{uuid}`; ideal for sharing with helpers and family.
+  - Item images served via tokenized endpoints with sensible caching for fast loads.
 
-**Item Image Management**
-- **Upload**: Capture via camera or upload from file (requires login)
-- **Public Access**: Images are accessible via secure token-based URLs (no login required)
-- **Two Sizes**: Automatic thumbnail (200x200px) and large image (1024px) generation
-- **Preview**: View large images in full-screen dialog with automatic fallback to thumbnail
-- **Delete**: Remove images when no longer needed (requires login)
-- **Cache-Busting**: Automatic timestamp-based cache invalidation for instant updates
+- Admin & Authentication
+  - Admin panel to manage users, roles, passwords, unlock accounts, and generate magic login links.
+  - Dual authentication: Nextcloud/OIDC and form login; account lockout after multiple failed attempts.
 
-**User Management & Authentication**
-- **Admin Panel**: Create and manage users (ADMIN role required)
-  - Create users with username, email, name, and optional password
-  - Assign USER or ADMIN roles
-  - Enable/disable accounts
-  - Generate magic login links for passwordless access
-- **Magic Login Links**: 
-  - Generate secure, time-limited (24 hours default) single-use login tokens
-  - Perfect for temporary access or users without passwords
-  - Old tokens are automatically invalidated when generating new ones
-  - Accessible via `/api/v1/auth/magic-login?token={uuid}`
-- **Dual Authentication**:
-  - **Nextcloud/OIDC**: Automatic user creation on first login with username conflict resolution
-  - **Local Login**: Traditional username/password authentication
-  - **Form Login**: Available at `/login` with redirect after authentication
-- **Security Features**:
-  - Account lockout after 5 failed login attempts for 1 hour
-  - Failed attempt tracking with automatic reset on successful login
-  - Password encryption using BCrypt
-  - Session management via JDBC (dev) or Redis (prod)
-
-**Language & Localization**
-- Top‑bar language menu lets you switch between German and English
-- Choice is remembered (cookie‑based) and applied across the app
-
-**Move Items Between Boxes**
-- Select one or more items in the box details table and choose "Verschieben" (Move)
-- Pick target box by UUID and confirm; bulk operations are supported
+- Language
+  - Switch between German and English; preference is remembered.
 
 ## Development
 
