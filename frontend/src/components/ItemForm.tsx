@@ -241,8 +241,9 @@ export const ItemForm: React.FC<ItemFormProps> = ({
 
   const startCamera = async (mode?: 'user' | 'environment') => {
     try {
-      const cameraMode = mode || facingMode;
-      console.log('Starting camera with facingMode:', cameraMode);
+      // Use passed mode parameter, or fall back to current state
+      const cameraMode = mode !== undefined ? mode : facingMode;
+      console.log('Starting camera with facingMode:', cameraMode, '(requested:', mode, ', current state:', facingMode, ')');
       
       const constraints: MediaStreamConstraints = {
         video: {
@@ -338,8 +339,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
     // Wait for cleanup to complete
     await new Promise(resolve => setTimeout(resolve, 200));
     
-    // Start with new mode
-    setFacingMode(newMode);
+    // Start with new mode (setFacingMode will be called inside startCamera)
     await startCamera(newMode);
   };
 
