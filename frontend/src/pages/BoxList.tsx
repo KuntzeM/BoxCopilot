@@ -47,12 +47,15 @@ import {
   MoreVert,
 } from '@mui/icons-material';
 import { QRCodeCanvas } from 'qrcode.react';
+import '../styles/print.css';
 import { List as VirtualList } from 'react-window';
 import { Box as BoxModel, Item, CreateBoxPayload } from '../types/models';
 import { fetchBoxes, createBox, deleteBox } from '../services/boxService';
 import { searchItems } from '../services/itemService';
 import { truncateToFirstLine } from '../utils/textUtils';
 import { useTranslation } from '../hooks/useTranslation';
+import { PrintLabels } from '../components/PrintLabels';
+import { useBoxListLogic } from '../hooks/useBoxListLogic';
 
 type SnackbarState = { open: boolean; message: string; severity: 'success' | 'error' | 'info' };
 
@@ -95,284 +98,54 @@ export default function BoxList() {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { t } = useTranslation();
 
-  const [allBoxes, setAllBoxes] = useState<BoxModel[]>([]);
-  const [filteredBoxes, setFilteredBoxes] = useState<BoxModel[]>([]);
-  const [matchedItemIds, setMatchedItemIds] = useState<Set<number>>(new Set());
-  const [isLoading, setIsLoading] = useState(true);
-  const [itemQuery, setItemQuery] = useState('');
-  const [roomQuery, setRoomQuery] = useState('');
-  const [filterFragile, setFilterFragile] = useState(false);
-  const [filterNoStack, setFilterNoStack] = useState(false);
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [expandedBoxes, setExpandedBoxes] = useState<Set<number>>(new Set());
-  const [snackbar, setSnackbar] = useState<SnackbarState>({ open: false, message: '', severity: 'success' });
-  const [isPrinting, setIsPrinting] = useState(false);
+  // Use custom hook for all business logic
+  const {
+    filteredBoxes,
+    matchedItemIds,
+    isLoading,
+    itemQuery,
+    setItemQuery,
+    roomQuery,
+    setRoomQuery,
+    filterFragile,
+    setFilterFragile,
+    filterNoStack,
+    setFilterNoStack,
+    showAdvancedFilters,
+    setShowAdvancedFilters,
+    selectedIds,
+    expandedBoxes,
+    snackbar,
+    setSnackbar,
+    isPrinting,
+    selectedBoxes,
+    openBoxDialog,
+    setOpenBoxDialog,
+    boxFormData,
+    setBoxFormData,
+    deleteConfirmId,
+    setDeleteConfirmId,
+    fullImageUrl,
+    setFullImageUrl,
+    drawerOpen,
+    selectedBoxForActions,
+    resolveImageUrl,
+    withApiBase,
+    handleResetFilter,
+    toggleSelect,
+    toggleExpandBox,
+    handlePrintLabels,
+    handleOpenBoxDialog,
+    handleSubmitBox,
+    handleDeleteBox,
+    handleOpenBoxActions,
+    handleCloseDrawer,
+    handleDrawerEdit,
+    handleDrawerCopyLink,
+    handleDrawerOpenLink,
+    handleDrawerDelete,
+  } = useBoxListLogic();
 
-  const [openBoxDialog, setOpenBoxDialog] = useState(false);
-  const [boxFormData, setBoxFormData] = useState<CreateBoxPayload>({ 
-    currentRoom: '', 
-    targetRoom: '', 
-    description: '',
-    isFragile: false,
-    noStack: false
-  });
-
-  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
-
-  const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
-
-  // State for box actions drawer
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [selectedBoxForActions, setSelectedBoxForActions] = useState<BoxModel | null>(null);
-
-  // Build absolute API URLs for images (works in prod without nginx proxy)
-  const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-  const withApiBase = (path: string) =>
-    apiBase ? `${apiBase}${path.startsWith('/') ? path : `/${path}`}` : path;
-  const resolveImageUrl = (url?: string) => {
-    if (!url) return undefined;
-    if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    return withApiBase(url.startsWith('/') ? url : `/${url}`);
-  };
-
-  const selectedBoxes = useMemo(
-    () => {
-      const filtered = filteredBoxes.filter((b) => selectedIds.includes(b.id));
-      console.log('[DEBUG] selectedBoxes computed:', { 
-        selectedIds, 
-        filteredBoxesLength: filteredBoxes.length, 
-        selectedBoxesLength: filtered.length,
-        boxes: filtered.map(b => ({ id: b.id, currentRoom: b.currentRoom }))
-      });
-      return filtered;
-    },
-    [filteredBoxes, selectedIds]
-  );
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  // Reset printing state after print dialog closes
-  useEffect(() => {
-    const handleAfterPrint = () => {
-      console.log('[DEBUG] Print dialog closed, resetting isPrinting');
-      setIsPrinting(false);
-    };
-    window.addEventListener('afterprint', handleAfterPrint);
-    return () => window.removeEventListener('afterprint', handleAfterPrint);
-  }, []);
-
-  // Automatische Filterung mit Debounce für Textfelder
-  useEffect(() => {
-    // Nur filtern, wenn allBoxes bereits geladen wurde
-    if (allBoxes.length === 0 && !isLoading) {
-      return;
-    }
-
-    const timeoutId = setTimeout(() => {
-      handleSearch();
-    }, 400); // 400ms Debounce
-
-    return () => clearTimeout(timeoutId);
-  }, [itemQuery, roomQuery, filterFragile, filterNoStack, allBoxes]);
-
-  const loadData = async () => {
-    setIsLoading(true);
-    try {
-      const boxes = await fetchBoxes();
-
-      const withUrls = boxes
-        .sort((a, b) => b.id - a.id) // Newest first
-        .map((b) => ({
-          ...b,
-          publicUrl: `${window.location.origin}/public/${b.uuid}`,
-        })) as BoxModel[];
-
-      setAllBoxes(withUrls);
-      setFilteredBoxes(withUrls);
-      setSelectedIds([]);
-    } catch (error) {
-      setSnackbar({ open: true, message: t('errors.boxesFetchFailed'), severity: 'error' });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleResetFilter = () => {
-    setItemQuery('');
-    setRoomQuery('');
-    setFilterFragile(false);
-    setFilterNoStack(false);
-    setMatchedItemIds(new Set());
-    setFilteredBoxes(allBoxes);
-  };
-
-  const handleSearch = async () => {
-    try {
-      let next = [...allBoxes];
-      const roomTerm = roomQuery.trim().toLowerCase();
-      const itemTerm = itemQuery.trim();
-
-      if (roomTerm) {
-        next = next.filter((b) => (b.currentRoom || '').toLowerCase().includes(roomTerm));
-      }
-
-      if (itemTerm) {
-        const items = await searchItems(itemTerm);
-        const ids = new Set(items.map((i) => i.boxId));
-        setMatchedItemIds(new Set(items.map((i) => i.id)));
-        next = next.filter((b) => ids.has(b.id));
-      } else {
-        setMatchedItemIds(new Set());
-      }
-
-      if (filterFragile) {
-        next = next.filter((b) => b.isFragile === true);
-      }
-
-      if (filterNoStack) {
-        next = next.filter((b) => b.noStack === true);
-      }
-
-      setFilteredBoxes(next);
-      if (next.length === 0) {
-        setSnackbar({ open: true, message: t('errors.noSearchResults'), severity: 'info' });
-      }
-    } catch (error) {
-      setMatchedItemIds(new Set());
-      setSnackbar({ open: true, message: t('errors.searchFailed'), severity: 'error' });
-    }
-  };
-
-  const toggleSelect = (id: number) => {
-    console.log('[DEBUG] toggleSelect clicked for box:', id);
-    setSelectedIds((prev) => {
-      const newIds = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-      console.log('[DEBUG] selectedIds updated:', { previous: prev, new: newIds, toggledId: id });
-      return newIds;
-    });
-  };
-
-  const toggleExpandBox = (id: number) => {
-    setExpandedBoxes((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
-
-  const handleCopyLink = async (url?: string) => {
-    if (!url) {
-      setSnackbar({ open: true, message: t('errors.noPublicLink'), severity: 'error' });
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(url);
-      setSnackbar({ open: true, message: t('success.linkCopied'), severity: 'success' });
-    } catch (error) {
-      setSnackbar({ open: true, message: t('errors.copyFailed'), severity: 'error' });
-    }
-  };
-
-  const handleOpenPublicLink = (url?: string) => {
-    if (!url) {
-      setSnackbar({ open: true, message: t('errors.noPublicLink'), severity: 'error' });
-      return;
-    }
-    window.open(url, '_blank');
-  };
-
-  // Direct print handler
-  const handlePrintLabels = () => {
-    console.log('[DEBUG] handlePrintLabels called:', { selectedBoxesCount: selectedBoxes.length });
-    
-    if (selectedBoxes.length === 0) {
-      console.warn('[DEBUG] No boxes selected for printing');
-      setSnackbar({ open: true, message: t('boxes.noBoxSelected'), severity: 'info' });
-      return;
-    }
-    
-    setIsPrinting(true);
-    // Ensure print-area is mounted before printing (100ms for mobile device reliability)
-    setTimeout(() => {
-      console.log('[DEBUG] ✓ Triggering print dialog with', selectedBoxes.length, 'boxes');
-      window.print();
-    }, 100);
-  };
-
-  // Box Dialogs
-  const handleOpenBoxDialog = () => {
-    setBoxFormData({ currentRoom: '', targetRoom: '', description: '', isFragile: false, noStack: false });
-    setOpenBoxDialog(true);
-  };
-
-  const handleSubmitBox = async () => {
-    try {
-      const newBox = await createBox(boxFormData as CreateBoxPayload);
-      setSnackbar({ open: true, message: t('success.boxCreated'), severity: 'success' });
-      setOpenBoxDialog(false);
-      setBoxFormData({ currentRoom: '', targetRoom: '', description: '', isFragile: false, noStack: false });
-      navigate(`/app/boxes/${newBox.id}/edit`);
-    } catch (error) {
-      setSnackbar({ open: true, message: t('errors.boxCreateFailed'), severity: 'error' });
-    }
-  };
-
-  const handleDeleteBox = async () => {
-    if (deleteConfirmId === null) return;
-    try {
-      await deleteBox(deleteConfirmId);
-      setSnackbar({ open: true, message: t('success.boxDeleted'), severity: 'success' });
-      setDeleteConfirmId(null);
-      await loadData();
-    } catch (error) {
-      setSnackbar({ open: true, message: t('errors.boxDeleteFailed'), severity: 'error' });
-    }
-  };
-
-  const handleOpenBoxActions = (box: BoxModel) => {
-    setSelectedBoxForActions(box);
-    setDrawerOpen(true);
-  };
-
-  const handleCloseDrawer = () => {
-    setDrawerOpen(false);
-    setSelectedBoxForActions(null);
-  };
-
-  const handleDrawerEdit = () => {
-    if (selectedBoxForActions) {
-      navigate(`/app/boxes/${selectedBoxForActions.id}/edit`);
-    }
-    handleCloseDrawer();
-  };
-
-  const handleDrawerCopyLink = async () => {
-    if (selectedBoxForActions?.publicUrl) {
-      await handleCopyLink(selectedBoxForActions.publicUrl);
-    }
-    handleCloseDrawer();
-  };
-
-  const handleDrawerOpenLink = () => {
-    if (selectedBoxForActions?.publicUrl) {
-      handleOpenPublicLink(selectedBoxForActions.publicUrl);
-    }
-    handleCloseDrawer();
-  };
-
-  const handleDrawerDelete = () => {
-    if (selectedBoxForActions) {
-      setDeleteConfirmId(selectedBoxForActions.id);
-    }
-    handleCloseDrawer();
-  };
 
   // Render a single box card (for both regular and virtualized rendering)
   const renderBoxCard = useCallback((box: BoxModel) => (
@@ -494,138 +267,6 @@ export default function BoxList() {
 
   return (
     <Box sx={{ width: '100%', pb: 4 }}>
-      {/* Print styles - use raw CSS <style> tag instead of GlobalStyles for better @media print support */}
-      <style>{`
-        /* Normal view: print-area completely hidden */
-        .print-area {
-          display: none;
-        }
-
-        @page {
-          size: A4 portrait;
-          margin: 0;
-        }
-
-        @media print {
-          html, body {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: auto;
-          }
-
-          /* Hide everything by default - critical for all browsers */
-          body * {
-            visibility: hidden;
-          }
-
-          /* Make print-area and all its contents visible */
-          .print-area,
-          .print-area * {
-            visibility: visible;
-          }
-
-          /* Position and layout print-area */
-          .print-area {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            display: grid;
-            gap: 0;
-            grid-template-columns: 1fr;
-            grid-auto-rows: 7cm;
-          }
-
-          /* Individual print labels - ensure correct rendering on all devices */
-          .print-label {
-            border: none;
-            border-radius: 0;
-            padding: 10mm 12mm;
-            height: 7cm;
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: row;
-            justify-content: flex-start;
-            align-items: center;
-            page-break-inside: avoid;
-            background: white;
-            color: black;
-            /* Critical for Android Chrome - ensure exact colors */
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-
-          /* QR Code Container - left side */
-          .print-label > div:first-child {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            width: 7cm;
-            height: 7cm;
-            margin: 0;
-            padding: 0;
-            background: white;
-            /* Ensure QR renders correctly on Android */
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-
-          /* QR Code Canvas - critical for mobile print */
-          .print-label canvas {
-            display: block;
-            width: 100%;
-            height: auto;
-            max-width: 7cm;
-            max-height: 7cm;
-            margin: 0;
-            padding: 0;
-            /* Preserve canvas rendering on Android/iOS */
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-            image-rendering: crisp-edges;
-          }
-
-          /* Text Container - right side */
-          .print-label > div:last-child {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-start;
-            padding-left: 2mm;
-            gap: 0.3rem;
-            color: black;
-          }
-
-          /* Typography elements */
-          .print-label .MuiTypography-root {
-            display: block;
-            color: black;
-            background: transparent;
-            margin: 0;
-            padding: 0;
-            /* Ensure text colors are preserved */
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-
-          /* Stacks and containers */
-          .print-label .MuiStack-root {
-            color: black;
-            background: transparent;
-            margin: 0;
-          }
-
-          /* Paper component override */
-          .print-label.MuiPaper-root {
-            background: white;
-            box-shadow: none;
-            border: none;
-          }
-        }
-      `}</style>
-
       <Stack spacing={2} sx={{ mb: 2 }}>
         <Paper sx={{ p: 2, borderRadius: 2, boxShadow: 2 }}>
           <Stack spacing={2}>
@@ -833,124 +474,8 @@ export default function BoxList() {
         </DialogActions>
       </Dialog>
 
-      {/* Direct print area (rendered only for printing) */}
-      {isPrinting && selectedBoxes.length > 0 && (
-        <Box className="print-area" sx={{ display: 'grid', gap: 0 }}>
-          {(() => {
-            console.log('[DEBUG] Rendering print-area with', selectedBoxes.length, 'boxes');
-            return selectedBoxes.map((box) => (
-            <Paper
-              key={`print-${box.id}`}
-              className="print-label"
-              elevation={0}
-              sx={{ border: 'none', boxShadow: 'none' }}
-            >
-              {/* Left: QR Code - optimized for mobile print */}
-              <Box 
-                sx={{ 
-                  display: 'grid', 
-                  placeItems: 'center', 
-                  flexShrink: 0, 
-                  width: '7cm', 
-                  height: '100%',
-                  /* Ensure QR renders on Android - critical for print */
-                  '@media print': {
-                    WebkitPrintColorAdjust: 'exact !important',
-                    printColorAdjust: 'exact !important',
-                  }
-                }}
-              >
-                <QRCodeCanvas 
-                  value={box.publicUrl || ''} 
-                  size={160} 
-                  includeMargin 
-                  level="H"
-                  /* Canvas rendering optimization for mobile print */
-                  style={{ display: 'block', maxWidth: '100%', height: 'auto' }}
-                />
-              </Box>
-
-              {/* Right: Text content */}
-              <Stack direction="column" spacing={1} sx={{ flex: 1, pl: 2, pr: 1 }}>
-                {/* Prominent transport badges above ID */}
-                {(box.isFragile || box.noStack) && (
-                  <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
-                    {box.isFragile && (
-                      <Typography
-                        sx={{
-                          fontSize: '1.1rem',
-                          fontWeight: 900,
-                          textTransform: 'uppercase',
-                          backgroundColor: '#000',
-                          color: '#fff',
-                          px: 1.5,
-                          py: 0.5,
-                          lineHeight: 1,
-                          letterSpacing: '0.04em',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 0.5,
-                        }}
-                      >
-                        <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>🔔</span>
-                        {t('boxes.fragilePrintLabel')}
-                      </Typography>
-                    )}
-                    {box.noStack && (
-                      <Typography
-                        sx={{
-                          fontSize: '1.1rem',
-                          fontWeight: 900,
-                          textTransform: 'uppercase',
-                          backgroundColor: '#000',
-                          color: '#fff',
-                          px: 1.5,
-                          py: 0.5,
-                          lineHeight: 1,
-                          letterSpacing: '0.04em',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 0.5,
-                        }}
-                      >
-                        <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>⛔</span>
-                        {t('boxes.noStackPrintLabel')}
-                      </Typography>
-                    )}
-                  </Stack>
-                )}
-                {/* Box #ID */}
-                <Typography sx={{ fontSize: '2rem', fontWeight: 800, lineHeight: 1 }}>
-                  {t('boxes.boxNumber', { number: box.id })}
-                </Typography>
-
-                {/* ZielRaum (target room) */}
-                <Typography sx={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1.2, textTransform: 'uppercase' }}>
-                   {t('boxes.targetRoom')}: {box.targetRoom || '-'}
-                </Typography>
-
-                {/* Beschreibung */}
-                {box.description && (
-                  <Typography
-                    sx={{
-                      fontSize: '0.9rem',
-                      fontStyle: 'italic',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 3,
-                      WebkitBoxOrient: 'vertical',
-                    }}
-                  >
-                    {truncateToFirstLine(box.description)}
-                  </Typography>
-                )}
-              </Stack>
-            </Paper>
-            ));
-        })()}
-        </Box>
-      )}
+      {/* Print Labels Area */}
+      <PrintLabels boxes={selectedBoxes} isPrinting={isPrinting} />
 
       <Snackbar
         open={snackbar.open}

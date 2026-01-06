@@ -1,0 +1,137 @@
+/* ============================================================================
+ * Print Styles for Box Label Printing
+ * ============================================================================
+ * Used by: BoxList component for QR code label generation
+ * Supports: Desktop (Windows/Mac/Linux), Android Chrome, iOS Safari
+ * ============================================================================ */
+
+/* Normal view: print-area completely hidden */
+.print-area {
+  display: none;
+}
+
+/* Page setup for A4 portrait labels */
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
+/* Print-specific styles */
+@media print {
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: auto;
+  }
+
+  /* Hide everything by default - critical for all browsers */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Make print-area and all its contents visible */
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+
+  /* Position and layout print-area */
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    display: grid;
+    gap: 0;
+    grid-template-columns: 1fr;
+    grid-auto-rows: 7cm;
+  }
+
+  /* Individual print labels - ensure correct rendering on all devices */
+  .print-label {
+    border: none;
+    border-radius: 0;
+    padding: 10mm 12mm;
+    height: 7cm;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+    page-break-inside: avoid;
+    background: white;
+    color: black;
+    /* Critical for Android Chrome - ensure exact colors */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* QR Code Container - left side */
+  .print-label > div:first-child {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 7cm;
+    height: 7cm;
+    margin: 0;
+    padding: 0;
+    background: white;
+    /* Ensure QR renders correctly on Android */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* QR Code Canvas - critical for mobile print */
+  .print-label canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-width: 7cm;
+    max-height: 7cm;
+    margin: 0;
+    padding: 0;
+    /* Preserve canvas rendering on Android/iOS */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    image-rendering: crisp-edges;
+  }
+
+  /* Text Container - right side */
+  .print-label > div:last-child {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding-left: 2mm;
+    gap: 0.3rem;
+    color: black;
+  }
+
+  /* Typography elements */
+  .print-label .MuiTypography-root {
+    display: block;
+    color: black;
+    background: transparent;
+    margin: 0;
+    padding: 0;
+    /* Ensure text colors are preserved */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Stacks and containers */
+  .print-label .MuiStack-root {
+    color: black;
+    background: transparent;
+    margin: 0;
+  }
+
+  /* Paper component override */
+  .print-label.MuiPaper-root {
+    background: white;
+    box-shadow: none;
+    border: none;
+  }
+}
