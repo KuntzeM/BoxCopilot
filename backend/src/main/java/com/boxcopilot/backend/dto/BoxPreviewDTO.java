@@ -5,6 +5,7 @@ import java.util.List;
 public class BoxPreviewDTO {
     private Long id;
     private String uuid;
+    private Integer boxNumber;
     private String currentRoom;
     private String targetRoom;
     private String description;
@@ -17,6 +18,7 @@ public class BoxPreviewDTO {
     public BoxPreviewDTO(Long id, String uuid, String currentRoom, String targetRoom, String description, List<ItemDTO> items) {
         this.id = id;
         this.uuid = uuid;
+        this.boxNumber = null;
         this.currentRoom = currentRoom;
         this.targetRoom = targetRoom;
         this.description = description;
@@ -29,6 +31,8 @@ public class BoxPreviewDTO {
     public void setId(Long id) { this.id = id; }
     public String getUuid() { return uuid; }
     public void setUuid(String uuid) { this.uuid = uuid; }
+    public Integer getBoxNumber() { return boxNumber; }
+    public void setBoxNumber(Integer boxNumber) { this.boxNumber = boxNumber; }
     public String getCurrentRoom() { return currentRoom; }
     public void setCurrentRoom(String currentRoom) { this.currentRoom = currentRoom; }
     public String getTargetRoom() { return targetRoom; }

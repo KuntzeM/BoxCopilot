@@ -205,26 +205,28 @@ const BoxEditPage: React.FC = () => {
         >
           {expandBoxAttributes ? <ExpandLess /> : <ExpandMore />}
           <Typography variant="h5">
-            {box ? t('boxes.editBox', { number: box.id }) : t('common.loading')}
+            {box ? t('boxes.editBox', { number: box.boxNumber }) : t('common.loading')}
           </Typography>
         </Stack>
 
-        {box && (
-          <Collapse in={expandBoxAttributes} timeout="auto" unmountOnExit>
-            <BoxForm data={formData} onChange={setFormData} />
-            
-            <Button
-              variant="contained"
-              startIcon={<Save />}
-              onClick={handleSave}
-              disabled={isSaving}
-              fullWidth
-              sx={{ mt: 3 }}
-            >
-              {isSaving ? t('common.saving') : t('boxes.saveAndReturn')}
-            </Button>
-          </Collapse>
-        )}
+        <Collapse in={expandBoxAttributes} timeout="auto" unmountOnExit>
+          {box && (
+            <>
+              <BoxForm data={formData} onChange={setFormData} />
+              
+              <Button
+                variant="contained"
+                startIcon={<Save />}
+                onClick={handleSave}
+                disabled={isSaving}
+                fullWidth
+                sx={{ mt: 3 }}
+              >
+                {isSaving ? t('common.saving') : t('boxes.saveAndReturn')}
+              </Button>
+            </>
+          )}
+        </Collapse>
       </Paper>
 
       <Paper sx={{ p: 3, mb: 3 }}>

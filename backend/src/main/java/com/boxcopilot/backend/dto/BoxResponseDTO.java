@@ -11,6 +11,7 @@ public class BoxResponseDTO {
     
     private Long id;
     private String uuid;
+    private Integer boxNumber;
     private String currentRoom;
     private String targetRoom;
     private String description;
@@ -25,6 +26,7 @@ public class BoxResponseDTO {
     public BoxResponseDTO(Long id, String uuid, String currentRoom, String targetRoom, String description, Instant createdAt) {
         this.id = id;
         this.uuid = uuid;
+        this.boxNumber = null;
         this.currentRoom = currentRoom;
         this.targetRoom = targetRoom;
         this.description = description;
@@ -47,6 +49,14 @@ public class BoxResponseDTO {
 
     public void setUuid(String uuid) {
         this.uuid = uuid;
+    }
+
+    public Integer getBoxNumber() {
+        return boxNumber;
+    }
+
+    public void setBoxNumber(Integer boxNumber) {
+        this.boxNumber = boxNumber;
     }
 
     public String getCurrentRoom() {

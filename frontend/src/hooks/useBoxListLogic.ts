@@ -107,7 +107,7 @@ export const useBoxListLogic = () => {
       const boxes = await fetchBoxes();
 
       const withUrls = boxes
-        .sort((a, b) => b.id - a.id)
+        .sort((a, b) => (a.boxNumber || 0) - (b.boxNumber || 0))
         .map((b) => ({
           ...b,
           publicUrl: `${window.location.origin}/public/${b.uuid}`,
@@ -139,7 +139,14 @@ export const useBoxListLogic = () => {
       const itemTerm = itemQuery.trim();
 
       if (roomTerm) {
-        next = next.filter((b) => (b.currentRoom || '').toLowerCase().includes(roomTerm));
+        // Check if roomTerm is a number (search by box number)
+        const boxNumSearch = parseInt(roomTerm, 10);
+        if (!isNaN(boxNumSearch)) {
+          next = next.filter((b) => b.boxNumber === boxNumSearch);
+        } else {
+          // Search by room name
+          next = next.filter((b) => (b.currentRoom || '').toLowerCase().includes(roomTerm));
+        }
       }
 
       if (itemTerm) {

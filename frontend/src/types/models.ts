@@ -11,6 +11,7 @@ export interface Item {
 export interface Box {
   id: number;
   uuid: string;
+  boxNumber: number;
   currentRoom?: string;
   targetRoom?: string;
   description?: string;
@@ -30,6 +31,7 @@ export interface BoxPreviewItem {
 export interface BoxPreview {
   id: number;
   uuid: string;
+  boxNumber: number;
   currentRoom?: string;
   targetRoom?: string;
   description?: string;

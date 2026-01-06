@@ -149,7 +149,7 @@ function PublicPreviewContent() {
               {/* Box Info */}
               <Box>
                 <Typography variant="h5" fontWeight={700}>
-                  {t('boxes.boxNumber', { number: data.id })}
+                  {t('boxes.boxNumber', { number: data.boxNumber })}
                 </Typography>
                 <Typography variant="body1" sx={{ mt: 0.5 }}>
                   {t('boxes.current')}: <strong>{data.currentRoom || '-'}</strong>

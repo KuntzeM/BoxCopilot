@@ -26,10 +26,12 @@ public class BoxService {
 
     private final BoxRepository boxRepository;
     private final BoxMapper boxMapper;
+    private final BoxNumberService boxNumberService;
 
-    public BoxService(BoxRepository boxRepository, BoxMapper boxMapper) {
+    public BoxService(BoxRepository boxRepository, BoxMapper boxMapper, BoxNumberService boxNumberService) {
         this.boxRepository = boxRepository;
         this.boxMapper = boxMapper;
+        this.boxNumberService = boxNumberService;
     }
 
     /**
@@ -79,8 +81,13 @@ public class BoxService {
     public BoxResponseDTO createBox(BoxRequestDTO requestDTO) {
         log.info("Service: Creating box in room: {}", requestDTO.getCurrentRoom());
         Box box = boxMapper.toEntity(requestDTO);
+        
+        // Box-Nummer aus Pool holen
+        Integer boxNumber = boxNumberService.getNextAvailableBoxNumber();
+        box.setBoxNumber(boxNumber);
+        
         Box savedBox = boxRepository.save(box);
-        log.info("Service: Box created with ID: {}, UUID: {}", savedBox.getId(), savedBox.getUuid());
+        log.info("Service: Box created with ID: {}, UUID: {}, Number: {}", savedBox.getId(), savedBox.getUuid(), boxNumber);
         return boxMapper.toResponseDTO(savedBox);
     }
 
@@ -106,11 +113,17 @@ public class BoxService {
      */
     public void deleteBox(Long id) {
         log.info("Service: Deleting box with ID: {}", id);
-        if (!boxRepository.existsById(id)) {
-            log.error("Cannot delete - Box not found with ID: {}", id);
-            throw new ResourceNotFoundException("Box not found with ID: " + id);
-        }
+        Box box = boxRepository.findById(id)
+                .orElseThrow(() -> {
+                    log.error("Cannot delete - Box not found with ID: {}", id);
+                    return new ResourceNotFoundException("Box not found with ID: " + id);
+                });
+        
+        Integer boxNumber = box.getBoxNumber();
         boxRepository.deleteById(id);
-        log.info("Service: Box with ID {} deleted successfully", id);
+        
+        // Box-Nummer zurück in den Pool geben
+        boxNumberService.releaseBoxNumber(boxNumber);
+        log.info("Service: Box with ID {} deleted successfully and number {} released", id, boxNumber);
     }
 }

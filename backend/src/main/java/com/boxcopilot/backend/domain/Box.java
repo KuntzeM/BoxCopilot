@@ -15,6 +15,9 @@ public class Box {
     @Column(nullable = false, unique = true)
     private String uuid;
 
+    @Column(name = "box_number", unique = true)
+    private Integer boxNumber;
+
     @Column
     private String currentRoom;
 
@@ -52,6 +55,9 @@ public class Box {
     
     public String getUuid() { return uuid; }
     public void setUuid(String uuid) { this.uuid = uuid; }
+    
+    public Integer getBoxNumber() { return boxNumber; }
+    public void setBoxNumber(Integer boxNumber) { this.boxNumber = boxNumber; }
     
     public String getCurrentRoom() { return currentRoom; }
     public void setCurrentRoom(String currentRoom) { this.currentRoom = currentRoom; }

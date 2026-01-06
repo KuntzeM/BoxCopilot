@@ -59,6 +59,7 @@ public class BoxMapper {
             entity.getCreatedAt()
         );
         
+        dto.setBoxNumber(entity.getBoxNumber());
         dto.setIsFragile(entity.getIsFragile());
         dto.setNoStack(entity.getNoStack());
 
