@@ -2,6 +2,7 @@ package com.boxcopilot.backend.controller;
 
 import com.boxcopilot.backend.service.BoxNumberService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -22,10 +23,12 @@ public class BoxNumberController {
 
     /**
      * Get the current status of the box number pool.
+     * Requires ADMIN role.
      * 
      * @return PoolStatus containing statistics about available and used numbers
      */
     @GetMapping("/status")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<BoxNumberService.PoolStatus> getPoolStatus() {
         return ResponseEntity.ok(boxNumberService.getPoolStatus());
     }

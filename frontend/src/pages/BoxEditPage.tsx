@@ -209,22 +209,24 @@ const BoxEditPage: React.FC = () => {
           </Typography>
         </Stack>
 
-        {box && (
-          <Collapse in={expandBoxAttributes} timeout="auto" unmountOnExit>
-            <BoxForm data={formData} onChange={setFormData} />
-            
-            <Button
-              variant="contained"
-              startIcon={<Save />}
-              onClick={handleSave}
-              disabled={isSaving}
-              fullWidth
-              sx={{ mt: 3 }}
-            >
-              {isSaving ? t('common.saving') : t('boxes.saveAndReturn')}
-            </Button>
-          </Collapse>
-        )}
+        <Collapse in={expandBoxAttributes} timeout="auto" unmountOnExit>
+          {box && (
+            <>
+              <BoxForm data={formData} onChange={setFormData} />
+              
+              <Button
+                variant="contained"
+                startIcon={<Save />}
+                onClick={handleSave}
+                disabled={isSaving}
+                fullWidth
+                sx={{ mt: 3 }}
+              >
+                {isSaving ? t('common.saving') : t('boxes.saveAndReturn')}
+              </Button>
+            </>
+          )}
+        </Collapse>
       </Paper>
 
       <Paper sx={{ p: 3, mb: 3 }}>

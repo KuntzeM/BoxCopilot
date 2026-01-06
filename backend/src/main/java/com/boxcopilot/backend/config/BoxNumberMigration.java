@@ -7,9 +7,9 @@ import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
-import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -23,18 +23,26 @@ public class BoxNumberMigration {
 
     private final BoxRepository boxRepository;
     private final BoxNumberService boxNumberService;
+    private final TransactionTemplate transactionTemplate;
 
-    public BoxNumberMigration(BoxRepository boxRepository, BoxNumberService boxNumberService) {
+    public BoxNumberMigration(BoxRepository boxRepository, BoxNumberService boxNumberService, TransactionTemplate transactionTemplate) {
         this.boxRepository = boxRepository;
         this.boxNumberService = boxNumberService;
+        this.transactionTemplate = transactionTemplate;
     }
 
     @PostConstruct
-    @Transactional
     public void migrateExistingBoxes() {
-        // Find all boxes
+        transactionTemplate.execute(status -> {
+            performMigration();
+            return null;
+        });
+    }
+
+    private void performMigration() {
+        // Find all boxes with null-safe sorting by createdAt
         List<Box> allBoxes = boxRepository.findAll().stream()
-            .sorted((a, b) -> a.getCreatedAt().compareTo(b.getCreatedAt()))
+            .sorted(Comparator.comparing(Box::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
             .toList();
 
         if (allBoxes.isEmpty()) {
@@ -61,7 +69,6 @@ public class BoxNumberMigration {
 
         for (Box box : boxesWithoutNumbers) {
             Integer next = boxNumberService.getNextAvailableBoxNumber();
-            boxNumberService.reserveBoxNumber(next);
             box.setBoxNumber(next);
             boxRepository.save(box);
             log.debug("Assigned box number {} to box ID {}", next, box.getId());
