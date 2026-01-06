@@ -245,7 +245,7 @@ export const useBoxListLogic = () => {
       const boxNumberPrefix =
         placeholderIndex !== -1
           ? boxNumberTemplate.slice(0, placeholderIndex).trimEnd()
-          : boxNumberTemplate;
+          : '#'; // Fallback to '#' if placeholder not found
       
       const translations = {
         boxNumber: boxNumberPrefix,
@@ -254,8 +254,8 @@ export const useBoxListLogic = () => {
         doNotStack: t('boxes.noStackPrintLabel'),
       };
       
-      // Generate PDF blob with dynamic timeout (minimum 30s + 2s per box)
-      const timeoutDuration = Math.max(BASE_TIMEOUT_MS, selectedBoxes.length * PER_BOX_TIMEOUT_MS);
+      // Generate PDF blob with dynamic timeout (base 30s + 2s per box)
+      const timeoutDuration = BASE_TIMEOUT_MS + (selectedBoxes.length * PER_BOX_TIMEOUT_MS);
       const pdfBlobPromise = pdf(
         createElement(LabelPDFDocument, { boxes: selectedBoxes, qrCodes, translations })
       ).toBlob();
