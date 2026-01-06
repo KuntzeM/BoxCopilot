@@ -493,12 +493,6 @@ export default function BoxList() {
     <Box sx={{ width: '100%', pb: 4 }}>
       <GlobalStyles
         styles={{
-          /* Mobile print viewport optimization */
-          '@media print': {
-            '@supports (-webkit-print-color-adjust: exact)': {
-              '*': { WebkitPrintColorAdjust: 'exact' },
-            },
-          },
           /* Standard @page for all platforms */
           '@page': { 
             size: 'A4 portrait', 
