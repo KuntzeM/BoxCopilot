@@ -72,6 +72,7 @@ public class PublicPreviewController {
             itemDTOs
         );
         
+        dto.setBoxNumber(box.getBoxNumber());
         dto.setIsFragile(box.getIsFragile());
         dto.setNoStack(box.getNoStack());
 
