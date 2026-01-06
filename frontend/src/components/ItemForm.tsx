@@ -283,6 +283,11 @@ export const ItemForm: React.FC<ItemFormProps> = ({
       
       console.log('[Camera] Active camera - facingMode:', settings.facingMode, 'deviceId:', settings.deviceId);
       console.log('[Camera] Capabilities:', capabilities);
+      
+      // CRITICAL: Use actual facingMode from camera, not what we requested
+      // Some devices might give us a different camera than requested
+      const actualFacingMode = settings.facingMode || targetMode;
+      console.log('[Camera] Requested:', targetMode, ', Actual:', actualFacingMode);
 
       // Check for flash/torch
       if (capabilities.torch) {
@@ -300,12 +305,12 @@ export const ItemForm: React.FC<ItemFormProps> = ({
         setZoom(capabilities.zoom.min || 1);
       }
 
-      // Update state - THIS IS CRITICAL: Update facingMode to reflect actual camera
-      setFacingMode(targetMode);
+      // Update state with ACTUAL camera facingMode from device
+      setFacingMode(actualFacingMode);
       setStream(mediaStream);
       setCameraMode('preview');
       
-      console.log('[Camera] Camera started successfully with facingMode:', targetMode);
+      console.log('[Camera] Camera started successfully - actual facingMode:', actualFacingMode);
     } catch (err) {
       console.error('[Camera] Failed to start camera:', err);
       setError(t('errors.cameraAccessFailed') || 'Camera access failed');
@@ -680,7 +685,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                 <Box sx={{ flex: 1 }}>
                   <IconButton
                     color="primary"
-                    onClick={startCamera}
+                    onClick={() => startCamera('environment')}
                     disabled={submitting}
                     size="large"
                     sx={{ width: '100%', justifyContent: 'center' }}
