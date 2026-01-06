@@ -2,6 +2,12 @@ import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/render
 import { Box } from '../types/models';
 
 /**
+ * Badge color constants for handling flags
+ */
+const BADGE_FRAGILE_COLOR = '#FF9800'; // Orange for fragile items
+const BADGE_NO_STACK_COLOR = '#F44336'; // Red for no-stack warning
+
+/**
  * Translations interface for PDF labels
  * Translations must be passed as props since PDF components cannot use hooks
  */
@@ -30,8 +36,8 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   label: {
-    width: '210mm', // A4 Hochformat Breite
-    height: '95mm', // 3 Labels auf 297mm Höhe (297/3 ≈ 99mm, minus Linien = 95mm)
+    width: '210mm', // A4 portrait width
+    height: '95mm', // 3 labels per 297mm height (297/3 ≈ 99mm, minus lines = 95mm)
     padding: '5mm',
     display: 'flex',
     flexDirection: 'row',
@@ -45,7 +51,7 @@ const styles = StyleSheet.create({
     borderBottom: '1pt dashed #CCCCCC',
   },
   qrContainer: {
-    width: '60mm', // QR Code Bereich
+    width: '60mm', // QR code area
     height: '85mm',
     display: 'flex',
     alignItems: 'center',
@@ -73,7 +79,7 @@ const styles = StyleSheet.create({
     gap: '3mm',
   },
   badgeFragile: {
-    backgroundColor: '#FF9800', // Orange
+    backgroundColor: BADGE_FRAGILE_COLOR,
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: 900,
@@ -83,7 +89,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica-Bold',
   },
   badgeNoStack: {
-    backgroundColor: '#F44336', // Rot
+    backgroundColor: BADGE_NO_STACK_COLOR,
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: 900,

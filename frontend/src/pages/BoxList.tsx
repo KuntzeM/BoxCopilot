@@ -117,7 +117,6 @@ export default function BoxList() {
     snackbar,
     setSnackbar,
     pdfProgress,
-    selectedBoxes,
     openBoxDialog,
     setOpenBoxDialog,
     boxFormData,
