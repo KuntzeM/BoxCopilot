@@ -205,7 +205,7 @@ const BoxEditPage: React.FC = () => {
         >
           {expandBoxAttributes ? <ExpandLess /> : <ExpandMore />}
           <Typography variant="h5">
-            {box ? t('boxes.editBox', { number: box.id }) : t('common.loading')}
+            {box ? t('boxes.editBox', { number: box.boxNumber }) : t('common.loading')}
           </Typography>
         </Stack>
 

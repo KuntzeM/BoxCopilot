@@ -160,7 +160,7 @@ const Label = ({
           <View style={styles.topSection}>
             {/* Box Number */}
             <Text style={styles.boxNumber}>
-              {translations.boxNumber}{box.id}
+              {translations.boxNumber}{box.boxNumber}
             </Text>
 
             {/* Handling Badges */}
