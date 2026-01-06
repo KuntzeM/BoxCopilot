@@ -239,25 +239,45 @@ export const ItemForm: React.FC<ItemFormProps> = ({
     setCameraMode('none');
   };
 
-  const startCamera = async (mode: 'user' | 'environment' = facingMode) => {
+  const startCamera = async (mode?: 'user' | 'environment') => {
     try {
-      console.log('Starting camera with facingMode:', mode);
+      const cameraMode = mode || facingMode;
+      console.log('Starting camera with facingMode:', cameraMode);
       
       const constraints: MediaStreamConstraints = {
         video: {
-          facingMode: mode,
+          facingMode: { ideal: cameraMode },
           width: { ideal: 1280 },
           height: { ideal: 720 },
         },
         audio: false,
       };
 
-      console.log('Requesting camera access...');
-      const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+      console.log('Requesting camera access with constraints:', constraints);
+      let mediaStream: MediaStream;
+      
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (primaryError) {
+        console.warn('Primary camera request failed, trying without facingMode constraint:', primaryError);
+        // Fallback: try without facingMode constraint
+        const fallbackConstraints: MediaStreamConstraints = {
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        };
+        mediaStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+      }
+      
       console.log('Camera access granted, stream:', mediaStream);
       
-      // Check camera capabilities BEFORE setting state
+      // Get the actual facing mode from the track
       const videoTrack = mediaStream.getVideoTracks()[0];
+      const settings = videoTrack.getSettings() as any;
+      console.log('Actual camera settings:', settings);
+      
       const capabilities = videoTrack.getCapabilities() as any;
 
       // Check for flash/torch
@@ -274,7 +294,8 @@ export const ItemForm: React.FC<ItemFormProps> = ({
         setZoom(capabilities.zoom.min || 1);
       }
 
-      // Set stream and camera mode - the useEffect will handle attachment
+      // Set state with the camera mode
+      setFacingMode(cameraMode);
       setStream(mediaStream);
       setCameraMode('preview');
     } catch (err) {
@@ -314,8 +335,11 @@ export const ItemForm: React.FC<ItemFormProps> = ({
     const newMode = facingMode === 'user' ? 'environment' : 'user';
     console.log('Switching camera to:', newMode);
     
-    // Wait a bit for cleanup, then start with new mode
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Wait for cleanup to complete
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    // Start with new mode
+    setFacingMode(newMode);
     await startCamera(newMode);
   };
 
