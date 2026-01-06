@@ -18,7 +18,7 @@ public class BoxPreviewDTO {
     public BoxPreviewDTO(Long id, String uuid, String currentRoom, String targetRoom, String description, List<ItemDTO> items) {
         this.id = id;
         this.uuid = uuid;
-        this.boxNumber = null; // Will be set later
+        this.boxNumber = null;
         this.currentRoom = currentRoom;
         this.targetRoom = targetRoom;
         this.description = description;

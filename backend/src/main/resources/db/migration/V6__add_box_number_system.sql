@@ -1,4 +1,4 @@
--- Erstelle Box-Nummern Pool
+-- Create box number pool table
 CREATE TABLE box_number_pool (
     box_number INT PRIMARY KEY,
     is_available BOOLEAN NOT NULL DEFAULT TRUE,
@@ -8,7 +8,7 @@ CREATE TABLE box_number_pool (
 
 CREATE INDEX idx_box_number_available ON box_number_pool(is_available, box_number);
 
--- Erweitere Box-Tabelle
+-- Add box_number column to boxes table
 ALTER TABLE boxes ADD COLUMN box_number INT;
 
 -- Note: Migration of existing boxes will be handled by application code on startup

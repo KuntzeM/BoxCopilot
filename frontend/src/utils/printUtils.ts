@@ -55,7 +55,7 @@ export type QRCodeProgressCallback = (current: number, total: number, boxNumber:
  * @param onProgress - Optional callback for progress updates
  * @returns Promise resolving to array of data URLs in same order as input
  */
-export async function generateQRCodesForBoxes<T extends { publicUrl?: string; id: number; boxNumber: number }>(
+export async function generateQRCodesForBoxes<T extends { publicUrl?: string; id: number; boxNumber?: number }>(
   boxes: T[],
   onProgress?: QRCodeProgressCallback
 ): Promise<string[]> {
@@ -66,16 +66,16 @@ export async function generateQRCodesForBoxes<T extends { publicUrl?: string; id
     const url = box.publicUrl || '';
 
     if (onProgress) {
-      onProgress(i + 1, boxes.length, `#${box.boxNumber}`);
+      onProgress(i + 1, boxes.length, `#${box.boxNumber ?? box.id}`);
     }
 
     try {
       const qrCode = await generateQRCodeDataURL(url);
       qrCodes.push(qrCode);
     } catch (error) {
-      console.error(`[QRCode] Failed to generate QR code for box #${box.boxNumber}:`, error);
+      console.error(`[QRCode] Failed to generate QR code for box #${box.boxNumber ?? box.id}:`, error);
       // Fail the entire operation if any QR code fails to generate
-      throw new Error(`Failed to generate QR code for box #${box.boxNumber}. Please try again.`);
+      throw new Error(`Failed to generate QR code for box #${box.boxNumber ?? box.id}. Please try again.`);
     }
 
     // Yield to UI thread to prevent blocking, aligned with next paint
