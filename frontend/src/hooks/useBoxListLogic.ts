@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, createElement } from 'react';
+import { useState, useEffect, useMemo, createElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box as BoxModel, CreateBoxPayload } from '../types/models';
 import { fetchBoxes, createBox, deleteBox } from '../services/boxService';
@@ -6,6 +6,11 @@ import { searchItems } from '../services/itemService';
 import { useTranslation } from './useTranslation';
 
 type SnackbarState = { open: boolean; message: string; severity: 'success' | 'error' | 'info' };
+
+// PDF Generation Constants
+const BASE_TIMEOUT_MS = 30000; // 30 seconds base timeout for PDF generation
+const PER_BOX_TIMEOUT_MS = 2000; // Additional 2 seconds per box
+const BLOB_CLEANUP_TIMEOUT_MS = 300000; // 5 minutes fallback cleanup for blob URLs
 
 /**
  * Custom Hook: useBoxListLogic
@@ -65,16 +70,7 @@ export const useBoxListLogic = () => {
 
   // === Computed Values ===
   const selectedBoxes = useMemo(
-    () => {
-      const filtered = filteredBoxes.filter((b) => selectedIds.includes(b.id));
-      console.log('[DEBUG] selectedBoxes computed:', { 
-        selectedIds, 
-        filteredBoxesLength: filteredBoxes.length, 
-        selectedBoxesLength: filtered.length,
-        boxes: filtered.map(b => ({ id: b.id, currentRoom: b.currentRoom }))
-      });
-      return filtered;
-    },
+    () => filteredBoxes.filter((b) => selectedIds.includes(b.id)),
     [selectedIds, filteredBoxes]
   );
 
@@ -175,12 +171,7 @@ export const useBoxListLogic = () => {
 
   // === UI Handlers ===
   const toggleSelect = (id: number) => {
-    console.log('[DEBUG] toggleSelect clicked for box:', id);
-    setSelectedIds((prev) => {
-      const newIds = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-      console.log('[DEBUG] selectedIds updated:', { previous: prev, new: newIds, toggledId: id });
-      return newIds;
-    });
+    setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   };
 
   const toggleExpandBox = (id: number) => {
@@ -217,10 +208,7 @@ export const useBoxListLogic = () => {
   };
 
   const handlePrintLabels = async () => {
-    console.log('[DEBUG] handlePrintLabels called:', { selectedBoxesCount: selectedBoxes.length });
-    
     if (selectedBoxes.length === 0) {
-      console.warn('[DEBUG] No boxes selected for printing');
       setSnackbar({ open: true, message: t('boxes.noBoxSelected'), severity: 'info' });
       return;
     }
@@ -249,20 +237,31 @@ export const useBoxListLogic = () => {
       );
       
       // Prepare translations (cannot use hooks inside PDF components)
+      // Extract box number prefix by removing the {{number}} placeholder
+      // Expected format: "#{{number}}" or "Box {{number}}"
+      const boxNumberTemplate = t('boxes.boxNumber');
+      const boxNumberPlaceholder = '{{number}}';
+      const placeholderIndex = boxNumberTemplate.indexOf(boxNumberPlaceholder);
+      const boxNumberPrefix =
+        placeholderIndex !== -1
+          ? boxNumberTemplate.slice(0, placeholderIndex).trimEnd()
+          : '#'; // Fallback to '#' if placeholder not found
+      
       const translations = {
-        boxNumber: t('boxes.boxNumber').replace('#{{number}}', '#'),
+        boxNumber: boxNumberPrefix,
         targetRoom: t('boxes.targetRoom').toUpperCase(),
         fragile: t('boxes.fragilePrintLabel'),
         doNotStack: t('boxes.noStackPrintLabel'),
       };
       
-      // Generate PDF blob with timeout (30 seconds max)
+      // Generate PDF blob with dynamic timeout (base 30s + 2s per box)
+      const timeoutDuration = BASE_TIMEOUT_MS + (selectedBoxes.length * PER_BOX_TIMEOUT_MS);
       const pdfBlobPromise = pdf(
         createElement(LabelPDFDocument, { boxes: selectedBoxes, qrCodes, translations })
       ).toBlob();
       
       const timeoutPromise = new Promise<Blob>((_, reject) => {
-        setTimeout(() => reject(new Error('PDF generation timeout')), 30000);
+        setTimeout(() => reject(new Error('PDF generation timeout')), timeoutDuration);
       });
       
       const pdfBlob = await Promise.race([pdfBlobPromise, timeoutPromise]);
@@ -272,9 +271,17 @@ export const useBoxListLogic = () => {
       
       // Create blob URL and open in new tab
       const blobUrl = URL.createObjectURL(pdfBlob);
+      
+      // Set up cleanup timeout as fallback (5 minutes)
+      const cleanupTimeoutId = setTimeout(() => {
+        URL.revokeObjectURL(blobUrl);
+      }, BLOB_CLEANUP_TIMEOUT_MS);
+      
       const printWindow = window.open(blobUrl, '_blank');
       
       if (!printWindow) {
+        URL.revokeObjectURL(blobUrl);
+        clearTimeout(cleanupTimeoutId);
         throw new Error('Failed to open print window. Please check popup blocker settings.');
       }
       
@@ -286,6 +293,7 @@ export const useBoxListLogic = () => {
           // Cleanup blob URL after print dialog closes
           printWindow.addEventListener('afterprint', () => {
             URL.revokeObjectURL(blobUrl);
+            clearTimeout(cleanupTimeoutId);
           });
         }, 500);
       });

@@ -5,7 +5,7 @@ import { Buffer } from 'buffer';
 import './services/axiosConfig';
 import App from './App';
 
-// Buffer Polyfill für @react-pdf/renderer
+// Buffer polyfill for @react-pdf/renderer
 if (typeof window !== 'undefined') {
   window.Buffer = Buffer;
 }

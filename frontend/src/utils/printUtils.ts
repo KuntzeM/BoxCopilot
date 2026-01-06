@@ -25,7 +25,7 @@ export async function generateQRCodeDataURL(
   options: QRCodeOptions = {}
 ): Promise<string> {
   const defaultOptions: QRCodeOptions = {
-    errorCorrectionLevel: 'M', // 15% recovery (good balance for labels)
+    errorCorrectionLevel: 'H', // 30% recovery (more robust for small, potentially damaged moving labels)
     width: 300, // 300px at 96 DPI = high quality for printing
     margin: 4, // 4 modules quiet zone (standard)
     color: {
@@ -74,12 +74,12 @@ export async function generateQRCodesForBoxes<T extends { publicUrl?: string; id
       qrCodes.push(qrCode);
     } catch (error) {
       console.error(`[QRCode] Failed to generate QR code for box #${box.id}:`, error);
-      // Push empty string on error to maintain array indices
-      qrCodes.push('');
+      // Fail the entire operation if any QR code fails to generate
+      throw new Error(`Failed to generate QR code for box #${box.id}. Please try again.`);
     }
 
-    // Yield to UI thread to prevent blocking
-    await new Promise(resolve => setTimeout(resolve, 0));
+    // Yield to UI thread to prevent blocking, aligned with next paint
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
   }
 
   return qrCodes;
