@@ -64,6 +64,36 @@ public class BoxNumberService {
     }
 
     /**
+     * Marks a specific box number as reserved/in use, creating the pool entry if necessary.
+     */
+    @Transactional
+    public void reserveBoxNumber(Integer boxNumber) {
+        if (boxNumber == null) {
+            log.warn("Attempted to reserve null box number");
+            return;
+        }
+
+        poolRepository.findById(boxNumber).ifPresentOrElse(
+            pool -> {
+                if (Boolean.TRUE.equals(pool.getIsAvailable())) {
+                    pool.setIsAvailable(false);
+                    pool.setLastUsedAt(Instant.now());
+                    poolRepository.save(pool);
+                }
+            },
+            () -> {
+                BoxNumberPool pool = new BoxNumberPool();
+                pool.setBoxNumber(boxNumber);
+                pool.setIsAvailable(false);
+                pool.setLastUsedAt(Instant.now());
+                pool.setCreatedAt(Instant.now());
+                poolRepository.save(pool);
+                log.info("Created pool entry while reserving box number {}", boxNumber);
+            }
+        );
+    }
+
+    /**
      * Erstellt eine neue Box-Nummer falls Pool leer ist
      */
     private Integer createNewBoxNumber() {
