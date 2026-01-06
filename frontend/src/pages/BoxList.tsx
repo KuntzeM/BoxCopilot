@@ -120,9 +120,6 @@ export default function BoxList() {
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
-  // Direct print state (render print area without dialog)
-  const [isPrinting, setIsPrinting] = useState(false);
-
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
 
   // State for box actions drawer
@@ -143,14 +140,6 @@ export default function BoxList() {
     () => filteredBoxes.filter((b) => selectedIds.includes(b.id)),
     [filteredBoxes, selectedIds]
   );
-
-  useEffect(() => {
-    const handleAfterPrint = () => setIsPrinting(false);
-    window.addEventListener('afterprint', handleAfterPrint);
-    return () => {
-      window.removeEventListener('afterprint', handleAfterPrint);
-    };
-  }, []);
 
   useEffect(() => {
     loadData();
@@ -275,32 +264,14 @@ export default function BoxList() {
     window.open(url, '_blank');
   };
 
-  // Direct print handler - optimized for mobile/desktop compatibility
+  // Direct print handler
   const handlePrintLabels = () => {
     if (selectedBoxes.length === 0) {
       setSnackbar({ open: true, message: t('boxes.noBoxSelected'), severity: 'info' });
       return;
     }
-    setIsPrinting(true);
-    
-    // Allow DOM to fully render print area with canvas elements
-    // Mobile browsers (especially Android) need more time to process QR codes
-    setTimeout(() => {
-      // Force recalculation of print styles before printing
-      if (window.matchMedia) {
-        const printQuery = window.matchMedia('print');
-        if (printQuery.matches) {
-          // Already in print mode - just call print
-          window.print();
-        } else {
-          // Trigger print dialog
-          window.print();
-        }
-      } else {
-        // Fallback for browsers without matchMedia
-        window.print();
-      }
-    }, 100);  // Increased from 50ms for canvas rendering on Android
+    // Print-area is always in DOM, CSS handles visibility based on @media print
+    window.print();
   };
 
   // Box Dialogs
@@ -493,83 +464,98 @@ export default function BoxList() {
     <Box sx={{ width: '100%', pb: 4 }}>
       <GlobalStyles
         styles={{
-          /* Standard @page for all platforms */
           '@page': { 
             size: 'A4 portrait', 
             margin: 0,
-            /* Android-specific: force background printing */
-            colorAdjust: 'exact',
+          },
+          /* Normal view: print-area MUST be hidden */
+          '.print-area': {
+            display: 'none !important',
+            position: 'absolute !important',
+            visibility: 'hidden !important',
+            width: '0 !important',
+            height: '0 !important',
+            overflow: 'hidden !important',
+            margin: '0 !important',
+            padding: '0 !important',
+            border: 'none !important',
+            pointerEvents: 'none !important',
           },
           '@media print': {
-            /* Critical: Reset all margins for mobile compatibility */
-            'html, body': { 
-              margin: 0, 
+            'html, body': {
+              margin: 0,
               padding: 0,
+              background: '#fff',
               width: '100%',
               height: '100%',
             },
-            /* Enable color/background printing on all elements (Android crucial) */
-            '*': { 
-              /* -webkit- prefix for Chrome/Edge/Android browsers */
+            /* Hide everything EXCEPT print-area by hiding body children */
+            'body > :not(.print-area)': {
+              display: 'none !important',
+            },
+            /* Make print-area visible and full width */
+            '.print-area': {
+              display: 'grid !important',
+              gap: 0,
+              width: '100% !important',
+              margin: 0,
+              padding: 0,
+              background: '#fff !important',
+              color: '#000 !important',
+              position: 'relative !important',
               WebkitPrintColorAdjust: 'exact !important',
-              /* Standard CSS4 property for Firefox/modern browsers */
               printColorAdjust: 'exact !important',
-              /* Fallback for older Android browsers */
               colorAdjust: 'exact !important',
             },
-            /* Hide all non-print content */
-            'body *': { visibility: 'hidden' },
-            /* Show only print-area */
-            '.print-area, .print-area *': { 
-              visibility: 'visible',
+            /* Ensure all print-area children are visible */
+            '.print-area, .print-area *': {
+              visibility: 'visible !important',
               WebkitPrintColorAdjust: 'exact !important',
               printColorAdjust: 'exact !important',
               colorAdjust: 'exact !important',
             },
-            /* Print area positioning */
-            '.print-area': { 
-              position: 'absolute', 
-              left: 0, 
-              top: 0, 
-              width: '100%',
-              display: 'block',
-            },
-            /* Individual label styling */
+            /* Individual labels */
             '.print-label': {
-              border: 'none',
-              borderRadius: '0',
-              padding: '10mm 12mm',
-              height: '7cm',
-              boxSizing: 'border-box',
-              display: 'flex',
-              flexDirection: 'row',
-              justifyContent: 'flex-start',
-              alignItems: 'center',
-              pageBreakInside: 'avoid',
-              position: 'relative',
-              backgroundColor: '#fff',
-              color: '#000',
-              /* Ensure canvas elements render on Android */
+              display: 'flex !important',
+              border: 'none !important',
+              borderRadius: '0 !important',
+              padding: '10mm 12mm !important',
+              height: '7cm !important',
+              boxSizing: 'border-box !important',
+              flexDirection: 'row !important',
+              justifyContent: 'flex-start !important',
+              alignItems: 'center !important',
+              pageBreakInside: 'avoid !important',
+              position: 'relative !important',
+              backgroundColor: '#fff !important',
+              color: '#000 !important',
+              margin: '0 !important',
+              visibility: 'visible !important',
               WebkitPrintColorAdjust: 'exact !important',
               printColorAdjust: 'exact !important',
             },
-            /* Canvas specific: force rendering on Android */
+            /* QR Code Canvas */
             '.print-label canvas': {
+              display: 'block !important',
+              width: '7cm !important',
+              height: '7cm !important',
               WebkitPrintColorAdjust: 'exact !important',
               printColorAdjust: 'exact !important',
-              display: 'block',
+              margin: '0 !important',
+              padding: '0 !important',
             },
-            '.print-label:last-child': {
-              borderBottom: 'none',
-            },
+            /* Label separators */
             '.print-label:not(:last-child)::after': {
               content: '""',
-              position: 'absolute',
+              position: 'absolute !important',
               left: 0,
               right: 0,
               bottom: 0,
-              borderTop: '1px dashed #000',
-              color: '#000',
+              borderTop: '1px dashed #000 !important',
+            },
+            /* Text styling for labels */
+            '.print-label Typography': {
+              color: '#000 !important',
             },
           },
         }}
@@ -782,8 +768,8 @@ export default function BoxList() {
         </DialogActions>
       </Dialog>
 
-      {/* Direct print area (rendered only for printing) */}
-      {isPrinting && selectedBoxes.length > 0 && (
+      {/* Direct print area (always in DOM, hidden by CSS except during print) */}
+      {selectedBoxes.length > 0 && (
         <Box className="print-area" sx={{ display: 'grid', gap: 0 }}>
           {selectedBoxes.map((box) => (
             <Paper
