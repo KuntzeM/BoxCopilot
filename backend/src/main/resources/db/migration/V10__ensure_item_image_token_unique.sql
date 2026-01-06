@@ -1,15 +1,6 @@
--- Ensure image_token has UNIQUE constraint (idempotent migration)
--- This migration handles cases where V9 was executed with different content
-
--- For PostgreSQL: Add UNIQUE constraint if it doesn't exist
-DO $$
-BEGIN
-    -- Check if constraint already exists
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint 
-        WHERE conname = 'uk_items_image_token'
-    ) THEN
-        -- Add unique constraint
-        ALTER TABLE items ADD CONSTRAINT uk_items_image_token UNIQUE (image_token);
-    END IF;
-END $$;
+-- V10: No-op migration (constraint already added in V9)
+-- This migration was originally created to handle edge cases where V9 might have been executed differently
+-- Since V9 correctly adds the UNIQUE constraint on image_token for both H2 and PostgreSQL,
+-- this migration is intentionally empty to maintain compatibility with both databases.
+--
+-- The uk_items_image_token constraint is guaranteed to exist after V9 execution.

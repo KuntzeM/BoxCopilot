@@ -3,6 +3,14 @@
 import { TranslationKeys } from './de';
 
 export const en: TranslationKeys = {
+  common: {
+    cancel: 'Cancel',
+    add: 'Add',
+    saving: 'Saving...',
+    save: 'Save',
+    retake: 'Retake',
+    accept: 'Use Photo',
+  },
   app: {
     title: 'BoxCopilot',
     loading: 'Loading...',
@@ -55,7 +63,7 @@ export const en: TranslationKeys = {
     
     // Box list
     boxNumber: 'Box #{{number}}',
-    editBox: 'Edit Box #{{number}}',
+    editBox: 'Box #{{number}}',
     noBoxesFound: 'No boxes found.',
     loadingBoxes: 'Loading boxes...',
     selectBox: 'Select box {{number}}',
@@ -95,16 +103,32 @@ export const en: TranslationKeys = {
     items: 'Items',
     name: 'Name',
     actions: 'Actions',
+    itemName: 'Item Name',
+    itemNamePlaceholder: 'e.g. Hammer',
     
     // Actions
     add: 'Add',
     addNew: 'Add New Item',
+    addPhoto: 'Add Photo (Optional)',
+    changePhoto: 'Change Photo',
     edit: 'Edit',
     editItem: 'Edit Item',
     delete: 'Delete',
     deleteItem: 'Delete Item?',
     save: 'Save',
     cancel: 'Cancel',
+    
+    // Photo upload
+    takePhoto: 'Take Photo',
+    uploadPhoto: 'Upload',
+    removePhoto: 'Remove Photo',
+    uploadProgress: 'Uploading...',
+    uploadFailed: 'Photo upload failed',
+    keepWithoutPhoto: 'Keep item without photo',
+    deleteItemQuestion: 'Delete Item',
+    photoUploadFailedTitle: 'Photo Upload Failed',
+    photoUploadFailedMessage: 'Item was created without photo. Would you like to keep it or delete it?',
+    keepItem: 'Keep Item',
     
     // Messages
     noItems: 'No items available',
@@ -135,6 +159,8 @@ export const en: TranslationKeys = {
     boxCreated: 'Box created',
     boxDeleted: 'Box deleted',
     itemAdded: 'Item added',
+    itemCreated: 'Item added successfully',
+    itemCreatedButImageFailed: 'Item created but photo upload failed',
     itemUpdated: 'Item updated',
     itemDeleted: 'Item deleted',
     linkCopied: 'Public link copied',

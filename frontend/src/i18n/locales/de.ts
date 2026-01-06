@@ -1,6 +1,14 @@
 // German translations (default language)
 
 export const de = {
+  common: {
+    cancel: 'Abbrechen',
+    add: 'Hinzufügen',
+    saving: 'Wird gespeichert...',
+    save: 'Speichern',
+    retake: 'Wiederholen',
+    accept: 'Verwenden',
+  },
   app: {
     title: 'BoxCopilot',
     loading: 'Lädt...',
@@ -53,7 +61,7 @@ export const de = {
     
     // Box list
     boxNumber: 'Box #{{number}}',
-    editBox: 'Box #{{number}} bearbeiten',
+    editBox: 'Box #{{number}}',
     noBoxesFound: 'Keine Boxen gefunden.',
     loadingBoxes: 'Lade Boxen...',
     selectBox: 'Box {{number}} auswählen',
@@ -93,16 +101,32 @@ export const de = {
     items: 'Items',
     name: 'Name',
     actions: 'Aktionen',
+    itemName: 'Item-Name',
+    itemNamePlaceholder: 'z.B. Hammer',
     
     // Actions
     add: 'Hinzufügen',
     addNew: 'Neues Item hinzufügen',
+    addPhoto: 'Foto hinzufügen (optional)',
+    changePhoto: 'Foto ändern',
     edit: 'Bearbeiten',
     editItem: 'Item bearbeiten',
     delete: 'Löschen',
     deleteItem: 'Item löschen?',
     save: 'Speichern',
     cancel: 'Abbrechen',
+    
+    // Photo upload
+    takePhoto: 'Foto aufnehmen',
+    uploadPhoto: 'Hochladen',
+    removePhoto: 'Foto entfernen',
+    uploadProgress: 'Wird hochgeladen...',
+    uploadFailed: 'Foto-Upload fehlgeschlagen',
+    keepWithoutPhoto: 'Item ohne Foto behalten',
+    deleteItemQuestion: 'Item löschen',
+    photoUploadFailedTitle: 'Foto-Upload fehlgeschlagen',
+    photoUploadFailedMessage: 'Item wurde ohne Foto erstellt. Möchten Sie es behalten oder löschen?',
+    keepItem: 'Item behalten',
     
     // Messages
     noItems: 'Keine Items vorhanden',
@@ -133,6 +157,8 @@ export const de = {
     boxCreated: 'Box erstellt',
     boxDeleted: 'Box gelöscht',
     itemAdded: 'Item hinzugefügt',
+    itemCreated: 'Item erfolgreich hinzugefügt',
+    itemCreatedButImageFailed: 'Item erstellt, aber Foto-Upload fehlgeschlagen',
     itemUpdated: 'Item aktualisiert',
     itemDeleted: 'Item gelöscht',
     linkCopied: 'Public Link kopiert',

@@ -84,11 +84,11 @@ public class ItemService {
      * Creates a new item.
      */
     public ItemResponseDTO createItem(ItemRequestDTO requestDTO) {
-        log.info("Service: Creating item '{}' in box: {}", requestDTO.getName(), requestDTO.getBoxUuid());
-        Box box = boxRepository.findByUuid(requestDTO.getBoxUuid())
+        log.info("Service: Creating item '{}' in box ID: {}", requestDTO.getName(), requestDTO.getBoxId());
+        Box box = boxRepository.findById(requestDTO.getBoxId())
             .orElseThrow(() -> {
-                log.error("Cannot create item - Box not found with UUID: {}", requestDTO.getBoxUuid());
-                return new ResourceNotFoundException("Box not found with UUID: " + requestDTO.getBoxUuid());
+                log.error("Cannot create item - Box not found with ID: {}", requestDTO.getBoxId());
+                return new ResourceNotFoundException("Box not found with ID: " + requestDTO.getBoxId());
             });
 
         Item item = itemMapper.toEntity(requestDTO);
@@ -228,35 +228,35 @@ public class ItemService {
     /**
      * Moves an item to a different box.
      */
-    public ItemResponseDTO moveItem(Long itemId, String targetBoxUuid) {
-        log.info("Service: Moving item ID: {} to box: {}", itemId, targetBoxUuid);
+    public ItemResponseDTO moveItem(Long itemId, Long targetBoxId) {
+        log.info("Service: Moving item ID: {} to box ID: {}", itemId, targetBoxId);
         Item item = itemRepository.findById(itemId)
             .orElseThrow(() -> {
                 log.error("Cannot move - Item not found with ID: {}", itemId);
                 return new ResourceNotFoundException("Item not found with ID: " + itemId);
             });
         
-        Box targetBox = boxRepository.findByUuid(targetBoxUuid)
+        Box targetBox = boxRepository.findById(targetBoxId)
             .orElseThrow(() -> {
-                log.error("Cannot move - Target box not found with UUID: {}", targetBoxUuid);
-                return new ResourceNotFoundException("Box not found with UUID: " + targetBoxUuid);
+                log.error("Cannot move - Target box not found with ID: {}", targetBoxId);
+                return new ResourceNotFoundException("Box not found with ID: " + targetBoxId);
             });
         
         item.setBox(targetBox);
         Item savedItem = itemRepository.save(item);
-        log.info("Service: Item ID: {} moved to box: {}", itemId, targetBoxUuid);
+        log.info("Service: Item ID: {} moved to box ID: {}", itemId, targetBoxId);
         return itemMapper.toResponseDTO(savedItem);
     }
     
     /**
      * Moves multiple items to a different box.
      */
-    public void moveItems(List<Long> itemIds, String targetBoxUuid) {
-        log.info("Service: Moving {} items to box: {}", itemIds.size(), targetBoxUuid);
-        Box targetBox = boxRepository.findByUuid(targetBoxUuid)
+    public void moveItems(List<Long> itemIds, Long targetBoxId) {
+        log.info("Service: Moving {} items to box ID: {}", itemIds.size(), targetBoxId);
+        Box targetBox = boxRepository.findById(targetBoxId)
             .orElseThrow(() -> {
-                log.error("Cannot move - Target box not found with UUID: {}", targetBoxUuid);
-                return new ResourceNotFoundException("Box not found with UUID: " + targetBoxUuid);
+                log.error("Cannot move - Target box not found with ID: {}", targetBoxId);
+                return new ResourceNotFoundException("Box not found with ID: " + targetBoxId);
             });
         
         int movedCount = 0;
@@ -271,7 +271,7 @@ public class ItemService {
                 log.warn("Service: Failed to move item ID: {}", itemId, e);
             }
         }
-        log.info("Service: Successfully moved {} out of {} items to box: {}", movedCount, itemIds.size(), targetBoxUuid);
+        log.info("Service: Successfully moved {} out of {} items to box ID: {}", movedCount, itemIds.size(), targetBoxId);
     }
 
     /**

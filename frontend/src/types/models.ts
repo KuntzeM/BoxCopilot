@@ -50,7 +50,7 @@ export type UpdateBoxPayload = CreateBoxPayload;
 
 export interface CreateItemPayload {
   name: string;
-  boxUuid: string;
+  boxId: number;
 }
 
 export interface UpdateItemPayload {

@@ -367,7 +367,16 @@ export default function BoxList() {
               onChange={() => toggleSelect(box.id)}
               inputProps={{ 'aria-label': t('boxes.selectBox', { number: box.id }) }}
             />
-            <Box sx={{ flex: 1 }}>
+            <Box 
+              sx={{ 
+                flex: 1,
+                cursor: 'pointer',
+                '&:hover': {
+                  opacity: 0.8
+                }
+              }}
+              onClick={() => navigate(`/app/boxes/${box.id}/edit`)}
+            >
               <Typography variant="h6">{t('boxes.boxNumber', { number: box.id })}</Typography>
               <Typography variant="body2" color="text.secondary">
                 {t('boxes.current')}: {box.currentRoom || '-'}

@@ -36,12 +36,12 @@ export async function deleteItemImage(itemId: number): Promise<Item> {
   return response.data;
 }
 
-export async function moveItem(itemId: number, targetBoxUuid: string): Promise<Item> {
-  const response = await axios.put(`/api/v1/items/${itemId}/move`, { targetBoxUuid });
+export async function moveItem(itemId: number, targetBoxId: number): Promise<Item> {
+  const response = await axios.put(`/api/v1/items/${itemId}/move`, { targetBoxId });
   return response.data;
 }
 
-export async function moveItems(itemIds: number[], targetBoxUuid: string): Promise<void> {
-  await axios.put('/api/v1/items/move-bulk', { itemIds, targetBoxUuid });
+export async function moveItems(itemIds: number[], targetBoxId: number): Promise<void> {
+  await axios.put('/api/v1/items/move-bulk', { itemIds, targetBoxId });
 }
 

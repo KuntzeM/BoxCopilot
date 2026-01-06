@@ -1,6 +1,7 @@
 package com.boxcopilot.backend.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -12,15 +13,15 @@ public class ItemRequestDTO {
     @Size(min = 1, max = 255, message = "Name must be between 1 and 255 characters")
     private String name;
     
-    @NotBlank(message = "Box UUID is required")
-    private String boxUuid;
+    @NotNull(message = "Box ID is required")
+    private Long boxId;
 
     public ItemRequestDTO() {
     }
 
-    public ItemRequestDTO(String name, String boxUuid) {
+    public ItemRequestDTO(String name, Long boxId) {
         this.name = name;
-        this.boxUuid = boxUuid;
+        this.boxId = boxId;
     }
 
     public String getName() {
@@ -31,11 +32,11 @@ public class ItemRequestDTO {
         this.name = name;
     }
 
-    public String getBoxUuid() {
-        return boxUuid;
+    public Long getBoxId() {
+        return boxId;
     }
 
-    public void setBoxUuid(String boxUuid) {
-        this.boxUuid = boxUuid;
+    public void setBoxId(Long boxId) {
+        this.boxId = boxId;
     }
 }

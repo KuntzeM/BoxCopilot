@@ -1,27 +1,27 @@
 package com.boxcopilot.backend.dto;
 
-import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 /**
  * DTO for moving a single item to another box.
  */
 public class MoveItemDTO {
     
-    @NotBlank(message = "Target box UUID is required")
-    private String targetBoxUuid;
+    @NotNull(message = "Target box ID is required")
+    private Long targetBoxId;
 
     public MoveItemDTO() {
     }
 
-    public MoveItemDTO(String targetBoxUuid) {
-        this.targetBoxUuid = targetBoxUuid;
+    public MoveItemDTO(Long targetBoxId) {
+        this.targetBoxId = targetBoxId;
     }
 
-    public String getTargetBoxUuid() {
-        return targetBoxUuid;
+    public Long getTargetBoxId() {
+        return targetBoxId;
     }
 
-    public void setTargetBoxUuid(String targetBoxUuid) {
-        this.targetBoxUuid = targetBoxUuid;
+    public void setTargetBoxId(Long targetBoxId) {
+        this.targetBoxId = targetBoxId;
     }
 }
