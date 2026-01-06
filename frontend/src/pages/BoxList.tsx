@@ -275,17 +275,32 @@ export default function BoxList() {
     window.open(url, '_blank');
   };
 
-  // Direct print handler
+  // Direct print handler - optimized for mobile/desktop compatibility
   const handlePrintLabels = () => {
     if (selectedBoxes.length === 0) {
       setSnackbar({ open: true, message: t('boxes.noBoxSelected'), severity: 'info' });
       return;
     }
     setIsPrinting(true);
-    // Ensure print-area is mounted before printing
+    
+    // Allow DOM to fully render print area with canvas elements
+    // Mobile browsers (especially Android) need more time to process QR codes
     setTimeout(() => {
-      window.print();
-    }, 50);
+      // Force recalculation of print styles before printing
+      if (window.matchMedia) {
+        const printQuery = window.matchMedia('print');
+        if (printQuery.matches) {
+          // Already in print mode - just call print
+          window.print();
+        } else {
+          // Trigger print dialog
+          window.print();
+        }
+      } else {
+        // Fallback for browsers without matchMedia
+        window.print();
+      }
+    }, 100);  // Increased from 50ms for canvas rendering on Android
   };
 
   // Box Dialogs
@@ -478,13 +493,54 @@ export default function BoxList() {
     <Box sx={{ width: '100%', pb: 4 }}>
       <GlobalStyles
         styles={{
-          '@page': { size: 'A4 portrait', margin: 0 },
+          /* Mobile print viewport optimization */
           '@media print': {
-            'html, body': { margin: 0, padding: 0 },
-            '*': { WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' },
+            '@supports (-webkit-print-color-adjust: exact)': {
+              '*': { WebkitPrintColorAdjust: 'exact' },
+            },
+          },
+          /* Standard @page for all platforms */
+          '@page': { 
+            size: 'A4 portrait', 
+            margin: 0,
+            /* Android-specific: force background printing */
+            colorAdjust: 'exact',
+          },
+          '@media print': {
+            /* Critical: Reset all margins for mobile compatibility */
+            'html, body': { 
+              margin: 0, 
+              padding: 0,
+              width: '100%',
+              height: '100%',
+            },
+            /* Enable color/background printing on all elements (Android crucial) */
+            '*': { 
+              /* -webkit- prefix for Chrome/Edge/Android browsers */
+              WebkitPrintColorAdjust: 'exact !important',
+              /* Standard CSS4 property for Firefox/modern browsers */
+              printColorAdjust: 'exact !important',
+              /* Fallback for older Android browsers */
+              colorAdjust: 'exact !important',
+            },
+            /* Hide all non-print content */
             'body *': { visibility: 'hidden' },
-            '.print-area, .print-area *': { visibility: 'visible' },
-            '.print-area': { position: 'absolute', left: 0, top: 0, width: '100%' },
+            /* Show only print-area */
+            '.print-area, .print-area *': { 
+              visibility: 'visible',
+              WebkitPrintColorAdjust: 'exact !important',
+              printColorAdjust: 'exact !important',
+              colorAdjust: 'exact !important',
+            },
+            /* Print area positioning */
+            '.print-area': { 
+              position: 'absolute', 
+              left: 0, 
+              top: 0, 
+              width: '100%',
+              display: 'block',
+            },
+            /* Individual label styling */
             '.print-label': {
               border: 'none',
               borderRadius: '0',
@@ -497,6 +553,17 @@ export default function BoxList() {
               alignItems: 'center',
               pageBreakInside: 'avoid',
               position: 'relative',
+              backgroundColor: '#fff',
+              color: '#000',
+              /* Ensure canvas elements render on Android */
+              WebkitPrintColorAdjust: 'exact !important',
+              printColorAdjust: 'exact !important',
+            },
+            /* Canvas specific: force rendering on Android */
+            '.print-label canvas': {
+              WebkitPrintColorAdjust: 'exact !important',
+              printColorAdjust: 'exact !important',
+              display: 'block',
             },
             '.print-label:last-child': {
               borderBottom: 'none',
@@ -508,6 +575,7 @@ export default function BoxList() {
               right: 0,
               bottom: 0,
               borderTop: '1px dashed #000',
+              color: '#000',
             },
           },
         }}
@@ -730,9 +798,29 @@ export default function BoxList() {
               elevation={0}
               sx={{ border: 'none', boxShadow: 'none', background: '#fff', color: '#000' }}
             >
-              {/* Left: QR Code */}
-              <Box sx={{ display: 'grid', placeItems: 'center', flexShrink: 0, width: '7cm', height: '100%' }}>
-                <QRCodeCanvas value={box.publicUrl || ''} size={160} includeMargin level="H" />
+              {/* Left: QR Code - optimized for mobile print */}
+              <Box 
+                sx={{ 
+                  display: 'grid', 
+                  placeItems: 'center', 
+                  flexShrink: 0, 
+                  width: '7cm', 
+                  height: '100%',
+                  /* Ensure QR renders on Android - critical for print */
+                  '@media print': {
+                    WebkitPrintColorAdjust: 'exact !important',
+                    printColorAdjust: 'exact !important',
+                  }
+                }}
+              >
+                <QRCodeCanvas 
+                  value={box.publicUrl || ''} 
+                  size={160} 
+                  includeMargin 
+                  level="H"
+                  /* Canvas rendering optimization for mobile print */
+                  style={{ display: 'block', maxWidth: '100%', height: 'auto' }}
+                />
               </Box>
 
               {/* Right: Text content */}
