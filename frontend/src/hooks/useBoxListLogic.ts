@@ -248,7 +248,7 @@ export const useBoxListLogic = () => {
         doNotStack: t('boxes.noStackPrintLabel'),
       };
       
-      // Generate PDF blob with timeout (60 seconds max, 20s per box group)
+      // Generate PDF blob with dynamic timeout (minimum 30s + 2s per box)
       const timeoutDuration = Math.max(30000, selectedBoxes.length * 2000); // Dynamic timeout: minimum 30s, +2s per box
       const pdfBlobPromise = pdf(
         createElement(LabelPDFDocument, { boxes: selectedBoxes, qrCodes, translations })

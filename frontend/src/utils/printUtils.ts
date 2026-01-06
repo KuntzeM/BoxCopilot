@@ -60,7 +60,6 @@ export async function generateQRCodesForBoxes<T extends { publicUrl?: string; id
   onProgress?: QRCodeProgressCallback
 ): Promise<string[]> {
   const qrCodes: string[] = [];
-  const failedBoxes: number[] = [];
 
   for (let i = 0; i < boxes.length; i++) {
     const box = boxes[i];
@@ -75,7 +74,6 @@ export async function generateQRCodesForBoxes<T extends { publicUrl?: string; id
       qrCodes.push(qrCode);
     } catch (error) {
       console.error(`[QRCode] Failed to generate QR code for box #${box.id}:`, error);
-      failedBoxes.push(box.id);
       // Fail the entire operation if any QR code fails to generate
       throw new Error(`Failed to generate QR code for box #${box.id}. Please try again.`);
     }
