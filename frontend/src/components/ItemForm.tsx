@@ -779,7 +779,6 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                 left: 0, 
                 right: 0, 
                 p: 2,
-                background: 'linear-gradient(to bottom, rgba(0,0,0,0.6), transparent)',
               }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center">
                   <IconButton onClick={() => { stopCamera(); setCameraMode('none'); }} sx={{ color: 'white' }}>
@@ -800,7 +799,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
               {zoomRange.max > zoomRange.min && (
                 <Box sx={{ 
                   position: 'absolute', 
-                  bottom: 120, 
+                  bottom: 200, 
                   left: '50%',
                   transform: 'translateX(-50%)',
                   width: '80%',
@@ -831,11 +830,10 @@ export const ItemForm: React.FC<ItemFormProps> = ({
               {/* Bottom Controls */}
               <Box sx={{ 
                 position: 'absolute', 
-                bottom: 0, 
+                bottom: 80, 
                 left: 0, 
                 right: 0, 
                 p: 3,
-                background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)',
               }}>
                 <Stack direction="row" justifyContent="space-around" alignItems="center">
                   <IconButton onClick={switchCamera} sx={{ color: 'white' }}>
@@ -878,43 +876,44 @@ export const ItemForm: React.FC<ItemFormProps> = ({
               
               <Box sx={{ 
                 position: 'absolute', 
-                bottom: 0, 
+                bottom: 80, 
                 left: 0, 
                 right: 0, 
                 p: 3,
                 background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)',
               }}>
                 <Stack direction="row" justifyContent="space-around" alignItems="center">
-                  <Button
-                    startIcon={<Replay />}
+                  <IconButton
                     onClick={retakePhoto}
-                    variant="outlined"
                     sx={{ 
+                      width: 64,
+                      height: 64,
+                      bgcolor: 'rgba(255,255,255,0.2)',
+                      backdropFilter: 'blur(10px)',
                       color: 'white',
-                      borderColor: 'white',
                       '&:hover': {
-                        borderColor: 'white',
-                        bgcolor: 'rgba(255,255,255,0.1)',
+                        bgcolor: 'rgba(255,255,255,0.3)',
                       }
                     }}
                   >
-                    {t('common.retake') || 'Retake'}
-                  </Button>
+                    <Replay sx={{ fontSize: 32 }} />
+                  </IconButton>
                   
-                  <Button
-                    startIcon={<CheckCircle />}
+                  <IconButton
                     onClick={acceptPhoto}
-                    variant="contained"
+                    color="primary"
                     sx={{ 
-                      bgcolor: 'white',
-                      color: 'black',
+                      width: 64,
+                      height: 64,
+                      bgcolor: 'primary.main',
+                      color: 'white',
                       '&:hover': {
-                        bgcolor: 'rgba(255,255,255,0.9)',
+                        bgcolor: 'primary.dark',
                       }
                     }}
                   >
-                    {t('common.accept') || 'Use Photo'}
-                  </Button>
+                    <CheckCircle sx={{ fontSize: 32 }} />
+                  </IconButton>
                 </Stack>
               </Box>
             </>

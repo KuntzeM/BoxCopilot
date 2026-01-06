@@ -5,6 +5,9 @@ export const de = {
     cancel: 'Abbrechen',
     add: 'Hinzufügen',
     saving: 'Wird gespeichert...',
+    save: 'Speichern',
+    retake: 'Wiederholen',
+    accept: 'Verwenden',
   },
   app: {
     title: 'BoxCopilot',

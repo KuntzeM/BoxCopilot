@@ -7,6 +7,9 @@ export const en: TranslationKeys = {
     cancel: 'Cancel',
     add: 'Add',
     saving: 'Saving...',
+    save: 'Save',
+    retake: 'Retake',
+    accept: 'Use Photo',
   },
   app: {
     title: 'BoxCopilot',
