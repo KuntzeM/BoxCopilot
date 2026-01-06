@@ -13,7 +13,6 @@ import {
   DialogTitle,
   Divider,
   FormControlLabel,
-  GlobalStyles,
   IconButton,
   Paper,
   Snackbar,
@@ -108,6 +107,7 @@ export default function BoxList() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [expandedBoxes, setExpandedBoxes] = useState<Set<number>>(new Set());
   const [snackbar, setSnackbar] = useState<SnackbarState>({ open: false, message: '', severity: 'success' });
+  const [isPrinting, setIsPrinting] = useState(false);
 
   const [openBoxDialog, setOpenBoxDialog] = useState(false);
   const [boxFormData, setBoxFormData] = useState<CreateBoxPayload>({ 
@@ -137,12 +137,31 @@ export default function BoxList() {
   };
 
   const selectedBoxes = useMemo(
-    () => filteredBoxes.filter((b) => selectedIds.includes(b.id)),
+    () => {
+      const filtered = filteredBoxes.filter((b) => selectedIds.includes(b.id));
+      console.log('[DEBUG] selectedBoxes computed:', { 
+        selectedIds, 
+        filteredBoxesLength: filteredBoxes.length, 
+        selectedBoxesLength: filtered.length,
+        boxes: filtered.map(b => ({ id: b.id, currentRoom: b.currentRoom }))
+      });
+      return filtered;
+    },
     [filteredBoxes, selectedIds]
   );
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  // Reset printing state after print dialog closes
+  useEffect(() => {
+    const handleAfterPrint = () => {
+      console.log('[DEBUG] Print dialog closed, resetting isPrinting');
+      setIsPrinting(false);
+    };
+    window.addEventListener('afterprint', handleAfterPrint);
+    return () => window.removeEventListener('afterprint', handleAfterPrint);
   }, []);
 
   // Automatische Filterung mit Debounce für Textfelder
@@ -228,7 +247,12 @@ export default function BoxList() {
   };
 
   const toggleSelect = (id: number) => {
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    console.log('[DEBUG] toggleSelect clicked for box:', id);
+    setSelectedIds((prev) => {
+      const newIds = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      console.log('[DEBUG] selectedIds updated:', { previous: prev, new: newIds, toggledId: id });
+      return newIds;
+    });
   };
 
   const toggleExpandBox = (id: number) => {
@@ -266,12 +290,20 @@ export default function BoxList() {
 
   // Direct print handler
   const handlePrintLabels = () => {
+    console.log('[DEBUG] handlePrintLabels called:', { selectedBoxesCount: selectedBoxes.length });
+    
     if (selectedBoxes.length === 0) {
+      console.warn('[DEBUG] No boxes selected for printing');
       setSnackbar({ open: true, message: t('boxes.noBoxSelected'), severity: 'info' });
       return;
     }
-    // Print-area is always in DOM, CSS handles visibility based on @media print
-    window.print();
+    
+    setIsPrinting(true);
+    // Ensure print-area is mounted before printing (100ms for mobile device reliability)
+    setTimeout(() => {
+      console.log('[DEBUG] ✓ Triggering print dialog with', selectedBoxes.length, 'boxes');
+      window.print();
+    }, 100);
   };
 
   // Box Dialogs
@@ -462,104 +494,137 @@ export default function BoxList() {
 
   return (
     <Box sx={{ width: '100%', pb: 4 }}>
-      <GlobalStyles
-        styles={{
-          '@page': { 
-            size: 'A4 portrait', 
-            margin: 0,
-          },
-          /* Normal view: print-area MUST be hidden */
-          '.print-area': {
-            display: 'none !important',
-            position: 'absolute !important',
-            visibility: 'hidden !important',
-            width: '0 !important',
-            height: '0 !important',
-            overflow: 'hidden !important',
-            margin: '0 !important',
-            padding: '0 !important',
-            border: 'none !important',
-            pointerEvents: 'none !important',
-          },
-          '@media print': {
-            'html, body': {
-              margin: 0,
-              padding: 0,
-              background: '#fff',
-              width: '100%',
-              height: '100%',
-            },
-            /* Hide everything EXCEPT print-area by hiding body children */
-            'body > :not(.print-area)': {
-              display: 'none !important',
-            },
-            /* Make print-area visible and full width */
-            '.print-area': {
-              display: 'grid !important',
-              gap: 0,
-              width: '100% !important',
-              margin: 0,
-              padding: 0,
-              background: '#fff !important',
-              color: '#000 !important',
-              position: 'relative !important',
-              WebkitPrintColorAdjust: 'exact !important',
-              printColorAdjust: 'exact !important',
-              colorAdjust: 'exact !important',
-            },
-            /* Ensure all print-area children are visible */
-            '.print-area, .print-area *': {
-              visibility: 'visible !important',
-              WebkitPrintColorAdjust: 'exact !important',
-              printColorAdjust: 'exact !important',
-              colorAdjust: 'exact !important',
-            },
-            /* Individual labels */
-            '.print-label': {
-              display: 'flex !important',
-              border: 'none !important',
-              borderRadius: '0 !important',
-              padding: '10mm 12mm !important',
-              height: '7cm !important',
-              boxSizing: 'border-box !important',
-              flexDirection: 'row !important',
-              justifyContent: 'flex-start !important',
-              alignItems: 'center !important',
-              pageBreakInside: 'avoid !important',
-              position: 'relative !important',
-              backgroundColor: '#fff !important',
-              color: '#000 !important',
-              margin: '0 !important',
-              visibility: 'visible !important',
-              WebkitPrintColorAdjust: 'exact !important',
-              printColorAdjust: 'exact !important',
-            },
-            /* QR Code Canvas */
-            '.print-label canvas': {
-              display: 'block !important',
-              width: '7cm !important',
-              height: '7cm !important',
-              WebkitPrintColorAdjust: 'exact !important',
-              printColorAdjust: 'exact !important',
-              margin: '0 !important',
-              padding: '0 !important',
-            },
-            /* Label separators */
-            '.print-label:not(:last-child)::after': {
-              content: '""',
-              position: 'absolute !important',
-              left: 0,
-              right: 0,
-              bottom: 0,
-              borderTop: '1px dashed #000 !important',
-            },
-            /* Text styling for labels */
-            '.print-label Typography': {
-              color: '#000 !important',
-            },
-          },
-        }}
-      />
+      {/* Print styles - use raw CSS <style> tag instead of GlobalStyles for better @media print support */}
+      <style>{`
+        /* Normal view: print-area completely hidden */
+        .print-area {
+          display: none;
+        }
+
+        @page {
+          size: A4 portrait;
+          margin: 0;
+        }
+
+        @media print {
+          html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: auto;
+          }
+
+          /* Hide everything by default - critical for all browsers */
+          body * {
+            visibility: hidden;
+          }
+
+          /* Make print-area and all its contents visible */
+          .print-area,
+          .print-area * {
+            visibility: visible;
+          }
+
+          /* Position and layout print-area */
+          .print-area {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            display: grid;
+            gap: 0;
+            grid-template-columns: 1fr;
+            grid-auto-rows: 7cm;
+          }
+
+          /* Individual print labels - ensure correct rendering on all devices */
+          .print-label {
+            border: none;
+            border-radius: 0;
+            padding: 10mm 12mm;
+            height: 7cm;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: row;
+            justify-content: flex-start;
+            align-items: center;
+            page-break-inside: avoid;
+            background: white;
+            color: black;
+            /* Critical for Android Chrome - ensure exact colors */
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          /* QR Code Container - left side */
+          .print-label > div:first-child {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            width: 7cm;
+            height: 7cm;
+            margin: 0;
+            padding: 0;
+            background: white;
+            /* Ensure QR renders correctly on Android */
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          /* QR Code Canvas - critical for mobile print */
+          .print-label canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            max-width: 7cm;
+            max-height: 7cm;
+            margin: 0;
+            padding: 0;
+            /* Preserve canvas rendering on Android/iOS */
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            image-rendering: crisp-edges;
+          }
+
+          /* Text Container - right side */
+          .print-label > div:last-child {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            padding-left: 2mm;
+            gap: 0.3rem;
+            color: black;
+          }
+
+          /* Typography elements */
+          .print-label .MuiTypography-root {
+            display: block;
+            color: black;
+            background: transparent;
+            margin: 0;
+            padding: 0;
+            /* Ensure text colors are preserved */
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          /* Stacks and containers */
+          .print-label .MuiStack-root {
+            color: black;
+            background: transparent;
+            margin: 0;
+          }
+
+          /* Paper component override */
+          .print-label.MuiPaper-root {
+            background: white;
+            box-shadow: none;
+            border: none;
+          }
+        }
+      `}</style>
 
       <Stack spacing={2} sx={{ mb: 2 }}>
         <Paper sx={{ p: 2, borderRadius: 2, boxShadow: 2 }}>
@@ -768,15 +833,17 @@ export default function BoxList() {
         </DialogActions>
       </Dialog>
 
-      {/* Direct print area (always in DOM, hidden by CSS except during print) */}
-      {selectedBoxes.length > 0 && (
+      {/* Direct print area (rendered only for printing) */}
+      {isPrinting && selectedBoxes.length > 0 && (
         <Box className="print-area" sx={{ display: 'grid', gap: 0 }}>
-          {selectedBoxes.map((box) => (
+          {(() => {
+            console.log('[DEBUG] Rendering print-area with', selectedBoxes.length, 'boxes');
+            return selectedBoxes.map((box) => (
             <Paper
               key={`print-${box.id}`}
               className="print-label"
               elevation={0}
-              sx={{ border: 'none', boxShadow: 'none', background: '#fff', color: '#000' }}
+              sx={{ border: 'none', boxShadow: 'none' }}
             >
               {/* Left: QR Code - optimized for mobile print */}
               <Box 
@@ -880,7 +947,8 @@ export default function BoxList() {
                 )}
               </Stack>
             </Paper>
-          ))}
+            ));
+        })()}
         </Box>
       )}
 
