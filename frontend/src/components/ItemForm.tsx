@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -11,12 +11,26 @@ import {
   Alert,
   IconButton,
   Card,
-  Paper,
   Stack,
   Fab,
   Tooltip,
+  Slider,
+  Typography,
 } from '@mui/material';
-import { Add, PhotoCamera, FolderOpen, Close } from '@mui/icons-material';
+import { 
+  Add, 
+  PhotoCamera, 
+  FolderOpen, 
+  Close, 
+  FlashOn, 
+  FlashOff, 
+  FlashAuto,
+  CameraAlt,
+  CheckCircle,
+  Replay,
+  ZoomIn,
+  Cameraswitch,
+} from '@mui/icons-material';
 import { useTranslation } from '../hooks/useTranslation';
 import * as itemService from '../services/itemService';
 
@@ -39,7 +53,8 @@ let globalItemFormRef: { openEdit: (item: EditItem) => void } | null = null;
 
 export const getItemFormRef = () => globalItemFormRef;
 
-const FORM_STATE_KEY = 'itemFormState';
+type FlashMode = 'off' | 'on' | 'auto';
+type CameraMode = 'none' | 'preview' | 'captured';
 
 export const ItemForm: React.FC<ItemFormProps> = ({
   boxId,
@@ -51,9 +66,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
 }) => {
   const { t } = useTranslation();
   
-  // Store boxId in local state to avoid closure issues during re-renders
   const [currentBoxId, setCurrentBoxId] = useState<number | undefined>(boxId);
-  
   const [open, setOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editItemId, setEditItemId] = useState<number | null>(null);
@@ -62,41 +75,127 @@ export const ItemForm: React.FC<ItemFormProps> = ({
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isSelectingFile, setIsSelectingFile] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
   
-  // Update local boxId when prop changes and is defined
+  // Camera states
+  const [cameraMode, setCameraMode] = useState<CameraMode>('none');
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [flashMode, setFlashMode] = useState<FlashMode>('off');
+  const [zoom, setZoom] = useState(1);
+  const [zoomRange, setZoomRange] = useState({ min: 1, max: 1 });
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [hasFlash, setHasFlash] = useState(false);
+  
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const lastTouchDistanceRef = useRef<number | null>(null);
+
   useEffect(() => {
     if (boxId && boxId !== currentBoxId) {
       setCurrentBoxId(boxId);
     }
-  }, [boxId]);
+  }, [boxId, currentBoxId]);
 
-  // Restore form state after page reload (e.g., when returning from camera on mobile)
+  // Cleanup camera stream on unmount or when camera closes
   useEffect(() => {
-    const savedState = sessionStorage.getItem(FORM_STATE_KEY);
-    if (savedState) {
-      try {
-        const state = JSON.parse(savedState);
-        if (state.boxId === boxId && state.timestamp && Date.now() - state.timestamp < 60000) {
-          // Only restore if less than 60 seconds old and for same box
-          setOpen(true);
-          setIsEditMode(state.isEditMode || false);
-          setEditItemId(state.editItemId || null);
-          setName(state.name || '');
-          setImagePreview(state.imagePreview || null);
-          setIsSelectingFile(false);
-          sessionStorage.removeItem(FORM_STATE_KEY);
-        } else {
-          sessionStorage.removeItem(FORM_STATE_KEY);
-        }
-      } catch (e) {
-        console.error('Failed to restore form state:', e);
-        sessionStorage.removeItem(FORM_STATE_KEY);
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [stream]);
+
+  // Apply zoom to video track
+  useEffect(() => {
+    if (stream && videoRef.current) {
+      const videoTrack = stream.getVideoTracks()[0];
+      const capabilities = videoTrack.getCapabilities() as any;
+      
+      if (capabilities.zoom) {
+        videoTrack.applyConstraints({
+          advanced: [{ zoom } as any]
+        }).catch(err => console.error('Zoom error:', err));
       }
     }
-  }, [boxId]);
+  }, [zoom, stream]);
+
+  // Attach stream to video element when camera mode changes to preview
+  useEffect(() => {
+    console.log('useEffect triggered:', { cameraMode, streamExists: !!stream, videoRefExists: !!videoRef.current });
+    
+    if (cameraMode !== 'preview' || !stream) {
+      console.log('✗ Conditions not met early return:', {
+        'cameraMode === preview': cameraMode === 'preview',
+        'stream exists': !!stream
+      });
+      return;
+    }
+
+    // Wait for video element to be in DOM
+    let attempts = 0;
+    const checkAndAttach = () => {
+      attempts++;
+      console.log(`Attempt ${attempts}: videoRef.current exists:`, !!videoRef.current);
+      
+      if (videoRef.current) {
+        console.log('✓ Video element found, attaching stream');
+        const video = videoRef.current;
+        video.srcObject = stream;
+        console.log('Stream srcObject set');
+        
+        // Wait for stream to be ready
+        const attachStream = async () => {
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          console.log('Video element state:', {
+            width: video.videoWidth,
+            height: video.videoHeight,
+            readyState: video.readyState,
+            networkState: video.networkState
+          });
+          
+          console.log('Attempting to play video...');
+          try {
+            await video.play();
+            console.log('Video playing successfully');
+          } catch (playError) {
+            console.error('Video play error:', playError);
+            await new Promise(resolve => setTimeout(resolve, 100));
+            try {
+              await video.play();
+              console.log('Video playing successfully on retry');
+            } catch (retryError) {
+              console.error('Retry play failed:', retryError);
+            }
+          }
+        };
+        
+        attachStream();
+      } else if (attempts < 10) {
+        // Video element not yet in DOM, retry after 50ms
+        setTimeout(checkAndAttach, 50);
+      } else {
+        console.error('Failed to find video element after 10 attempts');
+      }
+    };
+
+    checkAndAttach();
+  }, [cameraMode, stream]);
+
+  // Apply flash/torch mode
+  useEffect(() => {
+    if (stream && flashMode !== 'auto') {
+      const videoTrack = stream.getVideoTracks()[0];
+      const capabilities = videoTrack.getCapabilities() as any;
+      
+      if (capabilities.torch) {
+        videoTrack.applyConstraints({
+          advanced: [{ torch: flashMode === 'on' } as any]
+        }).catch(err => console.error('Flash error:', err));
+      }
+    }
+  }, [flashMode, stream]);
 
   // Register global ref
   useEffect(() => {
@@ -128,52 +227,222 @@ export const ItemForm: React.FC<ItemFormProps> = ({
   };
 
   const handleClose = () => {
-    // Prevent closing while file selection is in progress
-    if (isSelectingFile) {
-      return;
-    }
+    stopCamera();
     setOpen(false);
     setName('');
     setImageFile(null);
     setImagePreview(null);
+    setCapturedImage(null);
     setError(null);
     setIsEditMode(false);
     setEditItemId(null);
-    // Clear any saved state
-    sessionStorage.removeItem(FORM_STATE_KEY);
+    setCameraMode('none');
   };
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Prevent any default behavior and event propagation
-    e.preventDefault();
-    e.stopPropagation();
-    
-    const file = e.target.files?.[0];
-    
-    // Always reset the selecting state
-    setIsSelectingFile(false);
-    
-    if (!file) {
-      // Reset input value to allow selecting the same file again
-      if (e.target) {
-        e.target.value = '';
+  const startCamera = async (mode: 'user' | 'environment' = facingMode) => {
+    try {
+      console.log('Starting camera with facingMode:', mode);
+      
+      const constraints: MediaStreamConstraints = {
+        video: {
+          facingMode: mode,
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      };
+
+      console.log('Requesting camera access...');
+      const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+      console.log('Camera access granted, stream:', mediaStream);
+      
+      // Check camera capabilities BEFORE setting state
+      const videoTrack = mediaStream.getVideoTracks()[0];
+      const capabilities = videoTrack.getCapabilities() as any;
+
+      // Check for flash/torch
+      if (capabilities.torch) {
+        setHasFlash(true);
       }
+
+      // Check for zoom
+      if (capabilities.zoom) {
+        setZoomRange({
+          min: capabilities.zoom.min || 1,
+          max: capabilities.zoom.max || 1,
+        });
+        setZoom(capabilities.zoom.min || 1);
+      }
+
+      // Set stream and camera mode - the useEffect will handle attachment
+      setStream(mediaStream);
+      setCameraMode('preview');
+    } catch (err) {
+      console.error('Camera error:', err);
+      setError(t('errors.cameraAccessFailed') || 'Camera access failed');
+      setCameraMode('none');
+    }
+  };
+
+  const stopCamera = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setCameraMode('none');
+    setCapturedImage(null);
+    setZoom(1);
+    setFlashMode('off');
+  };
+
+  const switchCamera = async () => {
+    console.log('Switching camera from:', facingMode);
+    
+    // Stop current camera
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    
+    // Switch to the other camera
+    const newMode = facingMode === 'user' ? 'environment' : 'user';
+    console.log('Switching camera to:', newMode);
+    
+    // Wait a bit for cleanup, then start with new mode
+    await new Promise(resolve => setTimeout(resolve, 100));
+    await startCamera(newMode);
+  };
+
+  // Touch-based zoom handling (pinch-zoom)
+  const handleTouchStart = (e: React.TouchEvent<HTMLVideoElement>) => {
+    if (e.touches.length === 2) {
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      const distance = Math.hypot(
+        touch1.clientX - touch2.clientX,
+        touch1.clientY - touch2.clientY
+      );
+      lastTouchDistanceRef.current = distance;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLVideoElement>) => {
+    if (e.touches.length === 2 && lastTouchDistanceRef.current !== null) {
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      const newDistance = Math.hypot(
+        touch1.clientX - touch2.clientX,
+        touch1.clientY - touch2.clientY
+      );
+
+      const ratio = newDistance / lastTouchDistanceRef.current;
+      const newZoom = Math.max(
+        zoomRange.min,
+        Math.min(zoomRange.max, zoom * ratio)
+      );
+      setZoom(newZoom);
+      lastTouchDistanceRef.current = newDistance;
+    }
+  };
+
+  const handleTouchEnd = () => {
+    lastTouchDistanceRef.current = null;
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) {
+      console.error('Video or canvas ref missing');
+      setError(t('errors.captureImageFailed') || 'Failed to capture image');
       return;
     }
 
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    // Check if video has valid dimensions
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      console.error('Video dimensions are 0:', { width: video.videoWidth, height: video.videoHeight });
+      setError(t('errors.captureImageFailed') || 'Camera not ready');
+      return;
+    }
+
+    console.log('Capturing photo:', { width: video.videoWidth, height: video.videoHeight });
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      console.error('Could not get canvas context');
+      setError(t('errors.captureImageFailed') || 'Failed to capture image');
+      return;
+    }
+
+    // Draw current video frame to canvas
+    ctx.drawImage(video, 0, 0);
+
+    // Convert to blob
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        setError(t('errors.captureImageFailed') || 'Failed to capture image');
+        return;
+      }
+
+      const imageUrl = canvas.toDataURL('image/jpeg', 0.9);
+      setCapturedImage(imageUrl);
+      setCameraMode('captured');
+
+      // Create file from blob
+      const file = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
+      setImageFile(file);
+      setImagePreview(imageUrl);
+
+      // Stop camera stream
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        setStream(null);
+      }
+    }, 'image/jpeg', 0.9);
+  };
+
+  const retakePhoto = () => {
+    setCapturedImage(null);
+    setImageFile(null);
+    setImagePreview(null);
+    setCameraMode('none');
+    startCamera();
+  };
+
+  const acceptPhoto = () => {
+    setCameraMode('none');
+    // Image is already in imageFile and imagePreview
+  };
+
+  const cycleFlash = () => {
+    setFlashMode(prev => {
+      if (prev === 'off') return 'on';
+      if (prev === 'on') return 'auto';
+      return 'off';
+    });
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
     if (file.size > 5 * 1024 * 1024) {
       setError(t('errors.imageTooLarge') || 'Image too large');
-      if (e.target) {
-        e.target.value = '';
-      }
       return;
     }
 
     if (!file.type.startsWith('image/')) {
       setError(t('errors.invalidImageType') || 'Invalid image type');
-      if (e.target) {
-        e.target.value = '';
-      }
       return;
     }
 
@@ -182,41 +451,26 @@ export const ItemForm: React.FC<ItemFormProps> = ({
     reader.onloadend = () => {
       setImagePreview(reader.result as string);
     };
-    reader.onerror = () => {
-      setError(t('errors.imageReadFailed') || 'Failed to read image');
-      if (e.target) {
-        e.target.value = '';
-      }
-    };
     reader.readAsDataURL(file);
-    
-    // Reset input value to allow selecting the same file again
-    if (e.target) {
-      e.target.value = '';
-    }
   };
 
   const handleRemoveImage = async () => {
-    // If editing and image exists on server, delete it
     if (isEditMode && editItemId && imagePreview && !imagePreview.startsWith('data:')) {
       try {
         await itemService.deleteItemImage(editItemId);
         onSuccess?.(t('success.imageDeleted') || 'Image deleted successfully');
-        onUpdateItem?.(); // Trigger refresh
+        onUpdateItem?.();
       } catch (error) {
         onError?.(t('errors.imageDeleteFailed') || 'Failed to delete image');
         return;
       }
     }
     
-    // Clear local state
     setImageFile(null);
     setImagePreview(null);
+    setCapturedImage(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
-    }
-    if (cameraInputRef.current) {
-      cameraInputRef.current.value = '';
     }
   };
 
@@ -248,7 +502,6 @@ export const ItemForm: React.FC<ItemFormProps> = ({
           }
         }
 
-        sessionStorage.removeItem(FORM_STATE_KEY);
         onSuccess?.(t('success.itemUpdated') || 'Item updated successfully');
         handleClose();
         onUpdateItem?.();
@@ -277,7 +530,6 @@ export const ItemForm: React.FC<ItemFormProps> = ({
           }
         }
 
-        sessionStorage.removeItem(FORM_STATE_KEY);
         onSuccess?.(t('success.itemCreated') || 'Item added successfully');
         handleClose();
         onAddItem?.();
@@ -310,11 +562,10 @@ export const ItemForm: React.FC<ItemFormProps> = ({
         <Add />
       </Fab>
 
-      {/* Dialog */}
+      {/* Main Dialog */}
       <Dialog 
-        open={open} 
+        open={open && cameraMode === 'none'} 
         onClose={handleClose}
-        disableEscapeKeyDown={isSelectingFile}
         maxWidth="sm" 
         fullWidth
       >
@@ -330,7 +581,6 @@ export const ItemForm: React.FC<ItemFormProps> = ({
           )}
 
           <Stack spacing={2}>
-            {/* Item Name */}
             <TextField
               label={t('items.itemName') || 'Item Name'}
               value={name}
@@ -342,7 +592,6 @@ export const ItemForm: React.FC<ItemFormProps> = ({
               variant="outlined"
             />
 
-            {/* Image Preview */}
             {imagePreview && (
               <Card
                 sx={{
@@ -383,55 +632,22 @@ export const ItemForm: React.FC<ItemFormProps> = ({
               </Card>
             )}
 
-            {/* Image Upload Icons */}
             <input
               ref={fileInputRef}
               type="file"
               accept="image/*"
-              onChange={handleImageSelect}
-              onCancel={() => setIsSelectingFile(false)}
-              onBlur={() => {
-                // Reset selecting state after a delay to ensure onChange fires first
-                setTimeout(() => setIsSelectingFile(false), 300);
-              }}
+              onChange={handleFileSelect}
               style={{ display: 'none' }}
               disabled={submitting}
             />
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={handleImageSelect}
-              onCancel={() => setIsSelectingFile(false)}
-              onBlur={() => {
-                // Reset selecting state after a delay to ensure onChange fires first
-                setTimeout(() => setIsSelectingFile(false), 300);
-              }}
-              style={{ display: 'none' }}
-              disabled={submitting}
-            />
+            
             <Stack direction="row" spacing={1}>
               <Tooltip title={t('items.takePhoto') || 'Take Photo'}>
                 <Box sx={{ flex: 1 }}>
                   <IconButton
                     color="primary"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setIsSelectingFile(true);
-                      // Save state before opening camera (mobile may reload page)
-                      sessionStorage.setItem(FORM_STATE_KEY, JSON.stringify({
-                        boxId: currentBoxId,
-                        name,
-                        isEditMode,
-                        editItemId,
-                        imagePreview,
-                        timestamp: Date.now(),
-                      }));
-                      cameraInputRef.current?.click();
-                    }}
-                    disabled={submitting || isSelectingFile}
+                    onClick={startCamera}
+                    disabled={submitting}
                     size="large"
                     sx={{ width: '100%', justifyContent: 'center' }}
                   >
@@ -443,13 +659,8 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                 <Box sx={{ flex: 1 }}>
                   <IconButton
                     color="primary"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setIsSelectingFile(true);
-                      fileInputRef.current?.click();
-                    }}
-                    disabled={submitting || isSelectingFile}
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={submitting}
                     size="large"
                     sx={{ width: '100%', justifyContent: 'center' }}
                   >
@@ -482,6 +693,196 @@ export const ItemForm: React.FC<ItemFormProps> = ({
             )}
           </Button>
         </DialogActions>
+      </Dialog>
+
+      {/* Camera Dialog */}
+      <Dialog
+        open={open && cameraMode !== 'none'}
+        onClose={() => {
+          stopCamera();
+          setCameraMode('none');
+        }}
+        maxWidth="md"
+        fullWidth
+        fullScreen
+        sx={{
+          '& .MuiDialog-paper': {
+            bgcolor: 'black',
+            m: 0,
+          }
+        }}
+      >
+        <Box sx={{ position: 'relative', width: '100%', height: '100vh', bgcolor: 'black' }}>
+          {/* Camera Preview */}
+          {cameraMode === 'preview' && (
+            <>
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  backgroundColor: 'black',
+                  touchAction: 'manipulation',
+                }}
+              />
+              
+              {/* Top Controls */}
+              <Box sx={{ 
+                position: 'absolute', 
+                top: 0, 
+                left: 0, 
+                right: 0, 
+                p: 2,
+                background: 'linear-gradient(to bottom, rgba(0,0,0,0.6), transparent)',
+              }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <IconButton onClick={() => { stopCamera(); setCameraMode('none'); }} sx={{ color: 'white' }}>
+                    <Close />
+                  </IconButton>
+                  
+                  {hasFlash && (
+                    <IconButton onClick={cycleFlash} sx={{ color: 'white' }}>
+                      {flashMode === 'off' && <FlashOff />}
+                      {flashMode === 'on' && <FlashOn />}
+                      {flashMode === 'auto' && <FlashAuto />}
+                    </IconButton>
+                  )}
+                </Stack>
+              </Box>
+
+              {/* Zoom Control */}
+              {zoomRange.max > zoomRange.min && (
+                <Box sx={{ 
+                  position: 'absolute', 
+                  bottom: 120, 
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: '80%',
+                  maxWidth: 300,
+                }}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <ZoomIn sx={{ color: 'white' }} />
+                    <Slider
+                      value={zoom}
+                      onChange={(_, value) => setZoom(value as number)}
+                      min={zoomRange.min}
+                      max={zoomRange.max}
+                      step={0.1}
+                      sx={{
+                        color: 'white',
+                        '& .MuiSlider-thumb': {
+                          bgcolor: 'white',
+                        }
+                      }}
+                    />
+                    <Typography sx={{ color: 'white', minWidth: 40 }}>
+                      {zoom.toFixed(1)}x
+                    </Typography>
+                  </Stack>
+                </Box>
+              )}
+
+              {/* Bottom Controls */}
+              <Box sx={{ 
+                position: 'absolute', 
+                bottom: 0, 
+                left: 0, 
+                right: 0, 
+                p: 3,
+                background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)',
+              }}>
+                <Stack direction="row" justifyContent="space-around" alignItems="center">
+                  <IconButton onClick={switchCamera} sx={{ color: 'white' }}>
+                    <Cameraswitch sx={{ fontSize: 32 }} />
+                  </IconButton>
+                  
+                  <IconButton 
+                    onClick={capturePhoto}
+                    sx={{ 
+                      width: 70, 
+                      height: 70,
+                      border: '4px solid white',
+                      bgcolor: 'rgba(255,255,255,0.3)',
+                      '&:hover': {
+                        bgcolor: 'rgba(255,255,255,0.5)',
+                      }
+                    }}
+                  >
+                    <CameraAlt sx={{ fontSize: 36, color: 'white' }} />
+                  </IconButton>
+                  
+                  <Box sx={{ width: 48 }} /> {/* Spacer for alignment */}
+                </Stack>
+              </Box>
+            </>
+          )}
+
+          {/* Captured Image Preview */}
+          {cameraMode === 'captured' && capturedImage && (
+            <>
+              <img
+                src={capturedImage}
+                alt="Captured"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                }}
+              />
+              
+              <Box sx={{ 
+                position: 'absolute', 
+                bottom: 0, 
+                left: 0, 
+                right: 0, 
+                p: 3,
+                background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)',
+              }}>
+                <Stack direction="row" justifyContent="space-around" alignItems="center">
+                  <Button
+                    startIcon={<Replay />}
+                    onClick={retakePhoto}
+                    variant="outlined"
+                    sx={{ 
+                      color: 'white',
+                      borderColor: 'white',
+                      '&:hover': {
+                        borderColor: 'white',
+                        bgcolor: 'rgba(255,255,255,0.1)',
+                      }
+                    }}
+                  >
+                    {t('common.retake') || 'Retake'}
+                  </Button>
+                  
+                  <Button
+                    startIcon={<CheckCircle />}
+                    onClick={acceptPhoto}
+                    variant="contained"
+                    sx={{ 
+                      bgcolor: 'white',
+                      color: 'black',
+                      '&:hover': {
+                        bgcolor: 'rgba(255,255,255,0.9)',
+                      }
+                    }}
+                  >
+                    {t('common.accept') || 'Use Photo'}
+                  </Button>
+                </Stack>
+              </Box>
+            </>
+          )}
+
+          <canvas ref={canvasRef} style={{ display: 'none' }} />
+        </Box>
       </Dialog>
     </>
   );
