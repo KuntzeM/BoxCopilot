@@ -21,7 +21,7 @@ interface ItemMoveDialogProps {
   open: boolean;
   onClose: () => void;
   itemIds: number[];
-  onMove: (targetBoxUuid: string, boxDescription: string) => void;
+  onMove: (targetBoxId: number, boxDescription: string) => void;
 }
 
 export default function ItemMoveDialog({
@@ -80,8 +80,8 @@ export default function ItemMoveDialog({
 
   const handleConfirmMove = () => {
     if (selectedBox) {
-      const boxDesc = selectedBox.description || selectedBox.currentRoom || selectedBox.uuid;
-      onMove(selectedBox.uuid, boxDesc);
+      const boxDesc = selectedBox.description || selectedBox.currentRoom || `Box ${selectedBox.id}`;
+      onMove(selectedBox.id, boxDesc);
       setConfirmOpen(false);
       onClose();
     }

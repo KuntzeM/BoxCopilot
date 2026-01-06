@@ -141,6 +141,14 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
               {t('app.title')}
             </Typography>
           </Box>
+
+          {/* Mobile: Username next to icon */}
+          {isMobile && user && (
+            <Typography variant="h6" component="div" sx={{ fontWeight: 600, ml: 1 }}>
+              {user.name || user.username}
+            </Typography>
+          )}
+
           <Box sx={{ flexGrow: 1 }} />
           
           {/* Mobile: Hamburger Menu */}

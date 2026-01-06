@@ -1,15 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Button, Paper, Typography, Alert, CircularProgress, Stack, Snackbar, Collapse, useMediaQuery, useTheme } from '@mui/material';
 import { ArrowBack, Save, ExpandMore, ExpandLess } from '@mui/icons-material';
 import * as boxService from '../services/boxService';
 import * as itemService from '../services/itemService';
-import { Box as BoxType, Item, CreateItemPayload, UpdateItemPayload, UserPrincipal } from '../types/models';
+import { Box as BoxType, Item, CreateItemPayload, UpdateItemPayload } from '../types/models';
 import BoxForm, { BoxFormData } from '../components/BoxForm';
 import EnhancedItemsTable from '../components/EnhancedItemsTable';
 import { ItemForm } from '../components/ItemForm';
 import { useTranslation } from '../hooks/useTranslation';
-import axios from '../services/axiosConfig';
 
 const BoxEditPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -25,26 +24,13 @@ const BoxEditPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [snackbar, setSnackbar] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
   const [expandBoxAttributes, setExpandBoxAttributes] = useState(false);
-  const [user, setUser] = useState<UserPrincipal | null>(null);
 
   const boxId = id ? parseInt(id) : null;
 
-  useEffect(() => {
-    // Load current user
-    const loadUser = async () => {
-      try {
-        const response = await axios.get('/api/me');
-        setUser(response.data);
-      } catch (error) {
-        console.error('Failed to load user:', error);
-      }
-    };
-    loadUser();
-  }, []);
-
-  const loadBoxAndItems = async () => {
+  const loadBoxAndItems = useCallback(async () => {
     if (!boxId) return;
     
+    setIsLoading(true);
     try {
       // Fetch all boxes and find the one with matching ID
       const allBoxes = await boxService.fetchBoxes();
@@ -55,7 +41,7 @@ const BoxEditPage: React.FC = () => {
         setIsLoading(false);
         return;
       }
-
+      
       setBox(boxData);
 
       // Filtere Items für diese Box
@@ -63,12 +49,12 @@ const BoxEditPage: React.FC = () => {
       setItems(allItems);
       setError(null);
     } catch (err) {
-      setError(t('errors.boxLoadFailed'));
+      setError(t('errors.itemsLoadFailed'));
       console.error(err);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [boxId, t]);
 
   useEffect(() => {
     if (!boxId) {
@@ -78,7 +64,7 @@ const BoxEditPage: React.FC = () => {
     }
 
     loadBoxAndItems();
-  }, [boxId, t]);
+  }, [boxId, loadBoxAndItems]);
 
   const [formData, setFormData] = useState<BoxFormData>({
     currentRoom: '',
@@ -152,9 +138,9 @@ const BoxEditPage: React.FC = () => {
     }
   };
 
-  const handleMoveItems = async (itemIds: number[], targetBoxUuid: string) => {
+  const handleMoveItems = async (itemIds: number[], targetBoxId: number) => {
     try {
-      await itemService.moveItems(itemIds, targetBoxUuid);
+      await itemService.moveItems(itemIds, targetBoxId);
       // Reload items after moving
       await loadBoxAndItems();
     } catch (err) {
@@ -201,18 +187,6 @@ const BoxEditPage: React.FC = () => {
 
   return (
     <Box>
-      {/* Mobile: Show Username */}
-      {isMobile && user && (
-        <Box sx={{ mb: 2, p: 2, bgcolor: 'primary.light', borderRadius: 1 }}>
-          <Typography variant="subtitle2" color="textSecondary">
-            {t('auth.username')}
-          </Typography>
-          <Typography variant="h6" fontWeight={600}>
-            {user.name || user.username}
-          </Typography>
-        </Box>
-      )}
-
       <Button
         startIcon={<ArrowBack />}
         onClick={() => navigate('/app/boxes')}
@@ -231,24 +205,26 @@ const BoxEditPage: React.FC = () => {
         >
           {expandBoxAttributes ? <ExpandLess /> : <ExpandMore />}
           <Typography variant="h5">
-            {t('boxes.editBox', { number: box.id })}
+            {box ? t('boxes.editBox', { number: box.id }) : t('common.loading')}
           </Typography>
         </Stack>
 
-        <Collapse in={expandBoxAttributes} timeout="auto" unmountOnExit>
-          <BoxForm data={formData} onChange={setFormData} />
-          
-          <Button
-            variant="contained"
-            startIcon={<Save />}
-            onClick={handleSave}
-            disabled={isSaving}
-            fullWidth
-            sx={{ mt: 3 }}
-          >
-            {isSaving ? t('common.saving') : t('boxes.saveAndReturn')}
-          </Button>
-        </Collapse>
+        {box && (
+          <Collapse in={expandBoxAttributes} timeout="auto" unmountOnExit>
+            <BoxForm data={formData} onChange={setFormData} />
+            
+            <Button
+              variant="contained"
+              startIcon={<Save />}
+              onClick={handleSave}
+              disabled={isSaving}
+              fullWidth
+              sx={{ mt: 3 }}
+            >
+              {isSaving ? t('common.saving') : t('boxes.saveAndReturn')}
+            </Button>
+          </Collapse>
+        )}
       </Paper>
 
       <Paper sx={{ p: 3, mb: 3 }}>
@@ -256,23 +232,32 @@ const BoxEditPage: React.FC = () => {
           <Typography variant="h6">
             {t('boxes.items')}
           </Typography>
+        </Box>
+        
+        {/* ItemForm always rendered to maintain stable boxId */}
+        {box && (
           <ItemForm 
             onAddItem={handleAddItem} 
-            boxUuid={box.uuid} 
-            isLoading={isSaving}
+            boxId={box.id}
+            isLoading={isSaving || isLoading}
             onSuccess={handleSuccess}
             onError={handleError}
           />
-        </Box>
-        <EnhancedItemsTable
-          items={items}
-          onUpdateItem={handleUpdateItem}
-          onDeleteItem={handleDeleteItem}
-          onMoveItems={handleMoveItems}
-          onImageUpdated={handleImageUpdated}
-          onError={handleError}
-          onSuccess={handleSuccess}
-        />
+        )}
+        
+        {box ? (
+          <EnhancedItemsTable
+            items={items}
+            onUpdateItem={handleUpdateItem}
+            onDeleteItem={handleDeleteItem}
+            onMoveItems={handleMoveItems}
+            onImageUpdated={handleImageUpdated}
+            onError={handleError}
+            onSuccess={handleSuccess}
+          />
+        ) : (
+          <Alert severity="info">{t('common.loading')}</Alert>
+        )}
       </Paper>
 
       <Snackbar

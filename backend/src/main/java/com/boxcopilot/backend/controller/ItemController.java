@@ -80,7 +80,7 @@ public class ItemController {
      */
     @PostMapping
     public ResponseEntity<ItemResponseDTO> create(@Valid @RequestBody ItemRequestDTO requestDTO) {
-        log.info("Creating new item: {} in box: {}", requestDTO.getName(), requestDTO.getBoxUuid());
+        log.info("Creating new item: {} in box ID: {}", requestDTO.getName(), requestDTO.getBoxId());
         ItemResponseDTO createdItem = itemService.createItem(requestDTO);
         log.info("Item created successfully with ID: {}", createdItem.getId());
         return ResponseEntity.status(HttpStatus.CREATED).body(createdItem);
@@ -141,8 +141,8 @@ public class ItemController {
     public ResponseEntity<ItemResponseDTO> moveItem(
             @PathVariable Long id,
             @Valid @RequestBody MoveItemDTO moveDTO) {
-        log.info("Moving item ID: {} to box: {}", id, moveDTO.getTargetBoxUuid());
-        ItemResponseDTO movedItem = itemService.moveItem(id, moveDTO.getTargetBoxUuid());
+        log.info("Moving item ID: {} to box ID: {}", id, moveDTO.getTargetBoxId());
+        ItemResponseDTO movedItem = itemService.moveItem(id, moveDTO.getTargetBoxId());
         log.info("Item ID: {} moved successfully", id);
         return ResponseEntity.ok(movedItem);
     }
@@ -152,8 +152,8 @@ public class ItemController {
      */
     @PutMapping("/move-bulk")
     public ResponseEntity<Void> moveItems(@Valid @RequestBody BulkMoveItemsDTO bulkMoveDTO) {
-        log.info("Bulk moving {} items to box: {}", bulkMoveDTO.getItemIds().size(), bulkMoveDTO.getTargetBoxUuid());
-        itemService.moveItems(bulkMoveDTO.getItemIds(), bulkMoveDTO.getTargetBoxUuid());
+        log.info("Bulk moving {} items to box ID: {}", bulkMoveDTO.getItemIds().size(), bulkMoveDTO.getTargetBoxId());
+        itemService.moveItems(bulkMoveDTO.getItemIds(), bulkMoveDTO.getTargetBoxId());
         log.info("Bulk move completed");
         return ResponseEntity.ok().build();
     }

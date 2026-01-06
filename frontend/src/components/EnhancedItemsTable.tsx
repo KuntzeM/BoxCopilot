@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Box,
   Paper,
@@ -24,22 +24,22 @@ import {
   Stack,
 } from '@mui/material';
 import { 
-  Edit, 
   Delete, 
   DriveFileMove, 
   Image as ImageIcon,
   MoreVert,
+  Edit,
 } from '@mui/icons-material';
 import { Item, UpdateItemPayload } from '../types/models';
 import { useTranslation } from '../hooks/useTranslation';
-import ItemImageUpload from './ItemImageUpload';
 import ItemMoveDialog from './ItemMoveDialog';
+import { ItemForm, getItemFormRef } from './ItemForm';
 
 interface EnhancedItemsTableProps {
   items: Item[];
   onUpdateItem: (itemId: number, data: UpdateItemPayload) => Promise<void>;
   onDeleteItem: (itemId: number) => Promise<void>;
-  onMoveItems: (itemIds: number[], targetBoxUuid: string) => Promise<void>;
+  onMoveItems: (itemIds: number[], targetBoxId: number) => Promise<void>;
   onImageUpdated: () => void;
   onError: (message: string) => void;
   onSuccess: (message: string) => void;
@@ -64,13 +64,14 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
-  const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
-  const [imageItemId, setImageItemId] = useState<number | null>(null);
   
   // Bottom sheet state for mobile actions
   const [actionDrawerOpen, setActionDrawerOpen] = useState(false);
   const [selectedItemForActions, setSelectedItemForActions] = useState<Item | null>(null);
+
+  // ItemForm ref for edit mode
+  const itemFormRef = useRef<{ openEdit: (item: { id: number; name: string; imageUrl?: string }) => void }>(null);
 
   // Ensure image URLs use API origin (works without nginx proxy)
   const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
@@ -83,8 +84,14 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
   };
 
   const handleEditClick = (item: Item) => {
-    setEditingItem(item);
-    setEditData({ name: item.name });
+    const formRef = getItemFormRef();
+    if (formRef) {
+      formRef.openEdit({
+        id: item.id,
+        name: item.name,
+        imageUrl: item.imageUrl,
+      });
+    }
   };
 
   const handleEditSave = async () => {
@@ -127,9 +134,9 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
     setSelectedItems(newSelected);
   };
 
-  const handleMoveSelected = async (targetBoxUuid: string, boxDescription: string) => {
+  const handleMoveSelected = async (targetBoxId: number, boxDescription: string) => {
     try {
-      await onMoveItems(Array.from(selectedItems), targetBoxUuid);
+      await onMoveItems(Array.from(selectedItems), targetBoxId);
       onSuccess(`${selectedItems.size} Items wurden in Box '${boxDescription}' verschoben`);
       setSelectedItems(new Set());
     } catch (error) {
@@ -142,15 +149,15 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
     setMoveDialogOpen(true);
   };
 
+  const handleManageImage = (itemId: number, currentImageUrl?: string) => {
+    setImageItemId(itemId);
+    setImageDialogOpen(true);
+  };
+
   const handleImageClick = (itemId: number, imageUrl: string) => {
     // Convert thumbnail URL to large image URL
     const largeImageUrl = imageUrl.replace('/image', '/image/large');
     setFullImageUrl(withApiBase(largeImageUrl));
-  };
-
-  const handleManageImage = (itemId: number, currentImageUrl?: string) => {
-    setImageItemId(itemId);
-    setImageDialogOpen(true);
   };
 
   const handleOpenItemActions = (item: Item) => {
@@ -172,7 +179,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
 
   const handleDrawerImage = () => {
     if (selectedItemForActions) {
-      handleManageImage(selectedItemForActions.id, selectedItemForActions.imageUrl);
+      handleEditClick(selectedItemForActions);
     }
     handleCloseActionDrawer();
   };
@@ -315,15 +322,6 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
                 <>
                   <IconButton
                     size="small"
-                    color="primary"
-                    onClick={() => handleManageImage(item.id, item.imageUrl)}
-                    title="Bild verwalten"
-                    sx={{ minWidth: 36, minHeight: 36 }}
-                  >
-                    <ImageIcon fontSize="small" />
-                  </IconButton>
-                  <IconButton
-                    size="small"
                     color="info"
                     onClick={() => handleMoveSingle(item.id)}
                     title="Verschieben"
@@ -356,38 +354,15 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
         ))}
       </Stack>
 
-      {/* Edit Dialog */}
-      <Dialog open={editingItem !== null} onClose={() => !isLoading && setEditingItem(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>{t('items.editItem')}</DialogTitle>
-        <DialogContent sx={{ pt: 3, pb: 2 }}>
-          <TextField
-            label={t('items.name')}
-            value={editData.name}
-            onChange={(e) => setEditData({ ...editData, name: e.target.value })}
-            fullWidth
-            variant="outlined"
-            autoFocus
-            InputLabelProps={{
-              shrink: true,
-            }}
-          />
-        </DialogContent>
-        <DialogActions sx={{ p: 2, gap: 1 }}>
-          <Button 
-            onClick={() => setEditingItem(null)} 
-            disabled={isLoading}
-          >
-            {t('items.cancel')}
-          </Button>
-          <Button 
-            onClick={handleEditSave} 
-            variant="contained" 
-            disabled={isLoading || !editData.name.trim()}
-          >
-            {t('items.save')}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* Edit Dialog - NOW handled by ItemForm */}
+      <ItemForm
+        onUpdateItem={() => {
+          onImageUpdated();
+          setEditingItem(null);
+        }}
+        onSuccess={onSuccess}
+        onError={onError}
+      />
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteConfirm !== null} onClose={() => !isLoading && setDeleteConfirm(null)}>
@@ -431,27 +406,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
         onMove={handleMoveSelected}
       />
 
-      {/* Image Management Dialog */}
-      <Dialog open={imageDialogOpen} onClose={() => setImageDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Bild verwalten</DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          {imageItemId && (
-            <ItemImageUpload
-              itemId={imageItemId}
-              currentImageUrl={items.find(i => i.id === imageItemId)?.imageUrl}
-              onImageUpdated={() => {
-                onImageUpdated();
-                setImageDialogOpen(false);
-              }}
-              onError={onError}
-              onSuccess={onSuccess}
-            />
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setImageDialogOpen(false)}>Schließen</Button>
-        </DialogActions>
-      </Dialog>
+      {/* Image Management Dialog - REMOVED - Now in ItemForm */}
 
       {/* Full Image Dialog */}
       <Dialog open={fullImageUrl !== null} onClose={() => setFullImageUrl(null)} maxWidth="md" fullWidth>
@@ -506,15 +461,6 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
                 <Edit color="primary" />
               </ListItemIcon>
               <ListItemText primary={t('items.edit')} />
-            </ListItemButton>
-            <ListItemButton
-              onClick={handleDrawerImage}
-              sx={{ minHeight: 56, borderRadius: 1, mb: 1 }}
-            >
-              <ListItemIcon>
-                <ImageIcon color="primary" />
-              </ListItemIcon>
-              <ListItemText primary="Bild verwalten" />
             </ListItemButton>
             <ListItemButton
               onClick={handleDrawerMove}

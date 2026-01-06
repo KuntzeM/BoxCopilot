@@ -10,10 +10,11 @@ import {
   Typography,
   Alert,
   Stack,
+  Tooltip,
 } from '@mui/material';
 import {
   PhotoCamera,
-  Upload,
+  FolderOpen,
   Delete,
   Close,
 } from '@mui/icons-material';
@@ -100,6 +101,11 @@ export default function ItemImageUpload({
       console.error('Camera access error:', error);
       onError('Kamerazugriff fehlgeschlagen');
     }
+  };
+
+  const triggerNativeCamera = () => {
+    // Trigger native camera app on mobile
+    cameraInputRef.current?.click();
   };
 
   const stopCamera = () => {
@@ -203,35 +209,49 @@ export default function ItemImageUpload({
         </Box>
       )}
 
-      <Stack direction="row" spacing={1} flexWrap="wrap">
-        <Button
-          variant="outlined"
-          startIcon={<PhotoCamera />}
-          onClick={() => cameraInputRef.current?.click()}
-          disabled={!isOnline}
-        >
-          Foto aufnehmen
-        </Button>
+      <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ alignItems: 'center' }}>
+        <Tooltip title="Foto aufnehmen">
+          <Box sx={{ flex: 1 }}>
+            <IconButton
+              color="primary"
+              onClick={triggerNativeCamera}
+              disabled={!isOnline}
+              size="large"
+              sx={{ width: '100%', justifyContent: 'center' }}
+            >
+              <PhotoCamera sx={{ fontSize: 40 }} />
+            </IconButton>
+          </Box>
+        </Tooltip>
 
-        <Button
-          variant="outlined"
-          startIcon={<Upload />}
-          onClick={() => fileInputRef.current?.click()}
-          disabled={!isOnline}
-        >
-          Hochladen
-        </Button>
+        <Tooltip title="Aus Galerie auswählen">
+          <Box sx={{ flex: 1 }}>
+            <IconButton
+              color="primary"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!isOnline}
+              size="large"
+              sx={{ width: '100%', justifyContent: 'center' }}
+            >
+              <FolderOpen sx={{ fontSize: 40 }} />
+            </IconButton>
+          </Box>
+        </Tooltip>
 
         {currentImageUrl && (
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<Delete />}
-            onClick={() => setDeleteDialogOpen(true)}
-            disabled={!isOnline}
-          >
-            Löschen
-          </Button>
+          <Tooltip title="Bild löschen">
+            <Box sx={{ flex: 1 }}>
+              <IconButton
+                color="error"
+                onClick={() => setDeleteDialogOpen(true)}
+                disabled={!isOnline}
+                size="large"
+                sx={{ width: '100%', justifyContent: 'center' }}
+              >
+                <Delete sx={{ fontSize: 40 }} />
+              </IconButton>
+            </Box>
+          </Tooltip>
         )}
       </Stack>
 

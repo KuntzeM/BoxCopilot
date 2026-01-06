@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -14,37 +14,88 @@ import {
   Paper,
   Stack,
   Fab,
+  Tooltip,
 } from '@mui/material';
-import { Add, PhotoCamera, Close } from '@mui/icons-material';
+import { Add, PhotoCamera, FolderOpen, Close } from '@mui/icons-material';
 import { useTranslation } from '../hooks/useTranslation';
 import * as itemService from '../services/itemService';
 
 interface ItemFormProps {
-  boxUuid: string;
-  onAddItem?: () => void;
+  boxId?: number;
   isLoading?: boolean;
   onSuccess?: (message: string) => void;
   onError?: (message: string) => void;
+  onAddItem?: () => void;
+  onUpdateItem?: () => void;
 }
 
+interface EditItem {
+  id: number;
+  name: string;
+  imageUrl?: string;
+}
+
+let globalItemFormRef: { openEdit: (item: EditItem) => void } | null = null;
+
+export const getItemFormRef = () => globalItemFormRef;
+
 export const ItemForm: React.FC<ItemFormProps> = ({
-  boxUuid,
-  onAddItem,
+  boxId,
   isLoading = false,
   onSuccess,
   onError,
+  onAddItem,
+  onUpdateItem,
 }) => {
   const { t } = useTranslation();
+  
+  // Store boxId in local state to avoid closure issues during re-renders
+  const [currentBoxId, setCurrentBoxId] = useState<number | undefined>(boxId);
+  
   const [open, setOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editItemId, setEditItemId] = useState<number | null>(null);
   const [name, setName] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  
+  // Update local boxId when prop changes and is defined
+  useEffect(() => {
+    if (boxId && boxId !== currentBoxId) {
+      setCurrentBoxId(boxId);
+    }
+  }, [boxId]);
+
+  // Register global ref
+  useEffect(() => {
+    globalItemFormRef = {
+      openEdit: (item: EditItem) => {
+        setOpen(true);
+        setIsEditMode(true);
+        setEditItemId(item.id);
+        setName(item.name);
+        if (item.imageUrl) {
+          setImagePreview(item.imageUrl);
+        }
+        setError(null);
+      },
+    };
+    return () => {
+      globalItemFormRef = null;
+    };
+  }, []);
 
   const handleOpen = () => {
     setOpen(true);
+    setIsEditMode(false);
+    setEditItemId(null);
+    setName('');
+    setImageFile(null);
+    setImagePreview(null);
     setError(null);
   };
 
@@ -54,6 +105,8 @@ export const ItemForm: React.FC<ItemFormProps> = ({
     setImageFile(null);
     setImagePreview(null);
     setError(null);
+    setIsEditMode(false);
+    setEditItemId(null);
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -78,11 +131,27 @@ export const ItemForm: React.FC<ItemFormProps> = ({
     reader.readAsDataURL(file);
   };
 
-  const handleRemoveImage = () => {
+  const handleRemoveImage = async () => {
+    // If editing and image exists on server, delete it
+    if (isEditMode && editItemId && imagePreview && !imagePreview.startsWith('data:')) {
+      try {
+        await itemService.deleteItemImage(editItemId);
+        onSuccess?.(t('success.imageDeleted') || 'Image deleted successfully');
+        onUpdateItem?.(); // Trigger refresh
+      } catch (error) {
+        onError?.(t('errors.imageDeleteFailed') || 'Failed to delete image');
+        return;
+      }
+    }
+    
+    // Clear local state
     setImageFile(null);
     setImagePreview(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+    if (cameraInputRef.current) {
+      cameraInputRef.current.value = '';
     }
   };
 
@@ -96,29 +165,56 @@ export const ItemForm: React.FC<ItemFormProps> = ({
     setError(null);
 
     try {
-      // Create item first
-      const createdItem = await itemService.createItem({
-        name: name.trim(),
-        boxUuid,
-      });
+      if (isEditMode && editItemId) {
+        // Edit mode
+        await itemService.updateItem(editItemId, {
+          name: name.trim(),
+        });
 
-      // Upload image if provided
-      if (imageFile) {
-        try {
-          await itemService.uploadItemImage(createdItem.id, imageFile);
-        } catch (imageError) {
-          // Item created but image upload failed - show warning
-          onSuccess?.(t('success.itemCreatedButImageFailed') || 'Item created but photo upload failed');
+        if (imageFile) {
+          try {
+            await itemService.uploadItemImage(editItemId, imageFile);
+          } catch (imageError) {
+            onSuccess?.(t('success.itemUpdatedButImageFailed') || 'Item updated but photo upload failed');
+            setSubmitting(false);
+            handleClose();
+            onUpdateItem?.();
+            return;
+          }
+        }
+
+        onSuccess?.(t('success.itemUpdated') || 'Item updated successfully');
+        handleClose();
+        onUpdateItem?.();
+      } else {
+        // Create mode
+        if (!currentBoxId) {
+          setError('Box ID is required');
           setSubmitting(false);
-          handleClose();
-          onAddItem?.();
           return;
         }
-      }
 
-      onSuccess?.(t('success.itemCreated') || 'Item added successfully');
-      handleClose();
-      onAddItem?.();
+        const createdItem = await itemService.createItem({
+          name: name.trim(),
+          boxId: currentBoxId,
+        });
+
+        if (imageFile) {
+          try {
+            await itemService.uploadItemImage(createdItem.id, imageFile);
+          } catch (imageError) {
+            onSuccess?.(t('success.itemCreatedButImageFailed') || 'Item created but photo upload failed');
+            setSubmitting(false);
+            handleClose();
+            onAddItem?.();
+            return;
+          }
+        }
+
+        onSuccess?.(t('success.itemCreated') || 'Item added successfully');
+        handleClose();
+        onAddItem?.();
+      }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : t('errors.itemCreationFailed') || 'Failed to create item';
       setError(errorMsg);
@@ -130,12 +226,12 @@ export const ItemForm: React.FC<ItemFormProps> = ({
 
   return (
     <>
-      {/* FAB Button */}
+      {/* FAB Button - only for create mode */}
       <Fab
         color="primary"
         aria-label={t('items.addNew') || 'Add Item'}
         onClick={handleOpen}
-        disabled={isLoading || submitting}
+        disabled={isLoading || submitting || !currentBoxId}
         size="large"
         sx={{
           position: 'fixed',
@@ -153,10 +249,9 @@ export const ItemForm: React.FC<ItemFormProps> = ({
         onClose={handleClose} 
         maxWidth="sm" 
         fullWidth
-        container={() => document.getElementById('modal-root')}
       >
         <DialogTitle>
-          {t('items.addNew') || 'Add Item'}
+          {isEditMode ? t('items.editItem') : t('items.addNew') || 'Add Item'}
         </DialogTitle>
 
         <DialogContent sx={{ pt: 2 }}>
@@ -220,7 +315,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
               </Card>
             )}
 
-            {/* Image Upload Button */}
+            {/* Image Upload Icons */}
             <input
               ref={fileInputRef}
               type="file"
@@ -229,20 +324,43 @@ export const ItemForm: React.FC<ItemFormProps> = ({
               style={{ display: 'none' }}
               disabled={submitting}
             />
-            <Button
-              variant="outlined"
-              startIcon={<PhotoCamera />}
-              onClick={() => fileInputRef.current?.click()}
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleImageSelect}
+              style={{ display: 'none' }}
               disabled={submitting}
-              fullWidth
-              sx={{
-                textTransform: 'none',
-              }}
-            >
-              {imagePreview
-                ? t('items.changePhoto') || 'Change Photo'
-                : t('items.addPhoto') || 'Add Photo (Optional)'}
-            </Button>
+            />
+            <Stack direction="row" spacing={1}>
+              <Tooltip title={t('items.takePhoto') || 'Take Photo'}>
+                <Box sx={{ flex: 1 }}>
+                  <IconButton
+                    color="primary"
+                    onClick={() => cameraInputRef.current?.click()}
+                    disabled={submitting}
+                    size="large"
+                    sx={{ width: '100%', justifyContent: 'center' }}
+                  >
+                    <PhotoCamera sx={{ fontSize: 40 }} />
+                  </IconButton>
+                </Box>
+              </Tooltip>
+              <Tooltip title={t('items.selectFromGallery') || 'Select Gallery'}>
+                <Box sx={{ flex: 1 }}>
+                  <IconButton
+                    color="primary"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={submitting}
+                    size="large"
+                    sx={{ width: '100%', justifyContent: 'center' }}
+                  >
+                    <FolderOpen sx={{ fontSize: 40 }} />
+                  </IconButton>
+                </Box>
+              </Tooltip>
+            </Stack>
           </Stack>
         </DialogContent>
 
@@ -260,6 +378,8 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                 <CircularProgress size={20} sx={{ mr: 1 }} />
                 {t('common.saving') || 'Saving...'}
               </>
+            ) : isEditMode ? (
+              t('common.save') || 'Save'
             ) : (
               t('common.add') || 'Add'
             )}

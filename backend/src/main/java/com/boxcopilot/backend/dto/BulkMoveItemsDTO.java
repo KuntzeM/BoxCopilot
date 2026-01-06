@@ -1,7 +1,7 @@
 package com.boxcopilot.backend.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 /**
@@ -12,15 +12,15 @@ public class BulkMoveItemsDTO {
     @NotEmpty(message = "Item IDs list cannot be empty")
     private List<Long> itemIds;
     
-    @NotBlank(message = "Target box UUID is required")
-    private String targetBoxUuid;
+    @NotNull(message = "Target box ID is required")
+    private Long targetBoxId;
 
     public BulkMoveItemsDTO() {
     }
 
-    public BulkMoveItemsDTO(List<Long> itemIds, String targetBoxUuid) {
+    public BulkMoveItemsDTO(List<Long> itemIds, Long targetBoxId) {
         this.itemIds = itemIds;
-        this.targetBoxUuid = targetBoxUuid;
+        this.targetBoxId = targetBoxId;
     }
 
     public List<Long> getItemIds() {
@@ -31,11 +31,11 @@ public class BulkMoveItemsDTO {
         this.itemIds = itemIds;
     }
 
-    public String getTargetBoxUuid() {
-        return targetBoxUuid;
+    public Long getTargetBoxId() {
+        return targetBoxId;
     }
 
-    public void setTargetBoxUuid(String targetBoxUuid) {
-        this.targetBoxUuid = targetBoxUuid;
+    public void setTargetBoxId(Long targetBoxId) {
+        this.targetBoxId = targetBoxId;
     }
 }
