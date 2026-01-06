@@ -92,6 +92,13 @@ export const en: TranslationKeys = {
     print: 'Print',
     noBoxSelected: 'No box selected.',
     
+    // PDF Generation
+    generatingLabels: 'Generating Labels...',
+    generatingLabelProgress: '{{current}} of {{total}} labels',
+    currentBox: 'Current box',
+    pdfGenerationFailed: 'Failed to generate PDF. Please try with fewer boxes.',
+    pdfGenerationTimeout: 'PDF generation timed out. Please reduce the number of selected boxes.',
+    
     // Dialog titles
     createNewBox: 'Create New Box',
     deleteBoxTitle: 'Delete Box?',

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, createElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box as BoxModel, CreateBoxPayload } from '../types/models';
 import { fetchBoxes, createBox, deleteBox } from '../services/boxService';
@@ -38,7 +38,14 @@ export const useBoxListLogic = () => {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [expandedBoxes, setExpandedBoxes] = useState<Set<number>>(new Set());
   const [snackbar, setSnackbar] = useState<SnackbarState>({ open: false, message: '', severity: 'success' });
-  const [isPrinting, setIsPrinting] = useState(false);
+  
+  // PDF generation progress state
+  const [pdfProgress, setPdfProgress] = useState<{
+    open: boolean;
+    current: number;
+    total: number;
+    currentBoxNumber: string;
+  }>({ open: false, current: 0, total: 0, currentBoxNumber: '' });
   
   // Dialog state
   const [openBoxDialog, setOpenBoxDialog] = useState(false);
@@ -83,15 +90,6 @@ export const useBoxListLogic = () => {
   // === Effects ===
   useEffect(() => {
     loadData();
-  }, []);
-
-  useEffect(() => {
-    const handleAfterPrint = () => {
-      console.log('[DEBUG] Print dialog closed, resetting isPrinting');
-      setIsPrinting(false);
-    };
-    window.addEventListener('afterprint', handleAfterPrint);
-    return () => window.removeEventListener('afterprint', handleAfterPrint);
   }, []);
 
   useEffect(() => {
@@ -218,7 +216,7 @@ export const useBoxListLogic = () => {
     window.open(url, '_blank');
   };
 
-  const handlePrintLabels = () => {
+  const handlePrintLabels = async () => {
     console.log('[DEBUG] handlePrintLabels called:', { selectedBoxesCount: selectedBoxes.length });
     
     if (selectedBoxes.length === 0) {
@@ -227,11 +225,84 @@ export const useBoxListLogic = () => {
       return;
     }
     
-    setIsPrinting(true);
-    setTimeout(() => {
-      console.log('[DEBUG] ✓ Triggering print dialog with', selectedBoxes.length, 'boxes');
-      window.print();
-    }, 100);
+    try {
+      // Dynamically import PDF dependencies (code splitting)
+      const [{ pdf }, { LabelPDFDocument }, { generateQRCodesForBoxes }, { registerPDFFonts }] = await Promise.all([
+        import('@react-pdf/renderer'),
+        import('../components/LabelPDFDocument'),
+        import('../utils/printUtils'),
+        import('../utils/pdfFonts'),
+      ]);
+      
+      // Register fonts for PDF
+      registerPDFFonts();
+      
+      // Show progress dialog
+      setPdfProgress({ open: true, current: 0, total: selectedBoxes.length, currentBoxNumber: '' });
+      
+      // Generate QR codes with progress updates
+      const qrCodes = await generateQRCodesForBoxes(
+        selectedBoxes,
+        (current, total, boxNumber) => {
+          setPdfProgress({ open: true, current, total, currentBoxNumber: boxNumber });
+        }
+      );
+      
+      // Prepare translations (cannot use hooks inside PDF components)
+      const translations = {
+        boxNumber: t('boxes.boxNumber').replace('#{{number}}', '#'),
+        targetRoom: t('boxes.targetRoom').toUpperCase(),
+        fragile: t('boxes.fragilePrintLabel'),
+        doNotStack: t('boxes.noStackPrintLabel'),
+      };
+      
+      // Generate PDF blob with timeout (30 seconds max)
+      const pdfBlobPromise = pdf(
+        createElement(LabelPDFDocument, { boxes: selectedBoxes, qrCodes, translations })
+      ).toBlob();
+      
+      const timeoutPromise = new Promise<Blob>((_, reject) => {
+        setTimeout(() => reject(new Error('PDF generation timeout')), 30000);
+      });
+      
+      const pdfBlob = await Promise.race([pdfBlobPromise, timeoutPromise]);
+      
+      // Close progress dialog
+      setPdfProgress({ open: false, current: 0, total: 0, currentBoxNumber: '' });
+      
+      // Create blob URL and open in new tab
+      const blobUrl = URL.createObjectURL(pdfBlob);
+      const printWindow = window.open(blobUrl, '_blank');
+      
+      if (!printWindow) {
+        throw new Error('Failed to open print window. Please check popup blocker settings.');
+      }
+      
+      // Trigger print dialog after PDF loads (with delay for rendering)
+      printWindow.addEventListener('load', () => {
+        setTimeout(() => {
+          printWindow.print();
+          
+          // Cleanup blob URL after print dialog closes
+          printWindow.addEventListener('afterprint', () => {
+            URL.revokeObjectURL(blobUrl);
+          });
+        }, 500);
+      });
+      
+    } catch (error) {
+      console.error('[PDF] Label generation failed:', error);
+      
+      // Close progress dialog
+      setPdfProgress({ open: false, current: 0, total: 0, currentBoxNumber: '' });
+      
+      // Show error message
+      const errorMessage = error instanceof Error && error.message.includes('timeout')
+        ? t('boxes.pdfGenerationTimeout')
+        : t('boxes.pdfGenerationFailed');
+      
+      setSnackbar({ open: true, message: errorMessage, severity: 'error' });
+    }
   };
 
   // === Box CRUD ===
@@ -323,7 +394,7 @@ export const useBoxListLogic = () => {
     expandedBoxes,
     snackbar,
     setSnackbar,
-    isPrinting,
+    pdfProgress,
     selectedBoxes,
     openBoxDialog,
     setOpenBoxDialog,

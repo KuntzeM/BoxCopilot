@@ -47,14 +47,13 @@ import {
   MoreVert,
 } from '@mui/icons-material';
 import { QRCodeCanvas } from 'qrcode.react';
-import '../styles/print.css';
 import { List as VirtualList } from 'react-window';
 import { Box as BoxModel, Item, CreateBoxPayload } from '../types/models';
 import { fetchBoxes, createBox, deleteBox } from '../services/boxService';
 import { searchItems } from '../services/itemService';
 import { truncateToFirstLine } from '../utils/textUtils';
 import { useTranslation } from '../hooks/useTranslation';
-import { PrintLabels } from '../components/PrintLabels';
+import { LabelGenerationProgress } from '../components/LabelGenerationProgress';
 import { useBoxListLogic } from '../hooks/useBoxListLogic';
 
 type SnackbarState = { open: boolean; message: string; severity: 'success' | 'error' | 'info' };
@@ -117,7 +116,7 @@ export default function BoxList() {
     expandedBoxes,
     snackbar,
     setSnackbar,
-    isPrinting,
+    pdfProgress,
     selectedBoxes,
     openBoxDialog,
     setOpenBoxDialog,
@@ -474,8 +473,13 @@ export default function BoxList() {
         </DialogActions>
       </Dialog>
 
-      {/* Print Labels Area */}
-      <PrintLabels boxes={selectedBoxes} isPrinting={isPrinting} />
+      {/* PDF Generation Progress */}
+      <LabelGenerationProgress
+        open={pdfProgress.open}
+        current={pdfProgress.current}
+        total={pdfProgress.total}
+        currentBoxNumber={pdfProgress.currentBoxNumber}
+      />
 
       <Snackbar
         open={snackbar.open}

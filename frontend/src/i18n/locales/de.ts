@@ -90,6 +90,13 @@ export const de = {
     print: 'Drucken',
     noBoxSelected: 'Keine Box ausgewählt.',
     
+    // PDF Generation
+    generatingLabels: 'Generiere Labels...',
+    generatingLabelProgress: '{{current}} von {{total}} Labels',
+    currentBox: 'Aktuelle Box',
+    pdfGenerationFailed: 'PDF-Generierung fehlgeschlagen. Bitte versuchen Sie es mit weniger Boxen.',
+    pdfGenerationTimeout: 'PDF-Generierung hat zu lange gedauert. Bitte reduzieren Sie die Anzahl der ausgewählten Boxen.',
+    
     // Dialog titles
     createNewBox: 'Neue Box erstellen',
     deleteBoxTitle: 'Box löschen?',
