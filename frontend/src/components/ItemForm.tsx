@@ -39,6 +39,8 @@ let globalItemFormRef: { openEdit: (item: EditItem) => void } | null = null;
 
 export const getItemFormRef = () => globalItemFormRef;
 
+const FORM_STATE_KEY = 'itemFormState';
+
 export const ItemForm: React.FC<ItemFormProps> = ({
   boxId,
   isLoading = false,
@@ -68,6 +70,31 @@ export const ItemForm: React.FC<ItemFormProps> = ({
   useEffect(() => {
     if (boxId && boxId !== currentBoxId) {
       setCurrentBoxId(boxId);
+    }
+  }, [boxId]);
+
+  // Restore form state after page reload (e.g., when returning from camera on mobile)
+  useEffect(() => {
+    const savedState = sessionStorage.getItem(FORM_STATE_KEY);
+    if (savedState) {
+      try {
+        const state = JSON.parse(savedState);
+        if (state.boxId === boxId && state.timestamp && Date.now() - state.timestamp < 60000) {
+          // Only restore if less than 60 seconds old and for same box
+          setOpen(true);
+          setIsEditMode(state.isEditMode || false);
+          setEditItemId(state.editItemId || null);
+          setName(state.name || '');
+          setImagePreview(state.imagePreview || null);
+          setIsSelectingFile(false);
+          sessionStorage.removeItem(FORM_STATE_KEY);
+        } else {
+          sessionStorage.removeItem(FORM_STATE_KEY);
+        }
+      } catch (e) {
+        console.error('Failed to restore form state:', e);
+        sessionStorage.removeItem(FORM_STATE_KEY);
+      }
     }
   }, [boxId]);
 
@@ -112,6 +139,8 @@ export const ItemForm: React.FC<ItemFormProps> = ({
     setError(null);
     setIsEditMode(false);
     setEditItemId(null);
+    // Clear any saved state
+    sessionStorage.removeItem(FORM_STATE_KEY);
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -219,6 +248,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
           }
         }
 
+        sessionStorage.removeItem(FORM_STATE_KEY);
         onSuccess?.(t('success.itemUpdated') || 'Item updated successfully');
         handleClose();
         onUpdateItem?.();
@@ -247,6 +277,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
           }
         }
 
+        sessionStorage.removeItem(FORM_STATE_KEY);
         onSuccess?.(t('success.itemCreated') || 'Item added successfully');
         handleClose();
         onAddItem?.();
@@ -389,6 +420,15 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                       e.preventDefault();
                       e.stopPropagation();
                       setIsSelectingFile(true);
+                      // Save state before opening camera (mobile may reload page)
+                      sessionStorage.setItem(FORM_STATE_KEY, JSON.stringify({
+                        boxId: currentBoxId,
+                        name,
+                        isEditMode,
+                        editItemId,
+                        imagePreview,
+                        timestamp: Date.now(),
+                      }));
                       cameraInputRef.current?.click();
                     }}
                     disabled={submitting || isSelectingFile}
