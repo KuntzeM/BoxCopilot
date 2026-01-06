@@ -7,6 +7,11 @@ import { useTranslation } from './useTranslation';
 
 type SnackbarState = { open: boolean; message: string; severity: 'success' | 'error' | 'info' };
 
+// PDF Generation Constants
+const BASE_TIMEOUT_MS = 30000; // 30 seconds base timeout for PDF generation
+const PER_BOX_TIMEOUT_MS = 2000; // Additional 2 seconds per box
+const BLOB_CLEANUP_TIMEOUT_MS = 300000; // 5 minutes fallback cleanup for blob URLs
+
 /**
  * Custom Hook: useBoxListLogic
  * 
@@ -233,6 +238,7 @@ export const useBoxListLogic = () => {
       
       // Prepare translations (cannot use hooks inside PDF components)
       // Extract box number prefix by removing the {{number}} placeholder
+      // Expected format: "#{{number}}" or "Box {{number}}"
       const boxNumberTemplate = t('boxes.boxNumber');
       const boxNumberPlaceholder = '{{number}}';
       const placeholderIndex = boxNumberTemplate.indexOf(boxNumberPlaceholder);
@@ -249,7 +255,7 @@ export const useBoxListLogic = () => {
       };
       
       // Generate PDF blob with dynamic timeout (minimum 30s + 2s per box)
-      const timeoutDuration = Math.max(30000, selectedBoxes.length * 2000); // Dynamic timeout: minimum 30s, +2s per box
+      const timeoutDuration = Math.max(BASE_TIMEOUT_MS, selectedBoxes.length * PER_BOX_TIMEOUT_MS);
       const pdfBlobPromise = pdf(
         createElement(LabelPDFDocument, { boxes: selectedBoxes, qrCodes, translations })
       ).toBlob();
@@ -269,7 +275,7 @@ export const useBoxListLogic = () => {
       // Set up cleanup timeout as fallback (5 minutes)
       const cleanupTimeoutId = setTimeout(() => {
         URL.revokeObjectURL(blobUrl);
-      }, 300000);
+      }, BLOB_CLEANUP_TIMEOUT_MS);
       
       const printWindow = window.open(blobUrl, '_blank');
       
