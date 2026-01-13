@@ -139,6 +139,7 @@ export default function BoxList() {
     selectedBoxForActions,
     resolveImageUrl,
     withApiBase,
+    loadData,
     handleResetFilter,
     toggleSelect,
     toggleExpandBox,
@@ -163,8 +164,7 @@ export default function BoxList() {
   const handleToggleBoxStatus = async (boxId: number, field: 'isMovedToTarget' | 'labelPrinted', currentValue: boolean) => {
     try {
       await updateBox(boxId, { [field]: !currentValue });
-      // Reload data to reflect changes
-      window.location.reload();
+      await loadData();
     } catch (err) {
       setSnackbar({ open: true, message: t('errors.boxUpdateFailed'), severity: 'error' });
       console.error(err);
@@ -180,7 +180,7 @@ export default function BoxList() {
         selectedBoxes.map((box) => updateBox(box.id, { isMovedToTarget: !allMoved }))
       );
       setBulkMenuAnchor(null);
-      window.location.reload();
+      await loadData();
     } catch (err) {
       setSnackbar({ open: true, message: t('errors.boxUpdateFailed'), severity: 'error' });
       console.error(err);
@@ -196,7 +196,7 @@ export default function BoxList() {
         selectedBoxes.map((box) => updateBox(box.id, { labelPrinted: !allPrinted }))
       );
       setBulkMenuAnchor(null);
-      window.location.reload();
+      await loadData();
     } catch (err) {
       setSnackbar({ open: true, message: t('errors.boxUpdateFailed'), severity: 'error' });
       console.error(err);
@@ -281,7 +281,7 @@ export default function BoxList() {
                 color="success"
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleToggleBoxStatus(box.id, 'isMovedToTarget', box.isMovedToTarget || false);
+                  handleToggleBoxStatus(box.id, 'isMovedToTarget', box.isMovedToTarget ?? false);
                 }}
                 sx={{
                   minWidth: 48,
@@ -300,7 +300,7 @@ export default function BoxList() {
                 color="primary"
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleToggleBoxStatus(box.id, 'labelPrinted', box.labelPrinted || false);
+                  handleToggleBoxStatus(box.id, 'labelPrinted', box.labelPrinted ?? false);
                 }}
                 sx={{
                   minWidth: 48,

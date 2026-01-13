@@ -445,6 +445,7 @@ export const useBoxListLogic = () => {
     withApiBase,
     
     // Handlers
+    loadData,
     handleResetFilter,
     toggleSelect,
     toggleExpandBox,
