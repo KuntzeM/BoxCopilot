@@ -86,6 +86,22 @@ export const en: TranslationKeys = {
     resetFilters: 'Reset Filters',
     onlyFragileBoxes: 'Only fragile boxes',
     onlyNoStackBoxes: 'Only non-stackable boxes',
+    onlyMovedBoxes: 'Only moved boxes',
+    onlyLabelPrintedBoxes: 'Only boxes with printed label',
+    
+    // Status
+    moved: 'Moved',
+    labelPrinted: 'Label printed',
+    statusManagement: 'Status',
+    
+    // Bulk operations
+    bulkUpdate: 'Bulk Update',
+    setMoved: 'Mark as moved',
+    removeMoved: '✓ Moved',
+    setLabelPrinted: 'Mark label as printed',
+    removeLabelPrinted: '✓ Label printed',
+    markAllAsPrinted: 'Mark all as "Label printed"',
+    printLabelsForBoxes: 'Print labels for {{count}} boxes?',
     
     // Print
     printLabels: 'Print Labels',
