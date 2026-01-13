@@ -20,6 +20,10 @@ public class BoxRequestDTO {
     
     private Boolean noStack = false;
 
+    private Boolean isMovedToTarget = false;
+
+    private Boolean labelPrinted = false;
+
     public BoxRequestDTO() {
     }
 
@@ -29,6 +33,8 @@ public class BoxRequestDTO {
         this.description = description;
         this.isFragile = false;
         this.noStack = false;
+        this.isMovedToTarget = false;
+        this.labelPrinted = false;
     }
 
     public String getCurrentRoom() {
@@ -69,5 +75,21 @@ public class BoxRequestDTO {
 
     public void setNoStack(Boolean noStack) {
         this.noStack = noStack;
+    }
+
+    public Boolean getIsMovedToTarget() {
+        return isMovedToTarget;
+    }
+
+    public void setIsMovedToTarget(Boolean isMovedToTarget) {
+        this.isMovedToTarget = isMovedToTarget;
+    }
+
+    public Boolean getLabelPrinted() {
+        return labelPrinted;
+    }
+
+    public void setLabelPrinted(Boolean labelPrinted) {
+        this.labelPrinted = labelPrinted;
     }
 }

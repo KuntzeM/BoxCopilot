@@ -39,6 +39,8 @@ public class BoxMapper {
         box.setDescription(dto.getDescription());
         box.setIsFragile(dto.getIsFragile() != null ? dto.getIsFragile() : false);
         box.setNoStack(dto.getNoStack() != null ? dto.getNoStack() : false);
+        box.setIsMovedToTarget(dto.getIsMovedToTarget() != null ? dto.getIsMovedToTarget() : false);
+        box.setLabelPrinted(dto.getLabelPrinted() != null ? dto.getLabelPrinted() : false);
         return box;
     }
 
@@ -62,6 +64,8 @@ public class BoxMapper {
         dto.setBoxNumber(entity.getBoxNumber());
         dto.setIsFragile(entity.getIsFragile());
         dto.setNoStack(entity.getNoStack());
+        dto.setIsMovedToTarget(entity.getIsMovedToTarget());
+        dto.setLabelPrinted(entity.getLabelPrinted());
 
         // Add items if they exist (sorted alphabetically)
         if (entity.getItems() != null && !entity.getItems().isEmpty()) {
@@ -97,6 +101,12 @@ public class BoxMapper {
         }
         if (dto.getNoStack() != null) {
             entity.setNoStack(dto.getNoStack());
+        }
+        if (dto.getIsMovedToTarget() != null) {
+            entity.setIsMovedToTarget(dto.getIsMovedToTarget());
+        }
+        if (dto.getLabelPrinted() != null) {
+            entity.setLabelPrinted(dto.getLabelPrinted());
         }
     }
 }

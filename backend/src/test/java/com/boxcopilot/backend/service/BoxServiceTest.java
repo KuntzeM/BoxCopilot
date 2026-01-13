@@ -66,6 +66,26 @@ class BoxServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.getIsFragile()).isFalse();
         assertThat(result.getNoStack()).isFalse();
+        assertThat(result.getIsMovedToTarget()).isFalse();
+        assertThat(result.getLabelPrinted()).isFalse();
+    }
+
+    @Test
+    void testCreateBox_withStatusFlags() {
+        // Given
+        BoxRequestDTO request = new BoxRequestDTO();
+        request.setCurrentRoom("Büro");
+        request.setTargetRoom("Archiv");
+        request.setIsMovedToTarget(true);
+        request.setLabelPrinted(true);
+        
+        // When
+        BoxResponseDTO result = boxService.createBox(request);
+        
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getIsMovedToTarget()).isTrue();
+        assertThat(result.getLabelPrinted()).isTrue();
     }
 
     @Test
@@ -106,6 +126,46 @@ class BoxServiceTest {
         // Then
         assertThat(updated.getIsFragile()).isTrue(); // Should remain unchanged
         assertThat(updated.getNoStack()).isTrue();   // Should be updated
+    }
+
+    @Test
+    void testUpdateBox_withStatusFlags() {
+        // Given - Create a box first
+        BoxRequestDTO createRequest = new BoxRequestDTO();
+        createRequest.setCurrentRoom("Wohnzimmer");
+        createRequest.setIsMovedToTarget(false);
+        createRequest.setLabelPrinted(false);
+        BoxResponseDTO created = boxService.createBox(createRequest);
+        
+        // When - Update the box with status flags
+        BoxUpdateDTO updateRequest = new BoxUpdateDTO();
+        updateRequest.setIsMovedToTarget(true);
+        updateRequest.setLabelPrinted(true);
+        BoxResponseDTO updated = boxService.updateBox(created.getId(), updateRequest);
+        
+        // Then
+        assertThat(updated.getIsMovedToTarget()).isTrue();
+        assertThat(updated.getLabelPrinted()).isTrue();
+        assertThat(updated.getCurrentRoom()).isEqualTo("Wohnzimmer");
+    }
+
+    @Test
+    void testUpdateBox_partialStatusFlagUpdate() {
+        // Given - Create a box with status flags
+        BoxRequestDTO createRequest = new BoxRequestDTO();
+        createRequest.setCurrentRoom("Küche");
+        createRequest.setIsMovedToTarget(false);
+        createRequest.setLabelPrinted(true);
+        BoxResponseDTO created = boxService.createBox(createRequest);
+        
+        // When - Update only isMovedToTarget flag
+        BoxUpdateDTO updateRequest = new BoxUpdateDTO();
+        updateRequest.setIsMovedToTarget(true);
+        BoxResponseDTO updated = boxService.updateBox(created.getId(), updateRequest);
+        
+        // Then
+        assertThat(updated.getIsMovedToTarget()).isTrue();  // Should be updated
+        assertThat(updated.getLabelPrinted()).isTrue();     // Should remain unchanged
     }
 
     @Test
