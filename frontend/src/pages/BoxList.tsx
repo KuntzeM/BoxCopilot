@@ -29,6 +29,8 @@ import {
   ListItemIcon,
   ListItemText,
   ListItemButton,
+  Menu,
+  MenuItem,
 } from '@mui/material';
 import {
   Add,
@@ -45,11 +47,15 @@ import {
   DoNotDisturb,
   Close,
   MoreVert,
+  LocalShipping,
+  Label,
+  EditNote,
+  DoneAll,
 } from '@mui/icons-material';
 import { QRCodeCanvas } from 'qrcode.react';
 import { List as VirtualList } from 'react-window';
 import { Box as BoxModel, Item, CreateBoxPayload } from '../types/models';
-import { fetchBoxes, createBox, deleteBox } from '../services/boxService';
+import { fetchBoxes, createBox, deleteBox, updateBox } from '../services/boxService';
 import { searchItems } from '../services/itemService';
 import { truncateToFirstLine } from '../utils/textUtils';
 import { useTranslation } from '../hooks/useTranslation';
@@ -110,6 +116,10 @@ export default function BoxList() {
     setFilterFragile,
     filterNoStack,
     setFilterNoStack,
+    filterMoved,
+    setFilterMoved,
+    filterLabelPrinted,
+    setFilterLabelPrinted,
     showAdvancedFilters,
     setShowAdvancedFilters,
     selectedIds,
@@ -143,6 +153,88 @@ export default function BoxList() {
     handleDrawerOpenLink,
     handleDrawerDelete,
   } = useBoxListLogic();
+
+  // Bulk update state
+  const [bulkMenuAnchor, setBulkMenuAnchor] = useState<null | HTMLElement>(null);
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [setLabelPrintedAfterPrint, setSetLabelPrintedAfterPrint] = useState(true);
+
+  // Bulk update handlers
+  const handleToggleBoxStatus = async (boxId: number, field: 'isMovedToTarget' | 'labelPrinted', currentValue: boolean) => {
+    try {
+      await updateBox(boxId, { [field]: !currentValue });
+      // Reload data to reflect changes
+      window.location.reload();
+    } catch (err) {
+      setSnackbar({ open: true, message: t('errors.boxUpdateFailed'), severity: 'error' });
+      console.error(err);
+    }
+  };
+
+  const handleBulkUpdateMoved = async () => {
+    const selectedBoxes = filteredBoxes.filter((b) => selectedIds.includes(b.id));
+    const allMoved = selectedBoxes.every((b) => b.isMovedToTarget);
+    
+    try {
+      await Promise.all(
+        selectedBoxes.map((box) => updateBox(box.id, { isMovedToTarget: !allMoved }))
+      );
+      setBulkMenuAnchor(null);
+      window.location.reload();
+    } catch (err) {
+      setSnackbar({ open: true, message: t('errors.boxUpdateFailed'), severity: 'error' });
+      console.error(err);
+    }
+  };
+
+  const handleBulkUpdateLabelPrinted = async () => {
+    const selectedBoxes = filteredBoxes.filter((b) => selectedIds.includes(b.id));
+    const allPrinted = selectedBoxes.every((b) => b.labelPrinted);
+    
+    try {
+      await Promise.all(
+        selectedBoxes.map((box) => updateBox(box.id, { labelPrinted: !allPrinted }))
+      );
+      setBulkMenuAnchor(null);
+      window.location.reload();
+    } catch (err) {
+      setSnackbar({ open: true, message: t('errors.boxUpdateFailed'), severity: 'error' });
+      console.error(err);
+    }
+  };
+
+  const selectedBoxes = useMemo(
+    () => filteredBoxes.filter((b) => selectedIds.includes(b.id)),
+    [selectedIds, filteredBoxes]
+  );
+
+  const allSelectedMoved = selectedBoxes.every((b) => b.isMovedToTarget);
+  const allSelectedPrinted = selectedBoxes.every((b) => b.labelPrinted);
+  const hasUnprintedLabels = selectedBoxes.some((b) => !b.labelPrinted);
+
+  const handlePrintWithDialog = () => {
+    if (hasUnprintedLabels) {
+      setShowPrintDialog(true);
+    } else {
+      handlePrintLabels();
+    }
+  };
+
+  const handleProceedWithPrint = async () => {
+    setShowPrintDialog(false);
+    
+    if (setLabelPrintedAfterPrint) {
+      try {
+        await Promise.all(
+          selectedBoxes.map((box) => !box.labelPrinted ? updateBox(box.id, { labelPrinted: true }) : Promise.resolve())
+        );
+      } catch (err) {
+        console.error('Failed to update labelPrinted status', err);
+      }
+    }
+    
+    handlePrintLabels();
+  };
 
 
   // Render a single box card (for both regular and virtualized rendering)
@@ -182,7 +274,45 @@ export default function BoxList() {
             </Box>
           </Stack>
 
-          <Stack direction="row" spacing={0.5} flexWrap="wrap" justifyContent="flex-end">
+          <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" justifyContent="flex-end">
+            {box.isMovedToTarget && (
+              <IconButton
+                size="medium"
+                color="success"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleBoxStatus(box.id, 'isMovedToTarget', box.isMovedToTarget || false);
+                }}
+                sx={{
+                  minWidth: 48,
+                  minHeight: 48,
+                  transition: 'transform 0.2s',
+                  '&:active': { transform: 'scale(0.9)' }
+                }}
+                title={t('boxes.moved')}
+              >
+                <LocalShipping />
+              </IconButton>
+            )}
+            {box.labelPrinted && (
+              <IconButton
+                size="medium"
+                color="primary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleBoxStatus(box.id, 'labelPrinted', box.labelPrinted || false);
+                }}
+                sx={{
+                  minWidth: 48,
+                  minHeight: 48,
+                  transition: 'transform 0.2s',
+                  '&:active': { transform: 'scale(0.9)' }
+                }}
+                title={t('boxes.labelPrinted')}
+              >
+                <Label />
+              </IconButton>
+            )}
             <IconButton
               size="medium"
               title={t('boxes.actions')}
@@ -300,9 +430,14 @@ export default function BoxList() {
               sx={{ alignSelf: 'flex-start' }}
             >
               {showAdvancedFilters ? '▼' : '▶'} {t('boxes.advancedFilters')}
-              {(filterFragile || filterNoStack) && (
+              {(filterFragile || filterNoStack || filterMoved || filterLabelPrinted) && (
                 <Chip 
-                  label={[filterFragile && '🔔', filterNoStack && '⛔'].filter(Boolean).join(' ')} 
+                  label={[
+                    filterFragile && '🔔', 
+                    filterNoStack && '⛔',
+                    filterMoved && '🚚',
+                    filterLabelPrinted && '🏷️'
+                  ].filter(Boolean).join(' ')} 
                   size="small" 
                   sx={{ ml: 1 }} 
                 />
@@ -340,6 +475,30 @@ export default function BoxList() {
                   label={isMobile ? `⛔ ${t('boxes.noStack')}` : t('boxes.onlyNoStackBoxes')}
                   sx={{ m: 0 }}
                 />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={filterMoved}
+                      onChange={(e) => setFilterMoved(e.target.checked)}
+                      color="success"
+                      size={isMobile ? 'small' : 'medium'}
+                    />
+                  }
+                  label={isMobile ? `🚚 ${t('boxes.moved')}` : t('boxes.onlyMovedBoxes')}
+                  sx={{ m: 0 }}
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={filterLabelPrinted}
+                      onChange={(e) => setFilterLabelPrinted(e.target.checked)}
+                      color="primary"
+                      size={isMobile ? 'small' : 'medium'}
+                    />
+                  }
+                  label={isMobile ? `🏷️ ${t('boxes.labelPrinted')}` : t('boxes.onlyLabelPrintedBoxes')}
+                  sx={{ m: 0 }}
+                />
               </Stack>
             </Collapse>
           </Stack>
@@ -350,8 +509,16 @@ export default function BoxList() {
           <Stack direction="row" spacing={1} justifyContent={isMobile ? 'flex-start' : 'flex-end'}>
             <Button
               variant="outlined"
+              startIcon={<EditNote />}
+              onClick={(e) => setBulkMenuAnchor(e.currentTarget)}
+              disabled={selectedIds.length === 0}
+            >
+              {t('boxes.bulkUpdate')}
+            </Button>
+            <Button
+              variant="outlined"
               startIcon={<Print />}
-              onClick={handlePrintLabels}
+              onClick={handlePrintWithDialog}
               disabled={selectedIds.length === 0}
             >
               {t('boxes.printLabels')}
@@ -524,22 +691,82 @@ export default function BoxList() {
         </DialogActions>
       </Dialog>
 
-      {/* Floating Action Button for Mobile */}
+      {/* Floating Action Buttons for Mobile */}
       {isMobile && (
-        <Fab
-          color="primary"
-          aria-label={t('boxes.createNew')}
-          onClick={handleOpenBoxDialog}
-          sx={{
-            position: 'fixed',
-            bottom: 80,
-            right: 16,
-            zIndex: 1000,
-          }}
-        >
-          <Add />
-        </Fab>
+        <>
+          <Fab
+            color="secondary"
+            aria-label={t('boxes.bulkUpdate')}
+            disabled={selectedIds.length === 0}
+            onClick={(e) => setBulkMenuAnchor(e.currentTarget)}
+            sx={{
+              position: 'fixed',
+              bottom: 80,
+              right: 88,
+              zIndex: 1000,
+            }}
+          >
+            <EditNote />
+          </Fab>
+          <Fab
+            color="primary"
+            aria-label={t('boxes.createNew')}
+            onClick={handleOpenBoxDialog}
+            sx={{
+              position: 'fixed',
+              bottom: 80,
+              right: 16,
+              zIndex: 1000,
+            }}
+          >
+            <Add />
+          </Fab>
+        </>
       )}
+
+      {/* Bulk Update Menu */}
+      <Menu
+        anchorEl={bulkMenuAnchor}
+        open={Boolean(bulkMenuAnchor)}
+        onClose={() => setBulkMenuAnchor(null)}
+      >
+        <MenuItem onClick={handleBulkUpdateMoved}>
+          <ListItemIcon>
+            <LocalShipping color={allSelectedMoved ? "success" : "inherit"} />
+          </ListItemIcon>
+          <ListItemText>
+            {allSelectedMoved ? t('boxes.removeMoved') : t('boxes.setMoved')}
+          </ListItemText>
+        </MenuItem>
+        <MenuItem onClick={handleBulkUpdateLabelPrinted}>
+          <ListItemIcon>
+            <Label color={allSelectedPrinted ? "primary" : "inherit"} />
+          </ListItemIcon>
+          <ListItemText>
+            {allSelectedPrinted ? t('boxes.removeLabelPrinted') : t('boxes.setLabelPrinted')}
+          </ListItemText>
+        </MenuItem>
+      </Menu>
+
+      {/* Print Dialog */}
+      <Dialog open={showPrintDialog} onClose={() => setShowPrintDialog(false)}>
+        <DialogTitle>{t('boxes.printLabelsForBoxes', { count: selectedBoxes.length })}</DialogTitle>
+        <DialogContent>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={setLabelPrintedAfterPrint}
+                onChange={(e) => setSetLabelPrintedAfterPrint(e.target.checked)}
+              />
+            }
+            label={t('boxes.markAllAsPrinted')}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowPrintDialog(false)}>{t('boxes.cancel')}</Button>
+          <Button onClick={handleProceedWithPrint} variant="contained">{t('boxes.print')}</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Bottom Sheet for Box Actions */}
       <Drawer

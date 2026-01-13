@@ -37,6 +37,8 @@ export const useBoxListLogic = () => {
   const [roomQuery, setRoomQuery] = useState('');
   const [filterFragile, setFilterFragile] = useState(false);
   const [filterNoStack, setFilterNoStack] = useState(false);
+  const [filterMoved, setFilterMoved] = useState(false);
+  const [filterLabelPrinted, setFilterLabelPrinted] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   
   // Selection & UI state
@@ -59,7 +61,9 @@ export const useBoxListLogic = () => {
     targetRoom: '', 
     description: '',
     isFragile: false,
-    noStack: false
+    noStack: false,
+    isMovedToTarget: false,
+    labelPrinted: false
   });
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
@@ -98,7 +102,7 @@ export const useBoxListLogic = () => {
     }, 400);
 
     return () => clearTimeout(timeoutId);
-  }, [itemQuery, roomQuery, filterFragile, filterNoStack, allBoxes]);
+  }, [itemQuery, roomQuery, filterFragile, filterNoStack, filterMoved, filterLabelPrinted, allBoxes]);
 
   // === Data Operations ===
   const loadData = async () => {
@@ -128,6 +132,8 @@ export const useBoxListLogic = () => {
     setRoomQuery('');
     setFilterFragile(false);
     setFilterNoStack(false);
+    setFilterMoved(false);
+    setFilterLabelPrinted(false);
     setMatchedItemIds(new Set());
     setFilteredBoxes(allBoxes);
   };
@@ -164,6 +170,14 @@ export const useBoxListLogic = () => {
 
       if (filterNoStack) {
         next = next.filter((b) => b.noStack === true);
+      }
+
+      if (filterMoved) {
+        next = next.filter((b) => b.isMovedToTarget === true);
+      }
+
+      if (filterLabelPrinted) {
+        next = next.filter((b) => b.labelPrinted === true);
       }
 
       setFilteredBoxes(next);
@@ -403,6 +417,10 @@ export const useBoxListLogic = () => {
     setFilterFragile,
     filterNoStack,
     setFilterNoStack,
+    filterMoved,
+    setFilterMoved,
+    filterLabelPrinted,
+    setFilterLabelPrinted,
     showAdvancedFilters,
     setShowAdvancedFilters,
     selectedIds,
