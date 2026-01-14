@@ -161,16 +161,6 @@ export default function BoxList() {
   const [setLabelPrintedAfterPrint, setSetLabelPrintedAfterPrint] = useState(true);
 
   // Bulk update handlers
-  const handleToggleBoxStatus = async (boxId: number, field: 'isMovedToTarget' | 'labelPrinted', currentValue: boolean) => {
-    try {
-      await updateBox(boxId, { [field]: !currentValue });
-      await loadData();
-    } catch (err) {
-      setSnackbar({ open: true, message: t('errors.boxUpdateFailed'), severity: 'error' });
-      console.error(err);
-    }
-  };
-
   const handleBulkUpdateMoved = async () => {
     const selectedBoxes = filteredBoxes.filter((b) => selectedIds.includes(b.id));
     const allMoved = selectedBoxes.every((b) => b.isMovedToTarget);
@@ -239,7 +229,40 @@ export default function BoxList() {
 
   // Render a single box card (for both regular and virtualized rendering)
   const renderBoxCard = useCallback((box: BoxModel) => (
-    <Paper key={box.id} sx={{ borderRadius: 2, boxShadow: 2 }}>
+    <Paper key={box.id} sx={{ borderRadius: 2, boxShadow: 2, position: 'relative' }}>
+      {/* Status badges in top right corner */}
+      {(box.labelPrinted || box.isMovedToTarget) && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            display: 'flex',
+            gap: 0.5,
+            zIndex: 1,
+          }}
+        >
+          {box.labelPrinted && (
+            <Chip
+              icon={<Label />}
+              label={t('boxes.labelPrinted')}
+              size="small"
+              color="primary"
+              sx={{ pointerEvents: 'none' }}
+            />
+          )}
+          {box.isMovedToTarget && (
+            <Chip
+              icon={<LocalShipping />}
+              label={t('boxes.moved')}
+              size="small"
+              color="success"
+              sx={{ pointerEvents: 'none' }}
+            />
+          )}
+        </Box>
+      )}
+      
       <Box sx={{ p: 2 }}>
         <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" flexWrap="wrap">
           <Stack direction="row" spacing={2} alignItems="center" sx={{ flex: 1, minWidth: 200 }}>
@@ -275,44 +298,6 @@ export default function BoxList() {
           </Stack>
 
           <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" justifyContent="flex-end">
-            {box.isMovedToTarget && (
-              <IconButton
-                size="medium"
-                color="success"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleToggleBoxStatus(box.id, 'isMovedToTarget', box.isMovedToTarget ?? false);
-                }}
-                sx={{
-                  minWidth: 48,
-                  minHeight: 48,
-                  transition: 'transform 0.2s',
-                  '&:active': { transform: 'scale(0.9)' }
-                }}
-                title={t('boxes.moved')}
-              >
-                <LocalShipping />
-              </IconButton>
-            )}
-            {box.labelPrinted && (
-              <IconButton
-                size="medium"
-                color="primary"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleToggleBoxStatus(box.id, 'labelPrinted', box.labelPrinted ?? false);
-                }}
-                sx={{
-                  minWidth: 48,
-                  minHeight: 48,
-                  transition: 'transform 0.2s',
-                  '&:active': { transform: 'scale(0.9)' }
-                }}
-                title={t('boxes.labelPrinted')}
-              >
-                <Label />
-              </IconButton>
-            )}
             <IconButton
               size="medium"
               title={t('boxes.actions')}
