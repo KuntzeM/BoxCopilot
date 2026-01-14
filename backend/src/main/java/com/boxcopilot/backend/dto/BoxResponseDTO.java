@@ -19,6 +19,8 @@ public class BoxResponseDTO {
     private List<ItemResponseDTO> items;
     private Boolean isFragile;
     private Boolean noStack;
+    private Boolean isMovedToTarget;
+    private Boolean labelPrinted;
 
     public BoxResponseDTO() {
     }
@@ -33,6 +35,8 @@ public class BoxResponseDTO {
         this.createdAt = createdAt;
         this.isFragile = false;
         this.noStack = false;
+        this.isMovedToTarget = false;
+        this.labelPrinted = false;
     }
 
     public Long getId() {
@@ -113,5 +117,21 @@ public class BoxResponseDTO {
 
     public void setNoStack(Boolean noStack) {
         this.noStack = noStack;
+    }
+
+    public Boolean getIsMovedToTarget() {
+        return isMovedToTarget;
+    }
+
+    public void setIsMovedToTarget(Boolean isMovedToTarget) {
+        this.isMovedToTarget = isMovedToTarget;
+    }
+
+    public Boolean getLabelPrinted() {
+        return labelPrinted;
+    }
+
+    public void setLabelPrinted(Boolean labelPrinted) {
+        this.labelPrinted = labelPrinted;
     }
 }

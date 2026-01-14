@@ -72,6 +72,8 @@ const BoxEditPage: React.FC = () => {
     description: '',
     isFragile: false,
     noStack: false,
+    isMovedToTarget: false,
+    labelPrinted: false,
   });
 
   useEffect(() => {
@@ -82,6 +84,8 @@ const BoxEditPage: React.FC = () => {
         description: box.description || '',
         isFragile: box.isFragile || false,
         noStack: box.noStack || false,
+        isMovedToTarget: box.isMovedToTarget || false,
+        labelPrinted: box.labelPrinted || false,
       });
     }
   }, [box]);
@@ -97,6 +101,8 @@ const BoxEditPage: React.FC = () => {
         description: formData.description,
         isFragile: formData.isFragile,
         noStack: formData.noStack,
+        isMovedToTarget: formData.isMovedToTarget,
+        labelPrinted: formData.labelPrinted,
       });
 
       setSnackbar({ message: t('success.boxSaved'), severity: 'success' });

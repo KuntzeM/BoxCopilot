@@ -34,6 +34,12 @@ public class Box {
     @Column(name = "no_stack", nullable = false)
     private Boolean noStack = false;
 
+    @Column(name = "is_moved_to_target", nullable = false)
+    private Boolean isMovedToTarget = false;
+
+    @Column(name = "label_printed", nullable = false)
+    private Boolean labelPrinted = false;
+
     private Instant createdAt = Instant.now();
 
     @OneToMany(mappedBy = "box", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -49,6 +55,8 @@ public class Box {
         this.description = description;
         this.isFragile = false;
         this.noStack = false;
+        this.isMovedToTarget = false;
+        this.labelPrinted = false;
     }
 
     public Long getId() { return id; }
@@ -73,6 +81,12 @@ public class Box {
     
     public Boolean getNoStack() { return noStack; }
     public void setNoStack(Boolean noStack) { this.noStack = noStack; }
+    
+    public Boolean getIsMovedToTarget() { return isMovedToTarget; }
+    public void setIsMovedToTarget(Boolean isMovedToTarget) { this.isMovedToTarget = isMovedToTarget; }
+    
+    public Boolean getLabelPrinted() { return labelPrinted; }
+    public void setLabelPrinted(Boolean labelPrinted) { this.labelPrinted = labelPrinted; }
     
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }

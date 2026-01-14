@@ -20,6 +20,8 @@ export interface Box {
   publicUrl?: string;
   isFragile?: boolean;
   noStack?: boolean;
+  isMovedToTarget?: boolean;
+  labelPrinted?: boolean;
 }
 
 export interface BoxPreviewItem {
@@ -38,6 +40,8 @@ export interface BoxPreview {
   items: BoxPreviewItem[];
   isFragile?: boolean;
   noStack?: boolean;
+  isMovedToTarget?: boolean;
+  labelPrinted?: boolean;
 }
 
 export interface CreateBoxPayload {
@@ -46,6 +50,8 @@ export interface CreateBoxPayload {
   description?: string;
   isFragile?: boolean;
   noStack?: boolean;
+  isMovedToTarget?: boolean;
+  labelPrinted?: boolean;
 }
 
 export type UpdateBoxPayload = CreateBoxPayload;
