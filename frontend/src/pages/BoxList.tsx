@@ -245,19 +245,37 @@ export default function BoxList() {
           {box.labelPrinted && (
             <Chip
               icon={<Label />}
-              label={t('boxes.labelPrinted')}
+              label={isMobile ? undefined : t('boxes.labelPrinted')}
               size="small"
               color="primary"
-              sx={{ pointerEvents: 'none' }}
+              sx={{ 
+                pointerEvents: 'none',
+                ...(isMobile && {
+                  '& .MuiChip-label': { display: 'none' },
+                  '& .MuiChip-icon': { margin: 0 },
+                  minWidth: 32,
+                  height: 24,
+                  padding: '4px',
+                })
+              }}
             />
           )}
           {box.isMovedToTarget && (
             <Chip
               icon={<LocalShipping />}
-              label={t('boxes.moved')}
+              label={isMobile ? undefined : t('boxes.moved')}
               size="small"
               color="success"
-              sx={{ pointerEvents: 'none' }}
+              sx={{ 
+                pointerEvents: 'none',
+                ...(isMobile && {
+                  '& .MuiChip-label': { display: 'none' },
+                  '& .MuiChip-icon': { margin: 0 },
+                  minWidth: 32,
+                  height: 24,
+                  padding: '4px',
+                })
+              }}
             />
           )}
         </Box>
