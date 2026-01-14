@@ -20,6 +20,10 @@ public class BoxUpdateDTO {
     
     private Boolean noStack;
 
+    private Boolean isMovedToTarget;
+
+    private Boolean labelPrinted;
+
     public BoxUpdateDTO() {
     }
 
@@ -67,5 +71,21 @@ public class BoxUpdateDTO {
 
     public void setNoStack(Boolean noStack) {
         this.noStack = noStack;
+    }
+
+    public Boolean getIsMovedToTarget() {
+        return isMovedToTarget;
+    }
+
+    public void setIsMovedToTarget(Boolean isMovedToTarget) {
+        this.isMovedToTarget = isMovedToTarget;
+    }
+
+    public Boolean getLabelPrinted() {
+        return labelPrinted;
+    }
+
+    public void setLabelPrinted(Boolean labelPrinted) {
+        this.labelPrinted = labelPrinted;
     }
 }

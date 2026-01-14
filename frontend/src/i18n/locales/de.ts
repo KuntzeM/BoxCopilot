@@ -84,6 +84,22 @@ export const de = {
     resetFilters: 'Filter zurücksetzen',
     onlyFragileBoxes: 'Nur zerbrechliche Boxen',
     onlyNoStackBoxes: 'Nur nicht stapelbare Boxen',
+    onlyMovedBoxes: 'Nur umgezogene Boxen',
+    onlyLabelPrintedBoxes: 'Nur Boxen mit gedrucktem Label',
+    
+    // Status
+    moved: 'Umgezogen',
+    labelPrinted: 'Label gedruckt',
+    statusManagement: 'Verwaltung',
+    
+    // Bulk operations
+    bulkUpdate: 'Bulk-Update',
+    setMoved: 'Umgezogen setzen',
+    removeMoved: '✓ Umgezogen',
+    setLabelPrinted: 'Label gedruckt setzen',
+    removeLabelPrinted: '✓ Label gedruckt',
+    markAllAsPrinted: 'Alle als "Label gedruckt" markieren',
+    printLabelsForBoxes: 'Labels für {{count}} Boxen drucken?',
     
     // Print
     printLabels: 'Label drucken',
