@@ -96,8 +96,11 @@ export default function AdminPanel() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [expiryConfigDialogOpen, setExpiryConfigDialogOpen] = useState(false);
   const [magicLinkDialogOpen, setMagicLinkDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [userForMagicLink, setUserForMagicLink] = useState<User | null>(null);
+  const [selectedExpiry, setSelectedExpiry] = useState<number>(24);
 
   // Form state
   const [formData, setFormData] = useState<Partial<CreateUserPayload | UpdateUserPayload>>({});
@@ -208,18 +211,27 @@ export default function AdminPanel() {
     }
   };
 
-  const handleGenerateMagicLink = async (user: User) => {
+  const handleGenerateMagicLink = (user: User) => {
+    setUserForMagicLink(user);
+    setSelectedExpiry(24); // Reset to default
+    setExpiryConfigDialogOpen(true);
+  };
+
+  const handleConfirmGeneration = async () => {
+    if (!userForMagicLink) return;
     try {
-      const response = await userService.createMagicLink(user.id);
+      const response = await userService.createMagicLink(userForMagicLink.id, { expiresInHours: selectedExpiry });
       setMagicLinkData({
         url: response.url,
         expiresAt: response.expiresAt,
       });
-      setSelectedUser(user);
+      setSelectedUser(userForMagicLink);
+      setExpiryConfigDialogOpen(false);
       setMagicLinkDialogOpen(true);
       setSuccessMessage(t('admin.magicLinkGenerated'));
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Failed to generate magic link');
+      // Keep config dialog open on error
     }
   };
 
@@ -816,6 +828,53 @@ export default function AdminPanel() {
             sx={{ minHeight: 56 }}
           >
             {t('admin.save')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Expiry Configuration Dialog */}
+      <Dialog 
+        open={expiryConfigDialogOpen} 
+        onClose={() => setExpiryConfigDialogOpen(false)}
+        maxWidth="sm" 
+        fullWidth
+      >
+        <DialogTitle>{t('admin.configMagicLinkTitle')}</DialogTitle>
+        <DialogContent>
+          <FormControl fullWidth margin="normal" sx={{ mt: 2 }}>
+            <InputLabel>{t('admin.selectExpiryLabel')}</InputLabel>
+            <Select
+              value={selectedExpiry}
+              label={t('admin.selectExpiryLabel')}
+              onChange={(e) => setSelectedExpiry(e.target.value as number)}
+            >
+              <MenuItem value={1}>{t('admin.expiry1h')}</MenuItem>
+              <MenuItem value={4}>{t('admin.expiry4h')}</MenuItem>
+              <MenuItem value={8}>{t('admin.expiry8h')}</MenuItem>
+              <MenuItem value={24}>{t('admin.expiry24h')}</MenuItem>
+              <MenuItem value={168}>{t('admin.expiry1week')}</MenuItem>
+              <MenuItem value={744}>{t('admin.expiry1month')}</MenuItem>
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button 
+            onClick={() => setExpiryConfigDialogOpen(false)}
+            fullWidth
+            size="large"
+            variant="outlined"
+            sx={{ minHeight: 56 }}
+          >
+            {t('admin.cancel')}
+          </Button>
+          <Button 
+            onClick={handleConfirmGeneration} 
+            variant="contained"
+            fullWidth
+            size="large"
+            sx={{ minHeight: 56 }}
+          >
+            {t('admin.generate')}
           </Button>
         </DialogActions>
       </Dialog>

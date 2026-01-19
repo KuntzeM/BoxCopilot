@@ -252,6 +252,16 @@ export const de = {
     magicLinkCopied: 'Link in Zwischenablage kopiert',
     magicLinkClose: 'Schließen',
     passwordless: 'Passwortlos',
+    // Expiry configuration
+    configMagicLinkTitle: 'Magic Link konfigurieren',
+    selectExpiryLabel: 'Gültigkeitsdauer',
+    expiry1h: '1 Stunde',
+    expiry4h: '4 Stunden',
+    expiry8h: '8 Stunden',
+    expiry24h: '24 Stunden (1 Tag)',
+    expiry1week: '1 Woche',
+    expiry1month: '1 Monat',
+    generate: 'Generieren',
   },
 };
 

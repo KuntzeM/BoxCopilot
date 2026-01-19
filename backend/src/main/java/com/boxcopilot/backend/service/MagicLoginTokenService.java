@@ -126,10 +126,6 @@ public class MagicLoginTokenService {
             return Optional.empty();
         }
         
-        // Mark token as used (single-use) and persist
-        token.markAsUsed();
-        tokenRepository.save(token);
-        
         log.info("Magic login successful for user '{}' (id: {})", 
                 token.getUser().getUsername(), token.getUser().getId());
         

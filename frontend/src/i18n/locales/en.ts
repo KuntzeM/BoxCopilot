@@ -254,5 +254,15 @@ export const en: TranslationKeys = {
     magicLinkCopied: 'Link copied to clipboard',
     magicLinkClose: 'Close',
     passwordless: 'Passwordless',
+    // Expiry configuration
+    configMagicLinkTitle: 'Configure Magic Link',
+    selectExpiryLabel: 'Expiry Duration',
+    expiry1h: '1 Hour',
+    expiry4h: '4 Hours',
+    expiry8h: '8 Hours',
+    expiry24h: '24 Hours (1 Day)',
+    expiry1week: '1 Week',
+    expiry1month: '1 Month',
+    generate: 'Generate',
   },
 };
