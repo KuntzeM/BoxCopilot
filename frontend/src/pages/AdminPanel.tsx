@@ -35,6 +35,9 @@ import {
   Stack,
   Divider,
   Collapse,
+  Menu,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -48,6 +51,7 @@ import {
   FilterList as FilterIcon,
   ExpandMore,
   ExpandLess,
+  MoreVert as MoreVertIcon,
 } from '@mui/icons-material';
 import { useTranslation } from '../hooks/useTranslation';
 import { userService } from '../services/userService';
@@ -96,8 +100,13 @@ export default function AdminPanel() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [expiryConfigDialogOpen, setExpiryConfigDialogOpen] = useState(false);
   const [magicLinkDialogOpen, setMagicLinkDialogOpen] = useState(false);
+  const [revokeMagicLinkDialogOpen, setRevokeMagicLinkDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [userForMagicLink, setUserForMagicLink] = useState<User | null>(null);
+  const [selectedExpiry, setSelectedExpiry] = useState<number>(24);
+  const [menuAnchor, setMenuAnchor] = useState<{ [key: number]: HTMLElement | null }>({});
 
   // Form state
   const [formData, setFormData] = useState<Partial<CreateUserPayload | UpdateUserPayload>>({});
@@ -208,18 +217,57 @@ export default function AdminPanel() {
     }
   };
 
-  const handleGenerateMagicLink = async (user: User) => {
+  const handleGenerateMagicLink = (user: User) => {
+    setUserForMagicLink(user);
+    setSelectedExpiry(24); // Reset to default
+    setExpiryConfigDialogOpen(true);
+  };
+
+  const handleConfirmGeneration = async () => {
+    if (!userForMagicLink) return;
     try {
-      const response = await userService.createMagicLink(user.id);
+      const response = await userService.createMagicLink(userForMagicLink.id, { expiresInHours: selectedExpiry });
       setMagicLinkData({
         url: response.url,
         expiresAt: response.expiresAt,
       });
-      setSelectedUser(user);
+      setSelectedUser(userForMagicLink);
+      setExpiryConfigDialogOpen(false);
       setMagicLinkDialogOpen(true);
       setSuccessMessage(t('admin.magicLinkGenerated'));
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Failed to generate magic link');
+      // Keep config dialog open on error
+    }
+  };
+
+  const handleDeleteMagicLink = async () => {
+    if (!selectedUser) return;
+    try {
+      await userService.deleteMagicLink(selectedUser.id);
+      setSuccessMessage(t('admin.magicLinkDeleted'));
+      setMagicLinkDialogOpen(false);
+      setMagicLinkData(null);
+      setSelectedUser(null);
+    } catch (err: any) {
+      setError(err.response?.data?.message || err.message || 'Failed to delete magic link');
+    }
+  };
+
+  const openRevokeMagicLinkDialog = (user: User) => {
+    setSelectedUser(user);
+    setRevokeMagicLinkDialogOpen(true);
+  };
+
+  const handleRevokeMagicLink = async () => {
+    if (!selectedUser) return;
+    try {
+      await userService.deleteMagicLink(selectedUser.id);
+      setSuccessMessage(t('admin.magicLinkDeleted'));
+      setRevokeMagicLinkDialogOpen(false);
+      setSelectedUser(null);
+    } catch (err: any) {
+      setError(err.response?.data?.message || err.message || 'Failed to delete magic link');
     }
   };
 
@@ -276,6 +324,14 @@ export default function AdminPanel() {
     return user.lockedUntil && new Date(user.lockedUntil) > new Date();
   };
 
+  const handleMenuOpen = (userId: number, event: React.MouseEvent<HTMLElement>) => {
+    setMenuAnchor({ ...menuAnchor, [userId]: event.currentTarget });
+  };
+
+  const handleMenuClose = (userId: number) => {
+    setMenuAnchor({ ...menuAnchor, [userId]: null });
+  };
+
   const renderUserCard = (user: User) => (
     <Card key={user.id} sx={{ mb: 2 }}>
       <CardContent>
@@ -288,87 +344,73 @@ export default function AdminPanel() {
             {getStatusChip(user)}
           </Box>
 
-          <Stack direction="row" spacing={1} flexWrap="wrap">
-            <Chip
-              label={user.role === Role.ADMIN ? t('admin.admin') : t('admin.user')}
-              color={user.role === Role.ADMIN ? 'primary' : 'default'}
-              size="small"
-              icon={user.role === Role.ADMIN ? <AdminIcon /> : <PersonIcon />}
-            />
-            <Chip
-              label={user.authProvider === AuthProvider.NEXTCLOUD ? t('admin.nextcloud') : t('admin.local')}
-              variant="outlined"
-              size="small"
-            />
-            {user.authProvider === AuthProvider.LOCAL && !user.hasPassword && (
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Stack direction="row" spacing={1} flexWrap="wrap">
               <Chip
-                label={t('admin.passwordless')}
-                color="warning"
+                label={user.role === Role.ADMIN ? t('admin.admin') : t('admin.user')}
+                color={user.role === Role.ADMIN ? 'primary' : 'default'}
+                size="small"
+                icon={user.role === Role.ADMIN ? <AdminIcon /> : <PersonIcon />}
+              />
+              <Chip
+                label={user.authProvider === AuthProvider.NEXTCLOUD ? t('admin.nextcloud') : t('admin.local')}
                 variant="outlined"
                 size="small"
               />
-            )}
-          </Stack>
-
-          <Divider />
-
-          <Stack direction="row" spacing={1} flexWrap="wrap">
-            <Button
+              {user.authProvider === AuthProvider.LOCAL && !user.hasPassword && (
+                <Chip
+                  label={t('admin.passwordless')}
+                  color="warning"
+                  variant="outlined"
+                  size="small"
+                />
+              )}
+            </Stack>
+            <IconButton
+              onClick={(e) => handleMenuOpen(user.id, e)}
               size="small"
-              variant="outlined"
-              startIcon={<EditIcon />}
-              onClick={() => openEditDialog(user)}
-              fullWidth={isMobile}
-              sx={{ minHeight: 44 }}
             >
-              {t('admin.editUser')}
-            </Button>
+              <MoreVertIcon />
+            </IconButton>
+          </Box>
+
+          <Menu
+            anchorEl={menuAnchor[user.id] || null}
+            open={Boolean(menuAnchor[user.id])}
+            onClose={() => handleMenuClose(user.id)}
+          >
+            <MenuItem onClick={() => { openEditDialog(user); handleMenuClose(user.id); }}>
+              <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>{t('admin.editUser')}</ListItemText>
+            </MenuItem>
             {isUserLocked(user) && (
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={<LockOpenIcon />}
-                onClick={() => handleUnlockUser(user)}
-                fullWidth={isMobile}
-                sx={{ minHeight: 44 }}
-              >
-                {t('admin.unlock')}
-              </Button>
+              <MenuItem onClick={() => { handleUnlockUser(user); handleMenuClose(user.id); }}>
+                <ListItemIcon><LockOpenIcon fontSize="small" /></ListItemIcon>
+                <ListItemText>{t('admin.unlock')}</ListItemText>
+              </MenuItem>
             )}
             {user.authProvider === AuthProvider.LOCAL && (
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={<LockIcon />}
-                onClick={() => openPasswordDialog(user)}
-                fullWidth={isMobile}
-                sx={{ minHeight: 44 }}
-              >
-                {t('admin.setPassword')}
-              </Button>
+              <MenuItem onClick={() => { openPasswordDialog(user); handleMenuClose(user.id); }}>
+                <ListItemIcon><LockIcon fontSize="small" /></ListItemIcon>
+                <ListItemText>{t('admin.setPassword')}</ListItemText>
+              </MenuItem>
             )}
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<LinkIcon />}
-              onClick={() => handleGenerateMagicLink(user)}
-              fullWidth={isMobile}
-              sx={{ minHeight: 44 }}
-            >
-              Magic Link
-            </Button>
-            <Button
-              size="small"
-              variant="outlined"
-              color="error"
-              startIcon={<DeleteIcon />}
-              onClick={() => openDeleteDialog(user)}
-              fullWidth={isMobile}
-              sx={{ minHeight: 44 }}
-            >
-              {t('admin.deleteUser')}
-            </Button>
-          </Stack>
+            <MenuItem onClick={() => { handleGenerateMagicLink(user); handleMenuClose(user.id); }}>
+              <ListItemIcon><LinkIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>{t('admin.generateMagicLink')}</ListItemText>
+            </MenuItem>
+            <MenuItem onClick={() => { openRevokeMagicLinkDialog(user); handleMenuClose(user.id); }}>
+              <ListItemIcon><DeleteIcon fontSize="small" color="warning" /></ListItemIcon>
+              <ListItemText>{t('admin.revokeMagicLink')}</ListItemText>
+            </MenuItem>
+            <Divider />
+            <MenuItem onClick={() => { openDeleteDialog(user); handleMenuClose(user.id); }}>
+              <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
+              <ListItemText sx={{ color: 'error.main' }}>{t('admin.deleteUser')}</ListItemText>
+            </MenuItem>
+          </Menu>
+
+          <Divider />
 
           <Box>
             <Typography variant="caption" color="text.secondary">
@@ -581,6 +623,14 @@ export default function AdminPanel() {
                         </IconButton>
                         <IconButton
                           size="small"
+                          onClick={() => openRevokeMagicLinkDialog(user)}
+                          title={t('admin.revokeMagicLink')}
+                          color="warning"
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
                           onClick={() => handleToggleAdmin(user)}
                           title={user.role === Role.ADMIN ? t('admin.removeAdmin') : t('admin.makeAdmin')}
                         >
@@ -784,6 +834,37 @@ export default function AdminPanel() {
         </DialogActions>
       </Dialog>
 
+      {/* Revoke Magic Link Confirmation Dialog */}
+      <Dialog open={revokeMagicLinkDialogOpen} onClose={() => setRevokeMagicLinkDialogOpen(false)}>
+        <DialogTitle>{t('admin.revokeMagicLink')}</DialogTitle>
+        <DialogContent>
+          <Typography>
+            {t('admin.revokeMagicLinkConfirm', { username: selectedUser?.username || '' })}
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button 
+            onClick={() => setRevokeMagicLinkDialogOpen(false)}
+            fullWidth
+            size="large"
+            variant="outlined"
+            sx={{ minHeight: 56 }}
+          >
+            {t('admin.cancel')}
+          </Button>
+          <Button 
+            onClick={handleRevokeMagicLink} 
+            variant="contained" 
+            color="warning"
+            fullWidth
+            size="large"
+            sx={{ minHeight: 56 }}
+          >
+            {t('admin.revokeMagicLink')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Set Password Dialog */}
       <Dialog open={passwordDialogOpen} onClose={() => setPasswordDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>{t('admin.setPassword')}</DialogTitle>
@@ -816,6 +897,53 @@ export default function AdminPanel() {
             sx={{ minHeight: 56 }}
           >
             {t('admin.save')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Expiry Configuration Dialog */}
+      <Dialog 
+        open={expiryConfigDialogOpen} 
+        onClose={() => setExpiryConfigDialogOpen(false)}
+        maxWidth="sm" 
+        fullWidth
+      >
+        <DialogTitle>{t('admin.configMagicLinkTitle')}</DialogTitle>
+        <DialogContent>
+          <FormControl fullWidth margin="normal" sx={{ mt: 2 }}>
+            <InputLabel>{t('admin.selectExpiryLabel')}</InputLabel>
+            <Select
+              value={selectedExpiry}
+              label={t('admin.selectExpiryLabel')}
+              onChange={(e) => setSelectedExpiry(e.target.value as number)}
+            >
+              <MenuItem value={1}>{t('admin.expiry1h')}</MenuItem>
+              <MenuItem value={4}>{t('admin.expiry4h')}</MenuItem>
+              <MenuItem value={8}>{t('admin.expiry8h')}</MenuItem>
+              <MenuItem value={24}>{t('admin.expiry24h')}</MenuItem>
+              <MenuItem value={168}>{t('admin.expiry1week')}</MenuItem>
+              <MenuItem value={744}>{t('admin.expiry1month')}</MenuItem>
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button 
+            onClick={() => setExpiryConfigDialogOpen(false)}
+            fullWidth
+            size="large"
+            variant="outlined"
+            sx={{ minHeight: 56 }}
+          >
+            {t('admin.cancel')}
+          </Button>
+          <Button 
+            onClick={handleConfirmGeneration} 
+            variant="contained"
+            fullWidth
+            size="large"
+            sx={{ minHeight: 56 }}
+          >
+            {t('admin.generate')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -853,11 +981,21 @@ export default function AdminPanel() {
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <Button 
+            onClick={handleDeleteMagicLink} 
+            variant="outlined" 
+            color="error"
+            startIcon={<DeleteIcon />}
+            size="large"
+            sx={{ minHeight: 56 }}
+          >
+            {t('admin.deleteMagicLink')}
+          </Button>
+          <Box sx={{ flex: 1 }} />
+          <Button 
             onClick={() => {
               setMagicLinkDialogOpen(false);
               setMagicLinkData(null);
             }}
-            fullWidth
             size="large"
             variant="outlined"
             sx={{ minHeight: 56 }}
@@ -868,7 +1006,6 @@ export default function AdminPanel() {
             onClick={handleCopyMagicLink} 
             variant="contained" 
             startIcon={<LinkIcon />}
-            fullWidth
             size="large"
             sx={{ minHeight: 56 }}
           >

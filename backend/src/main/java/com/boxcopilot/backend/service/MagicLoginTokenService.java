@@ -126,10 +126,6 @@ public class MagicLoginTokenService {
             return Optional.empty();
         }
         
-        // Mark token as used (single-use) and persist
-        token.markAsUsed();
-        tokenRepository.save(token);
-        
         log.info("Magic login successful for user '{}' (id: {})", 
                 token.getUser().getUsername(), token.getUser().getId());
         
@@ -155,6 +151,16 @@ public class MagicLoginTokenService {
     public void invalidateAllTokensForUser(User user) {
         tokenRepository.deleteByUser(user);
         log.info("Invalidated all magic login tokens for user '{}'", user.getUsername());
+    }
+    
+    /**
+     * Invalidate all tokens for a user by user ID
+     */
+    @Transactional
+    public void invalidateAllTokensForUserId(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        invalidateAllTokensForUser(user);
     }
     
     /**

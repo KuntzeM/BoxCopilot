@@ -164,6 +164,25 @@ public class AdminUserController {
     }
     
     /**
+     * Revoke/delete all magic login tokens for a user
+     */
+    @DeleteMapping("/{id}/magic-link")
+    public ResponseEntity<Void> revokeMagicLinks(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Object principal) {
+        
+        log.info("Revoking all magic links for user with id: {}", id);
+        
+        try {
+            magicLoginTokenService.invalidateAllTokensForUserId(id);
+            return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException e) {
+            log.error("Error revoking magic links: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        }
+    }
+    
+    /**
      * Delete user
      */
     @DeleteMapping("/{id}")
