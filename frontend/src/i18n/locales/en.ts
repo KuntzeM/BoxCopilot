@@ -253,6 +253,10 @@ export const en: TranslationKeys = {
     magicLinkCopy: 'Copy Link',
     magicLinkCopied: 'Link copied to clipboard',
     magicLinkClose: 'Close',
+    deleteMagicLink: 'Delete Magic Link',
+    revokeMagicLink: 'Revoke Magic Link',
+    revokeMagicLinkConfirm: 'Do you want to revoke all magic links for user {{username}}?',
+    magicLinkDeleted: 'Magic link deleted',
     passwordless: 'Passwordless',
     // Expiry configuration
     configMagicLinkTitle: 'Configure Magic Link',

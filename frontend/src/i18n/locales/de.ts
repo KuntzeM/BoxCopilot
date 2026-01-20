@@ -251,6 +251,10 @@ export const de = {
     magicLinkCopy: 'Link kopieren',
     magicLinkCopied: 'Link in Zwischenablage kopiert',
     magicLinkClose: 'Schließen',
+    deleteMagicLink: 'Magic Link löschen',
+    revokeMagicLink: 'Magic Link widerrufen',
+    revokeMagicLinkConfirm: 'Möchten Sie alle Magic Links für Benutzer {{username}} widerrufen?',
+    magicLinkDeleted: 'Magic Link gelöscht',
     passwordless: 'Passwortlos',
     // Expiry configuration
     configMagicLinkTitle: 'Magic Link konfigurieren',

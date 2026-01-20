@@ -154,6 +154,16 @@ public class MagicLoginTokenService {
     }
     
     /**
+     * Invalidate all tokens for a user by user ID
+     */
+    @Transactional
+    public void invalidateAllTokensForUserId(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        invalidateAllTokensForUser(user);
+    }
+    
+    /**
      * Cleanup expired tokens (can be called periodically)
      */
     @Transactional

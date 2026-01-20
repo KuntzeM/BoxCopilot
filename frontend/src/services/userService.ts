@@ -80,4 +80,11 @@ export const userService = {
     const response = await axios.post<MagicLinkResponse>(`/api/v1/admin/users/${id}/magic-link`, payload || {});
     return response.data;
   },
+
+  /**
+   * Revoke/delete all magic login links for user
+   */
+  async deleteMagicLink(id: number): Promise<void> {
+    await axios.delete(`/api/v1/admin/users/${id}/magic-link`);
+  },
 };
