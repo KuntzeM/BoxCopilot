@@ -41,7 +41,7 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
       setLanguage,
       t,
     }),
-    [language, setLanguage, t]
+    [language, t]
   );
 
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
