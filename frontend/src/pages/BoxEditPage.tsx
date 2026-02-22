@@ -4,7 +4,7 @@ import { Box, Button, Paper, Typography, Alert, CircularProgress, Stack, Snackba
 import { ArrowBack, Save, ExpandMore, ExpandLess } from '@mui/icons-material';
 import * as boxService from '../services/boxService';
 import * as itemService from '../services/itemService';
-import { Box as BoxType, Item, CreateItemPayload, UpdateItemPayload } from '../types/models';
+import { Box as BoxType, Item, UpdateItemPayload } from '../types/models';
 import BoxForm, { BoxFormData } from '../components/BoxForm';
 import EnhancedItemsTable from '../components/EnhancedItemsTable';
 import { ItemForm } from '../components/ItemForm';
@@ -33,7 +33,7 @@ const BoxEditPage: React.FC = () => {
     setIsLoading(true);
     try {
       // Fetch all boxes and find the one with matching ID
-      const allBoxes = await boxService.fetchBoxes();
+      const allBoxes = await boxService.fetchBoxes({ includeItems: false });
       const boxData = allBoxes.find((b) => b.id === boxId);
       
       if (!boxData) {
@@ -44,9 +44,8 @@ const BoxEditPage: React.FC = () => {
       
       setBox(boxData);
 
-      // Filtere Items für diese Box
-      const allItems = boxData.items || [];
-      setItems(allItems);
+      const boxItems = await itemService.fetchItemsByBoxUuid(boxData.uuid);
+      setItems(boxItems);
       setError(null);
     } catch (err) {
       setError(t('errors.itemsLoadFailed'));

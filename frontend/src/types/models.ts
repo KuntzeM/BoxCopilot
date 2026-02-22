@@ -12,6 +12,7 @@ export interface Box {
   id: number;
   uuid: string;
   boxNumber: number;
+  itemCount?: number;
   currentRoom?: string;
   targetRoom?: string;
   description?: string;

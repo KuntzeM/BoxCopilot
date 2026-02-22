@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Alert,
@@ -31,6 +31,7 @@ import {
   ListItemButton,
   Menu,
   MenuItem,
+  CircularProgress,
 } from '@mui/material';
 import {
   Add,
@@ -52,11 +53,8 @@ import {
   EditNote,
   DoneAll,
 } from '@mui/icons-material';
-import { QRCodeCanvas } from 'qrcode.react';
-import { List as VirtualList } from 'react-window';
-import { Box as BoxModel, Item, CreateBoxPayload } from '../types/models';
-import { fetchBoxes, createBox, deleteBox, updateBox } from '../services/boxService';
-import { searchItems } from '../services/itemService';
+import { Box as BoxModel } from '../types/models';
+import { updateBox } from '../services/boxService';
 import { truncateToFirstLine } from '../utils/textUtils';
 import { useTranslation } from '../hooks/useTranslation';
 import { LabelGenerationProgress } from '../components/LabelGenerationProgress';
@@ -139,6 +137,9 @@ export default function BoxList() {
     selectedBoxForActions,
     resolveImageUrl,
     withApiBase,
+    getBoxItems,
+    getBoxItemCount,
+    isLoadingItemsForBox,
     loadData,
     handleResetFilter,
     toggleSelect,
@@ -336,19 +337,26 @@ export default function BoxList() {
           direction="row"
           spacing={1}
           alignItems="center"
-          onClick={() => toggleExpandBox(box.id)}
+          onClick={() => toggleExpandBox(box)}
           sx={{ cursor: 'pointer', userSelect: 'none' }}
         >
           {expandedBoxes.has(box.id) ? <ExpandLess /> : <ExpandMore />}
           <Typography variant="subtitle1" fontWeight={700}>
-            {t('items.itemsCount', { count: box.items?.length || 0 })}
+            {t('items.itemsCount', { count: getBoxItemCount(box) })}
           </Typography>
         </Stack>
 
         <Collapse in={expandedBoxes.has(box.id)} timeout="auto" unmountOnExit>
           <Stack spacing={1.5} sx={{ mt: 2 }}>
-            {box.items && box.items.length > 0 ? (
-              box.items.map((item) => (
+            {isLoadingItemsForBox(box.id) ? (
+              <Stack direction="row" spacing={1} alignItems="center">
+                <CircularProgress size={18} />
+                <Typography variant="body2" color="text.secondary">
+                  {t('common.loading')}
+                </Typography>
+              </Stack>
+            ) : getBoxItems(box).length > 0 ? (
+              getBoxItems(box).map((item) => (
                 <Paper
                   key={item.id}
                   variant="outlined"
@@ -368,7 +376,11 @@ export default function BoxList() {
                         alt={item.name}
                         loading="lazy"
                         sx={{ width: 40, height: 40, cursor: 'pointer', flexShrink: 0 }}
-                        onClick={() => setFullImageUrl(withApiBase(item.imageUrl.replace('/image', '/image/large')))}
+                        onClick={() => {
+                          if (item.imageUrl) {
+                            setFullImageUrl(withApiBase(item.imageUrl.replace('/image', '/image/large')));
+                          }
+                        }}
                       />
                     ) : (
                       <Avatar sx={{ width: 40, height: 40, bgcolor: 'grey.300', flexShrink: 0 }}>
@@ -393,8 +405,6 @@ export default function BoxList() {
       </Box>
     </Paper>
   ), [selectedIds, expandedBoxes, t, resolveImageUrl, withApiBase, matchedItemIds, theme]);
-
-  const useVirtualization = filteredBoxes.length > 50;
 
   return (
     <Box sx={{ width: '100%', pb: 4 }}>
@@ -539,20 +549,6 @@ export default function BoxList() {
         <Paper sx={{ p: 3, textAlign: 'center' }}>{t('boxes.loadingBoxes')}</Paper>
       ) : filteredBoxes.length === 0 ? (
         <Alert severity="info">{t('boxes.noBoxesFound')}</Alert>
-      ) : useVirtualization ? (
-        <Box sx={{ height: 600, width: '100%' }}>
-          <VirtualList
-            defaultHeight={600}
-            rowCount={filteredBoxes.length}
-            rowHeight={200}
-          >
-            {({ index, style }) => (
-              <Box style={style} sx={{ px: 0, py: 1 }}>
-                {renderBoxCard(filteredBoxes[index])}
-              </Box>
-            )}
-          </VirtualList>
-        </Box>
       ) : (
         <Stack spacing={2}>
           {filteredBoxes.map((box) => renderBoxCard(box))}

@@ -38,10 +38,10 @@ public class BoxService {
      * Retrieves all boxes with their items.
      */
     @Transactional(readOnly = true)
-    public List<BoxResponseDTO> getAllBoxes() {
-        log.debug("Service: Fetching all boxes");
-        List<BoxResponseDTO> boxes = boxRepository.findAll().stream()
-            .map(boxMapper::toResponseDTO)
+    public List<BoxResponseDTO> getAllBoxes(boolean includeItems) {
+        log.debug("Service: Fetching all boxes (includeItems={})", includeItems);
+        List<BoxResponseDTO> boxes = boxRepository.findAllByOrderByBoxNumberDescIdDesc().stream()
+            .map(includeItems ? boxMapper::toResponseDTO : boxMapper::toSummaryResponseDTO)
             .collect(Collectors.toList());
         log.debug("Service: Found {} boxes", boxes.size());
         return boxes;
