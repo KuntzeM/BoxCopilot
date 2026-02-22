@@ -7,6 +7,7 @@ import com.boxcopilot.backend.dto.BoxResponseDTO;
 import com.boxcopilot.backend.dto.BoxUpdateDTO;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -67,12 +68,15 @@ public class BoxMapper {
         dto.setIsMovedToTarget(entity.getIsMovedToTarget());
         dto.setLabelPrinted(entity.getLabelPrinted());
 
-        // Add items if they exist (sorted alphabetically)
+        // Add items if they exist (sorted alphabetically), otherwise use empty list
         if (entity.getItems() != null && !entity.getItems().isEmpty()) {
             dto.setItems(entity.getItems().stream()
                 .sorted(Comparator.comparing(Item::getName, String.CASE_INSENSITIVE_ORDER))
                 .map(itemMapper::toResponseDTO)
                 .collect(Collectors.toList()));
+        } else {
+            // Ensure items is never null - set empty list if no items exist
+            dto.setItems(new ArrayList<>());
         }
 
         return dto;

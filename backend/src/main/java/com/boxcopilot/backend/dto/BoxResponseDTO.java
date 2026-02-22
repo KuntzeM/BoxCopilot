@@ -1,6 +1,7 @@
 package com.boxcopilot.backend.dto;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -16,7 +17,7 @@ public class BoxResponseDTO {
     private String targetRoom;
     private String description;
     private Instant createdAt;
-    private List<ItemResponseDTO> items;
+    private List<ItemResponseDTO> items = new ArrayList<>();
     private Boolean isFragile;
     private Boolean noStack;
     private Boolean isMovedToTarget;
@@ -33,6 +34,7 @@ public class BoxResponseDTO {
         this.targetRoom = targetRoom;
         this.description = description;
         this.createdAt = createdAt;
+        this.items = new ArrayList<>();
         this.isFragile = false;
         this.noStack = false;
         this.isMovedToTarget = false;
