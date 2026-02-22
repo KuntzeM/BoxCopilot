@@ -17,6 +17,7 @@ public class BoxResponseDTO {
     private String targetRoom;
     private String description;
     private Instant createdAt;
+    private Integer itemCount;
     private List<ItemResponseDTO> items = new ArrayList<>();
     private Boolean isFragile;
     private Boolean noStack;
@@ -34,6 +35,7 @@ public class BoxResponseDTO {
         this.targetRoom = targetRoom;
         this.description = description;
         this.createdAt = createdAt;
+        this.itemCount = 0;
         this.items = new ArrayList<>();
         this.isFragile = false;
         this.noStack = false;
@@ -95,6 +97,14 @@ public class BoxResponseDTO {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Integer getItemCount() {
+        return itemCount;
+    }
+
+    public void setItemCount(Integer itemCount) {
+        this.itemCount = itemCount;
     }
 
     public List<ItemResponseDTO> getItems() {

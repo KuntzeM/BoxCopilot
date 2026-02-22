@@ -20,6 +20,11 @@ export async function searchItems(query: string): Promise<Item[]> {
   return response.data || [];
 }
 
+export async function fetchItemsByBoxUuid(boxUuid: string): Promise<Item[]> {
+  const response = await axios.get(`/api/v1/items/box/${boxUuid}`);
+  return response.data || [];
+}
+
 export async function uploadItemImage(itemId: number, file: File): Promise<Item> {
   const formData = new FormData();
   formData.append('file', file);

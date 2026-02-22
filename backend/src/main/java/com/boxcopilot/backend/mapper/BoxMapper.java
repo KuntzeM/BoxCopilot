@@ -80,6 +80,37 @@ public class BoxMapper {
             // Ensure items is never null - set empty list if no items exist
             dto.setItems(new ArrayList<>());
         }
+        dto.setItemCount(dto.getItems().size());
+
+        return dto;
+    }
+
+    /**
+     * Converts Box entity to slim BoxResponseDTO for list views.
+     * Excludes item payload but provides item count.
+     */
+    public BoxResponseDTO toSummaryResponseDTO(Box entity) {
+        if (entity == null) {
+            return null;
+        }
+
+        BoxResponseDTO dto = new BoxResponseDTO(
+            entity.getId(),
+            entity.getUuid(),
+            entity.getCurrentRoom(),
+            entity.getTargetRoom(),
+            entity.getDescription(),
+            entity.getCreatedAt()
+        );
+
+        Integer boxNumber = entity.getBoxNumber();
+        dto.setBoxNumber(boxNumber != null ? boxNumber : 0);
+        dto.setIsFragile(entity.getIsFragile());
+        dto.setNoStack(entity.getNoStack());
+        dto.setIsMovedToTarget(entity.getIsMovedToTarget());
+        dto.setLabelPrinted(entity.getLabelPrinted());
+        dto.setItems(new ArrayList<>());
+        dto.setItemCount(entity.getItems() != null ? entity.getItems().size() : 0);
 
         return dto;
     }

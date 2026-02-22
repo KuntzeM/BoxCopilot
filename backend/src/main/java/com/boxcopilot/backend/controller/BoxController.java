@@ -35,9 +35,10 @@ public class BoxController {
      * Lists all boxes.
      */
     @GetMapping
-    public ResponseEntity<List<BoxResponseDTO>> list() {
-        log.debug("Fetching all boxes");
-        List<BoxResponseDTO> boxes = boxService.getAllBoxes();
+    public ResponseEntity<List<BoxResponseDTO>> list(
+            @RequestParam(name = "includeItems", defaultValue = "false") boolean includeItems) {
+        log.debug("Fetching all boxes (includeItems={})", includeItems);
+        List<BoxResponseDTO> boxes = boxService.getAllBoxes(includeItems);
         log.info("Retrieved {} boxes", boxes.size());
         return ResponseEntity.ok(boxes);
     }

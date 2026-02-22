@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, createElement } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box as BoxModel, CreateBoxPayload } from '../types/models';
+import { Box as BoxModel, CreateBoxPayload, Item } from '../types/models';
 import { fetchBoxes, createBox, deleteBox } from '../services/boxService';
-import { searchItems } from '../services/itemService';
+import { fetchItemsByBoxUuid, searchItems } from '../services/itemService';
 import { useTranslation } from './useTranslation';
 
 type SnackbarState = { open: boolean; message: string; severity: 'success' | 'error' | 'info' };
@@ -67,6 +67,8 @@ export const useBoxListLogic = () => {
   });
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
+  const [boxItemsById, setBoxItemsById] = useState<Record<number, Item[]>>({});
+  const [loadingBoxItemIds, setLoadingBoxItemIds] = useState<Set<number>>(new Set());
   
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -108,10 +110,10 @@ export const useBoxListLogic = () => {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const boxes = await fetchBoxes();
+      const boxes = await fetchBoxes({ includeItems: false });
 
       const withUrls = boxes
-        .sort((a, b) => (a.boxNumber || 0) - (b.boxNumber || 0))
+        .sort((a, b) => (b.boxNumber || 0) - (a.boxNumber || 0))
         .map((b) => ({
           ...b,
           publicUrl: `${window.location.origin}/public/${b.uuid}`,
@@ -120,6 +122,13 @@ export const useBoxListLogic = () => {
       setAllBoxes(withUrls);
       setFilteredBoxes(withUrls);
       setSelectedIds([]);
+      const initialItemsById = withUrls.reduce<Record<number, Item[]>>((acc, box) => {
+        if (box.items && box.items.length > 0) {
+          acc[box.id] = box.items;
+        }
+        return acc;
+      }, {});
+      setBoxItemsById(initialItemsById);
     } catch (error) {
       setSnackbar({ open: true, message: t('errors.boxesFetchFailed'), severity: 'error' });
     } finally {
@@ -195,17 +204,68 @@ export const useBoxListLogic = () => {
     setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   };
 
-  const toggleExpandBox = (id: number) => {
+  const loadItemsForBox = async (box: BoxModel) => {
+    if (boxItemsById[box.id] || loadingBoxItemIds.has(box.id)) {
+      return;
+    }
+
+    setLoadingBoxItemIds((prev) => {
+      const next = new Set(prev);
+      next.add(box.id);
+      return next;
+    });
+
+    try {
+      const items = await fetchItemsByBoxUuid(box.uuid);
+      setBoxItemsById((prev) => ({
+        ...prev,
+        [box.id]: items,
+      }));
+    } catch (error) {
+      setSnackbar({ open: true, message: t('errors.itemsLoadFailed'), severity: 'error' });
+    } finally {
+      setLoadingBoxItemIds((prev) => {
+        const next = new Set(prev);
+        next.delete(box.id);
+        return next;
+      });
+    }
+  };
+
+  const toggleExpandBox = async (box: BoxModel) => {
     setExpandedBoxes((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
+      if (next.has(box.id)) {
+        next.delete(box.id);
       } else {
-        next.add(id);
+        next.add(box.id);
       }
       return next;
     });
+
+    if (!expandedBoxes.has(box.id)) {
+      await loadItemsForBox(box);
+    }
   };
+
+  const getBoxItems = (box: BoxModel): Item[] => {
+    if (boxItemsById[box.id]) {
+      return boxItemsById[box.id];
+    }
+    return box.items || [];
+  };
+
+  const getBoxItemCount = (box: BoxModel): number => {
+    if (boxItemsById[box.id]) {
+      return boxItemsById[box.id].length;
+    }
+    if (typeof box.itemCount === 'number') {
+      return box.itemCount;
+    }
+    return box.items?.length || 0;
+  };
+
+  const isLoadingItemsForBox = (boxId: number): boolean => loadingBoxItemIds.has(boxId);
 
   const handleCopyLink = async (url?: string) => {
     if (!url) {
@@ -425,6 +485,7 @@ export const useBoxListLogic = () => {
     setShowAdvancedFilters,
     selectedIds,
     expandedBoxes,
+    loadingBoxItemIds,
     snackbar,
     setSnackbar,
     pdfProgress,
@@ -443,6 +504,9 @@ export const useBoxListLogic = () => {
     // Computed
     resolveImageUrl,
     withApiBase,
+    getBoxItems,
+    getBoxItemCount,
+    isLoadingItemsForBox,
     
     // Handlers
     loadData,

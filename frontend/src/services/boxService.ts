@@ -1,8 +1,16 @@
 import axios from './axiosConfig';
 import { Box, CreateBoxPayload, UpdateBoxPayload } from '../types/models';
 
-export async function fetchBoxes(): Promise<Box[]> {
-  const response = await axios.get('/api/v1/boxes');
+type FetchBoxesOptions = {
+  includeItems?: boolean;
+};
+
+export async function fetchBoxes(options: FetchBoxesOptions = {}): Promise<Box[]> {
+  const response = await axios.get('/api/v1/boxes', {
+    params: {
+      includeItems: options.includeItems ?? false,
+    },
+  });
   return response.data;
 }
 
