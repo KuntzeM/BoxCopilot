@@ -29,11 +29,17 @@ export function getTranslation(language: Language, key: string): string {
 // Helper function to replace variables in translation strings
 // Example: t('boxes.boxNumber', { number: 5 }) => "Box #5"
 export function interpolate(text: string, vars?: Record<string, string | number>): string {
-  if (!vars) return text;
+  // Defensive: explicitly check for null and undefined, not just falsy values
+  if (vars === null || vars === undefined || typeof vars !== 'object') {
+    return text;
+  }
   
   let result = text;
   Object.entries(vars).forEach(([key, value]) => {
-    result = result.replace(`{{${key}}}`, String(value));
+    // Additional safety: check value is not null/undefined before converting
+    if (value !== null && value !== undefined) {
+      result = result.replace(`{{${key}}}`, String(value));
+    }
   });
   
   return result;

@@ -62,7 +62,9 @@ public class BoxMapper {
             entity.getCreatedAt()
         );
         
-        dto.setBoxNumber(entity.getBoxNumber());
+        // Defensive: if boxNumber is null in DB, use 0 as fallback (Option C)
+        Integer boxNumber = entity.getBoxNumber();
+        dto.setBoxNumber(boxNumber != null ? boxNumber : 0);
         dto.setIsFragile(entity.getIsFragile());
         dto.setNoStack(entity.getNoStack());
         dto.setIsMovedToTarget(entity.getIsMovedToTarget());

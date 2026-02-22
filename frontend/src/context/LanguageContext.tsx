@@ -26,7 +26,11 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
   const t = useCallback(
     (key: string, vars?: Record<string, string | number>): string => {
       const translation = getTranslation(language, key);
-      return vars ? interpolate(translation, vars) : translation;
+      // Defensive: ensure vars is never null before calling interpolate
+      if (vars && typeof vars === 'object' && vars !== null) {
+        return interpolate(translation, vars);
+      }
+      return translation;
     },
     [language]
   );

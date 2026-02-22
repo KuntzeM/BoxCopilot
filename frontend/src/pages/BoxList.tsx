@@ -299,7 +299,7 @@ export default function BoxList() {
               }}
               onClick={() => navigate(`/app/boxes/${box.id}/edit`)}
             >
-              <Typography variant="h6">{t('boxes.boxNumber', { number: box.boxNumber })}</Typography>
+              <Typography variant="h6">{t('boxes.boxNumber', { number: box.boxNumber ?? 0 })}</Typography>
               <Typography variant="body2" color="text.secondary">
                 {t('boxes.current')}: {box.currentRoom || '-'}
               </Typography>
@@ -786,7 +786,7 @@ export default function BoxList() {
       >
         <Box sx={{ p: 2 }}>
           <Typography variant="h6" sx={{ mb: 2, textAlign: 'center' }}>
-            {selectedBoxForActions ? t('boxes.boxNumber', { number: selectedBoxForActions.boxNumber }) : ''}
+            {selectedBoxForActions ? t('boxes.boxNumber', { number: selectedBoxForActions.boxNumber ?? 0 }) : ''}
           </Typography>
           <List>
             <ListItemButton
