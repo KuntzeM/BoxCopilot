@@ -6,6 +6,9 @@ import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Component;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+
 /**
  * Aborts startup when MCP is enabled with an unsafe or incomplete configuration. It only exists when
  * {@code app.mcp.enabled=true}.
@@ -39,9 +42,30 @@ class McpStartupGuard implements InitializingBean {
             throw new IllegalStateException(
                     "app.mcp.backend-url must start with https:// in the '" + PROD_PROFILE + "' profile");
         }
+        requireUsableBaseUrl(backendUrl);
         if (properties.redirectUris().isEmpty() || properties.redirectUris().stream().anyMatch(String::isBlank)) {
             throw new IllegalStateException(
                     "app.mcp.enabled=true requires at least one non-blank redirect URI (app.mcp.redirect-uris)");
+        }
+    }
+
+    /**
+     * The backend URL is the issuer and the base of every advertised metadata URL, so it has to be an absolute
+     * http(s) URL with a host and without query or fragment. Anything else would silently produce broken
+     * metadata instead of failing here.
+     */
+    private static void requireUsableBaseUrl(String backendUrl) {
+        URI uri;
+        try {
+            uri = new URI(backendUrl);
+        } catch (URISyntaxException e) {
+            throw new IllegalStateException("app.mcp.backend-url is not a valid URL", e);
+        }
+        boolean httpScheme = "http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme());
+        if (!uri.isAbsolute() || !httpScheme || uri.getHost() == null || uri.getQuery() != null
+                || uri.getFragment() != null) {
+            throw new IllegalStateException(
+                    "app.mcp.backend-url must be an absolute http(s) URL with a host and no query or fragment");
         }
     }
 }

@@ -16,7 +16,7 @@ class McpStartupGuardTest {
     private static McpStartupGuard guard(String backendUrl, List<String> redirectUris, String... profiles) {
         MockEnvironment environment = new MockEnvironment();
         environment.setActiveProfiles(profiles);
-        return new McpStartupGuard(new McpProperties(true, backendUrl, redirectUris), environment);
+        return new McpStartupGuard(new McpProperties(true, backendUrl, redirectUris, null), environment);
     }
 
     @Test
@@ -74,7 +74,49 @@ class McpStartupGuardTest {
     }
 
     @Test
+    void rejectsBackendUrlWithoutHttpScheme() {
+        assertThatThrownBy(guard("ftp://boxpilot.example.com", REDIRECT_URIS, "dev")::afterPropertiesSet)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("app.mcp.backend-url");
+    }
+
+    @Test
+    void rejectsUnparseableBackendUrl() {
+        assertThatThrownBy(guard("http://exa mple.com", REDIRECT_URIS, "dev")::afterPropertiesSet)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("app.mcp.backend-url");
+    }
+
+    @Test
+    void rejectsBackendUrlWithoutHost() {
+        assertThatThrownBy(guard("http://", REDIRECT_URIS, "dev")::afterPropertiesSet)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("app.mcp.backend-url");
+    }
+
+    @Test
+    void rejectsBackendUrlWithQueryOrFragment() {
+        assertThatThrownBy(guard("http://localhost:8080/?a=b", REDIRECT_URIS, "dev")::afterPropertiesSet)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("app.mcp.backend-url");
+    }
+
+    @Test
     void missingRedirectUrisBecomeEmptyList() {
-        assertThat(new McpProperties(true, "http://x", null).redirectUris()).isEmpty();
+        assertThat(new McpProperties(true, "http://x", null, null).redirectUris()).isEmpty();
+    }
+
+    @Test
+    void aSingleTrailingSlashIsRemovedFromTheBackendUrl() {
+        assertThat(new McpProperties(true, "https://boxpilot.example.com/", List.of(), null).backendUrl())
+                .isEqualTo("https://boxpilot.example.com");
+        assertThat(new McpProperties(true, "https://boxpilot.example.com", List.of(), null).backendUrl())
+                .isEqualTo("https://boxpilot.example.com");
+    }
+
+    @Test
+    void maxConnectionAgeDefaultsToFourteenDays() {
+        assertThat(new McpProperties(true, "https://x", List.of(), null).maxConnectionAge())
+                .isEqualTo(java.time.Duration.ofHours(336));
     }
 }
