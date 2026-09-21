@@ -26,6 +26,9 @@ export const en: TranslationKeys = {
     invalidCredentials: 'Invalid credentials',
     accountLocked: 'Account locked until {{time}}',
     accountDisabled: 'Account disabled',
+    magicLoginProcessing: 'Signing you in...',
+    magicLoginFailed: 'This login link is invalid or has expired. Please request a new link.',
+    backToLogin: 'Back to login',
   },
   boxes: {
     // Labels

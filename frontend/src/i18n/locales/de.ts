@@ -24,6 +24,9 @@ export const de = {
     invalidCredentials: 'Ungültige Anmeldedaten',
     accountLocked: 'Account gesperrt bis {{time}}',
     accountDisabled: 'Account deaktiviert',
+    magicLoginProcessing: 'Sie werden angemeldet...',
+    magicLoginFailed: 'Dieser Login-Link ist ungültig oder abgelaufen. Bitte fordern Sie einen neuen Link an.',
+    backToLogin: 'Zurück zur Anmeldung',
   },
   boxes: {
     // Labels

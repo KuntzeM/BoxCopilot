@@ -34,6 +34,7 @@ import BoxList from './pages/BoxList';
 import PublicPreview from './pages/PublicPreview';
 import BoxEditPage from './pages/BoxEditPage';
 import LoginPage from './pages/LoginPage';
+import MagicLoginPage from './pages/MagicLoginPage';
 import AdminPanel from './pages/AdminPanel';
 import { CookieThemeProvider, useThemeContext } from './context/ThemeContext';
 import { LanguageProvider } from './context/LanguageContext';
@@ -308,6 +309,7 @@ export default function App() {
         <CssBaseline />
         <Routes>
           <Route path="/public/:token" element={<PublicPreview />} />
+          <Route path="/magic" element={<MagicLoginPage />} />
           <Route
             path="/app/boxes"
             element={

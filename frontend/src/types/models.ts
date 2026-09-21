@@ -124,6 +124,10 @@ export interface MagicLinkResponse {
   used?: boolean;
 }
 
+export interface MagicLoginPayload {
+  token: string;
+}
+
 export interface UserPrincipal {
   id?: number;
   username?: string;
