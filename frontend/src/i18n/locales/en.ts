@@ -240,6 +240,7 @@ export const en: TranslationKeys = {
     save: 'Save',
     cancel: 'Cancel',
     enabled: 'Enabled',
+    mcpAllowed: 'MCP',
     disabled: 'Disabled',
     userCreated: 'User created',
     userUpdated: 'User updated',

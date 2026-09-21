@@ -238,6 +238,7 @@ export const de = {
     save: 'Speichern',
     cancel: 'Abbrechen',
     enabled: 'Aktiviert',
+    mcpAllowed: 'MCP',
     disabled: 'Deaktiviert',
     userCreated: 'Benutzer erstellt',
     userUpdated: 'Benutzer aktualisiert',

@@ -89,6 +89,7 @@ export interface User {
   failedLoginAttempts: number;
   lockedUntil?: string;
   hasPassword?: boolean;
+  mcpAllowed: boolean;
   lastMagicLinkCreatedAt?: string;
   lastMagicLinkExpiresAt?: string;
   lastMagicLinkUsed?: boolean;
@@ -107,6 +108,7 @@ export interface UpdateUserPayload {
   name?: string;
   role?: Role;
   enabled?: boolean;
+  mcpAllowed?: boolean;
 }
 
 export interface SetPasswordPayload {

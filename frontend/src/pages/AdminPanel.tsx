@@ -285,6 +285,7 @@ export default function AdminPanel() {
       name: user.name,
       role: user.role,
       enabled: user.enabled,
+      mcpAllowed: user.mcpAllowed,
     });
     setEditDialogOpen(true);
   };
@@ -779,6 +780,15 @@ export default function AdminPanel() {
               />
             }
             label={t('admin.enabled')}
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={(formData as UpdateUserPayload).mcpAllowed === true}
+                onChange={(e) => setFormData({ ...formData, mcpAllowed: e.target.checked })}
+              />
+            }
+            label={t('admin.mcpAllowed')}
           />
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
