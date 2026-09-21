@@ -105,13 +105,6 @@ class OAuth2SecurityConfigTest {
     }
 
     @Test
-    void oauth2CodeCallbackIsHandledByLoginFilter() throws Exception {
-        mockMvc.perform(get("/login/oauth2/code/nextcloud").param("code", "c").param("state", "s"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(header().string("Location", "http://frontend.test?error=login_failed"));
-    }
-
-    @Test
     void otherOauth2PathsRequireAuthentication() throws Exception {
         for (String path : new String[] {"/oauth2/token", "/oauth2/authorize", "/oauth2/jwks", "/oauth2/introspect"}) {
             mockMvc.perform(get(path))

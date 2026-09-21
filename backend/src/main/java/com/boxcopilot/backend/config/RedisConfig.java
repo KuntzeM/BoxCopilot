@@ -13,15 +13,22 @@ import org.springframework.session.data.redis.config.annotation.web.http.EnableR
 @EnableRedisHttpSession
 public class RedisConfig {
 
-    @Value("${spring.data.redis.host}")
-    private String redisHost;
+    private final String redisHost;
+    private final int redisPort;
+    private final String redisPassword;
 
-    @Value("${spring.data.redis.port}")
-    private int redisPort;
+    public RedisConfig(@Value("${spring.data.redis.host}") String redisHost,
+                       @Value("${spring.data.redis.port}") int redisPort,
+                       @Value("${spring.data.redis.password:}") String redisPassword) {
+        this.redisHost = redisHost;
+        this.redisPort = redisPort;
+        this.redisPassword = redisPassword;
+    }
 
     @Bean
     LettuceConnectionFactory redisConnectionFactory() {
         RedisStandaloneConfiguration cfg = new RedisStandaloneConfiguration(redisHost, redisPort);
+        cfg.setPassword(redisPassword);
         return new LettuceConnectionFactory(cfg);
     }
 }
