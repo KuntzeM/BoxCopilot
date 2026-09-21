@@ -1,0 +1,160 @@
+package com.boxcopilot.backend.mcp;
+
+import com.boxcopilot.backend.domain.AuthProvider;
+import com.boxcopilot.backend.domain.Role;
+import com.boxcopilot.backend.domain.User;
+import com.boxcopilot.backend.mcp.security.McpAuthorizationService;
+import com.boxcopilot.backend.mcp.security.McpOAuth2Attributes;
+import com.boxcopilot.backend.repository.PostgresContainerSupport;
+import com.boxcopilot.backend.repository.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.oauth2.client.registration.ClientRegistration;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
+import org.springframework.security.oauth2.core.AuthorizationGrantType;
+import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
+import org.springframework.security.oauth2.core.OAuth2AccessToken;
+import org.springframework.security.oauth2.core.OAuth2RefreshToken;
+import org.springframework.security.oauth2.core.oidc.IdTokenClaimNames;
+import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
+import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
+import org.springframework.security.oauth2.server.authorization.settings.OAuth2TokenFormat;
+import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.web.servlet.MockMvc;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Set;
+import java.util.UUID;
+
+/**
+ * Base for MCP tests that need the real thing: a Postgres container with the production Flyway schema, the
+ * production security chains (profile {@code dev} supplies the application chain, {@code mcp-test} replaces the
+ * machine-specific values) and MCP switched on. The forbidden {@code test} profile and {@code NoSecurityConfig}
+ * are deliberately absent.
+ */
+@Testcontainers(disabledWithoutDocker = true)
+@SpringBootTest(properties = {
+        "app.mcp.enabled=true",
+        "spring.main.allow-bean-definition-overriding=false"})
+@AutoConfigureMockMvc
+@ActiveProfiles({"dev", "mcp-test"})
+@ContextConfiguration(initializers = PostgresContainerSupport.class)
+@Import(McpIntegrationTestBase.NoRemoteIdentityProvider.class)
+public abstract class McpIntegrationTestBase {
+
+    protected static final String ACCEPT = "application/json, text/event-stream";
+
+    @Autowired
+    protected MockMvc mockMvc;
+    @Autowired
+    protected UserRepository userRepository;
+    @Autowired
+    protected RegisteredClientRepository registeredClientRepository;
+    @Autowired
+    protected McpAuthorizationService authorizationService;
+    @Autowired
+    protected JdbcTemplate jdbcTemplate;
+
+    /**
+     * Replaces the OIDC client registration of the {@code dev} profile. Its {@code issuer-uri} would be resolved
+     * over the network while the context starts; this hand-built registration backs that auto-configuration off.
+     */
+    @TestConfiguration(proxyBeanMethods = false)
+    static class NoRemoteIdentityProvider {
+
+        @Bean
+        ClientRegistrationRepository clientRegistrationRepository() {
+            return new InMemoryClientRegistrationRepository(ClientRegistration.withRegistrationId("nextcloud")
+                    .clientId("test-client")
+                    .clientSecret("test-secret")
+                    .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                    .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+                    .redirectUri("http://localhost:8080/login/oauth2/code/{registrationId}")
+                    .scope("openid")
+                    .authorizationUri("http://localhost/authorize")
+                    .tokenUri("http://localhost/token")
+                    .jwkSetUri("http://localhost/jwks")
+                    .issuerUri("http://localhost")
+                    .userNameAttributeName(IdTokenClaimNames.SUB)
+                    .build());
+        }
+    }
+
+    @BeforeEach
+    void clearOAuth2Tables() {
+        jdbcTemplate.update("DELETE FROM oauth2_authorization");
+        jdbcTemplate.update("DELETE FROM oauth2_registered_client");
+    }
+
+    protected User createUser(boolean enabled, boolean mcpAllowed) {
+        User user = new User("user-" + UUID.randomUUID(), "MCP user", AuthProvider.LOCAL, Role.USER);
+        user.setEnabled(enabled);
+        user.setMcpAllowed(mcpAllowed);
+        return userRepository.save(user);
+    }
+
+    /** A public client as the connection provisioning will create it: bound to exactly one user. */
+    protected RegisteredClient createClient(long boundUserId) {
+        RegisteredClient client = RegisteredClient.withId(UUID.randomUUID().toString())
+                .clientId(UUID.randomUUID().toString())
+                .clientName("Claude connection")
+                .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                .redirectUri("https://claude.ai/api/mcp/auth_callback")
+                .scope(McpOAuth2Attributes.SCOPE_READ)
+                .clientSettings(ClientSettings.builder()
+                        .requireAuthorizationConsent(true)
+                        .requireProofKey(true)
+                        .setting(McpOAuth2Attributes.CLIENT_USER_ID, String.valueOf(boundUserId))
+                        .build())
+                .tokenSettings(TokenSettings.builder()
+                        .accessTokenFormat(OAuth2TokenFormat.REFERENCE)
+                        .accessTokenTimeToLive(Duration.ofMinutes(30))
+                        .refreshTokenTimeToLive(Duration.ofDays(7))
+                        .reuseRefreshTokens(false)
+                        .build())
+                .build();
+        registeredClientRepository.save(client);
+        return client;
+    }
+
+    protected OAuth2Authorization.Builder authorizationBuilder(RegisteredClient client, long userId,
+                                                               String accessTokenValue, Instant accessTokenExpiry) {
+        Instant issuedAt = accessTokenExpiry.minus(Duration.ofMinutes(30));
+        return OAuth2Authorization.withRegisteredClient(client)
+                .id(UUID.randomUUID().toString())
+                .principalName(String.valueOf(userId))
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .authorizedScopes(Set.of(McpOAuth2Attributes.SCOPE_READ))
+                .token(new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, accessTokenValue, issuedAt,
+                        accessTokenExpiry, Set.of(McpOAuth2Attributes.SCOPE_READ)))
+                .refreshToken(new OAuth2RefreshToken("refresh-" + accessTokenValue, issuedAt,
+                        issuedAt.plus(Duration.ofDays(7))));
+    }
+
+    /** Stores a connection that is valid right now; the decorator stamps its start on this first save. */
+    protected OAuth2Authorization saveAuthorization(RegisteredClient client, long userId, String accessTokenValue) {
+        OAuth2Authorization authorization = authorizationBuilder(client, userId, accessTokenValue,
+                Instant.now().plus(Duration.ofMinutes(30))).build();
+        authorizationService.save(authorization);
+        return authorization;
+    }
+
+    protected static String toolsListRequest() {
+        return "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{}}";
+    }
+}

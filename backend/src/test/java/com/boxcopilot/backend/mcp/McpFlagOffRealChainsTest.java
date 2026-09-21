@@ -1,0 +1,101 @@
+package com.boxcopilot.backend.mcp;
+
+import com.boxcopilot.backend.mcp.security.McpAccessPolicy;
+import com.boxcopilot.backend.mcp.security.McpAuthorizationService;
+import com.boxcopilot.backend.mcp.security.McpOpaqueTokenIntrospector;
+import com.nimbusds.jose.jwk.source.JWKSource;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Import;
+import org.springframework.mock.web.MockHttpSession;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
+import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
+import org.springframework.security.oauth2.server.resource.introspection.OpaqueTokenIntrospector;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+import com.boxcopilot.backend.repository.PostgresContainerSupport;
+
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+
+/**
+ * The same real chains the MCP tests use, but with the flag off: no MCP bean, no authorization-server bean, and
+ * neither {@code /mcp} nor the metadata endpoint answers anything - anonymous or with a valid session.
+ */
+@Testcontainers(disabledWithoutDocker = true)
+@SpringBootTest(properties = "app.mcp.enabled=false")
+@AutoConfigureMockMvc
+@ActiveProfiles({"dev", "mcp-test"})
+@ContextConfiguration(initializers = PostgresContainerSupport.class)
+@Import(McpIntegrationTestBase.NoRemoteIdentityProvider.class)
+class McpFlagOffRealChainsTest {
+
+    private static final String[] MCP_PATHS = {"/mcp", "/.well-known/oauth-protected-resource/mcp",
+            "/.well-known/oauth-authorization-server", "/oauth2/authorize", "/oauth2/token", "/oauth2/jwks"};
+
+    @Autowired
+    private ApplicationContext context;
+    @Autowired
+    private MockMvc mockMvc;
+
+    private static MockHttpSession authenticatedSession() {
+        SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
+        securityContext.setAuthentication(UsernamePasswordAuthenticationToken.authenticated("someone", null,
+                List.of(new SimpleGrantedAuthority("ROLE_USER"))));
+        MockHttpSession session = new MockHttpSession();
+        session.setAttribute("SPRING_SECURITY_CONTEXT", securityContext);
+        return session;
+    }
+
+    @Test
+    void neitherMcpNorAuthorizationServerContributesABean() {
+        assertThat(context.getBeansOfType(McpProperties.class)).isEmpty();
+        assertThat(context.getBeansOfType(BoxPilotMcpTools.class)).isEmpty();
+        assertThat(context.getBeansOfType(McpAccessPolicy.class)).isEmpty();
+        assertThat(context.getBeansOfType(McpAuthorizationService.class)).isEmpty();
+        assertThat(context.getBeansOfType(McpOpaqueTokenIntrospector.class)).isEmpty();
+        assertThat(context.getBeansOfType(OAuth2AuthorizationService.class)).isEmpty();
+        assertThat(context.getBeansOfType(OpaqueTokenIntrospector.class)).isEmpty();
+        assertThat(context.getBeansOfType(RegisteredClientRepository.class)).isEmpty();
+        assertThat(context.getBeansOfType(AuthorizationServerSettings.class)).isEmpty();
+        assertThat(context.getBeansOfType(JWKSource.class)).isEmpty();
+        assertThat(context.containsBean("webMvcStatelessServerRouterFunction")).isFalse();
+    }
+
+    @Test
+    void noMcpPathAnswersAnonymously() throws Exception {
+        for (String path : MCP_PATHS) {
+            MvcResult result = mockMvc.perform(get(path)).andReturn();
+
+            assertThat(result.getResponse().getStatus() / 100).as(path).isNotEqualTo(2);
+            assertThat(result.getResponse().getContentAsString()).as(path)
+                    .doesNotContain("scopes_supported", "authorization_endpoint", "serverInfo");
+        }
+    }
+
+    @Test
+    void noMcpPathAnswersWithASession() throws Exception {
+        MockHttpSession session = authenticatedSession();
+        for (String path : MCP_PATHS) {
+            MvcResult result = mockMvc.perform(get(path).session(session)).andReturn();
+
+            assertThat(result.getResponse().getStatus() / 100).as(path).isNotEqualTo(2);
+            assertThat(result.getResponse().getContentAsString()).as(path)
+                    .doesNotContain("scopes_supported", "authorization_endpoint", "serverInfo");
+        }
+    }
+}

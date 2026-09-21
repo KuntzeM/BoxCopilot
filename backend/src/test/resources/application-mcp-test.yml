@@ -1,0 +1,48 @@
+spring:
+  config:
+    activate:
+      on-profile: mcp-test
+  autoconfigure:
+    # Plain servlet sessions, so that a test can hand a session to the application chain; the redis entries
+    # repeat what the dev profile excludes, because this list replaces it rather than extending it.
+    exclude:
+      - org.springframework.boot.autoconfigure.session.SessionAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+  jpa:
+    hibernate:
+      ddl-auto: none
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  session:
+    store-type: none
+
+# The MCP tests run the real chains, so they need the dev profile as well; these values replace the ones a
+# developer machine would supply. app.mcp.enabled is deliberately NOT set here: every test states the flag
+# itself, which keeps the flag-off tests honest under this very profile.
+app:
+  mcp:
+    backend-url: http://localhost
+    redirect-uris:
+      - https://claude.ai/api/mcp/auth_callback
+    max-connection-age: 14d
+  image:
+    storage:
+      path: ./target/mcp-test-images
+  admin:
+    username: admin
+    password: mcp-test-admin-password
+    name: Administrator
+
+frontend:
+  url: http://localhost:3000
+
+nextcloud:
+  logout-url: http://localhost/logout
+
+logging:
+  level:
+    org.springframework.security: INFO
+    com.boxcopilot.backend: INFO
