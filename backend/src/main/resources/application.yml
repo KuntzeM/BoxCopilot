@@ -15,6 +15,16 @@ spring:
       write-dates-as-timestamps: false
   session:
     store-type: none
+  ai:
+    mcp:
+      server:
+        # The starter's auto-configuration follows the same flag (otherwise it would register /mcp regardless)
+        enabled: ${app.mcp.enabled:false}
+        protocol: STATELESS
+        name: boxpilot
+        version: 1.0.0
+        streamable-http:
+          mcp-endpoint: /mcp
   servlet:
     multipart:
       max-file-size: 15MB
@@ -39,6 +49,13 @@ app:
     name: ${ADMIN_NAME:Administrator}
   magiclink:
     default-valid-hours: ${MAGIC_LINK_VALID_HOURS:24}
+  # Read-only MCP server for AI agents. Off by default: without the flag there are no MCP beans and no /mcp endpoint.
+  mcp:
+    enabled: ${APP_MCP_ENABLED:false}
+    backend-url: ${BACKEND_URL:}
+    redirect-uris:
+      - https://claude.ai/api/mcp/auth_callback
+    max-connection-age: 14d
 
 logging:
   level:
