@@ -6,12 +6,14 @@ import com.boxcopilot.backend.domain.User;
 import com.boxcopilot.backend.dto.CreateUserDTO;
 import com.boxcopilot.backend.dto.UpdateUserDTO;
 import com.boxcopilot.backend.dto.UserDTO;
+import com.boxcopilot.backend.event.McpAccessRevokedEvent;
 import com.boxcopilot.backend.repository.MagicLoginTokenRepository;
 import com.boxcopilot.backend.repository.UserRepository;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -31,6 +33,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final MagicLoginTokenRepository magicLoginTokenRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private MagicLoginTokenService magicLoginTokenService; // Optional, set later to avoid circular dependency
     
     @Value("${app.admin.username:admin}")
@@ -43,10 +46,12 @@ public class UserService {
     private String defaultAdminName;
     
     public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder,
-                       MagicLoginTokenRepository magicLoginTokenRepository) {
+                       MagicLoginTokenRepository magicLoginTokenRepository,
+                       ApplicationEventPublisher eventPublisher) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.magicLoginTokenRepository = magicLoginTokenRepository;
+        this.eventPublisher = eventPublisher;
     }
     
     /**
@@ -184,19 +189,31 @@ public class UserService {
             user.setRole(updateUserDTO.getRole());
         }
         
+        boolean mcpAccessWithdrawn = false;
+
         if (updateUserDTO.getEnabled() != null) {
             // If disabling user, invalidate all magic login tokens
             if (!updateUserDTO.getEnabled() && user.getEnabled()) {
                 if (magicLoginTokenService != null) {
                     magicLoginTokenService.invalidateAllTokensForUser(user);
                 }
+                mcpAccessWithdrawn = true;
             }
             user.setEnabled(updateUserDTO.getEnabled());
         }
-        
+
+        if (updateUserDTO.getMcpAllowed() != null) {
+            mcpAccessWithdrawn |= user.isMcpAllowed() && !updateUserDTO.getMcpAllowed();
+            user.setMcpAllowed(updateUserDTO.getMcpAllowed());
+        }
+
         User updatedUser = userRepository.save(user);
         log.info("Updated user: {}", updatedUser.getUsername());
-        
+
+        if (mcpAccessWithdrawn) {
+            eventPublisher.publishEvent(new McpAccessRevokedEvent(updatedUser.getId()));
+        }
+
         return convertToDTO(updatedUser);
     }
     
@@ -249,6 +266,8 @@ public class UserService {
         
         userRepository.delete(user);
         log.info("Deleted user: {}", user.getUsername());
+
+        eventPublisher.publishEvent(new McpAccessRevokedEvent(user.getId()));
     }
     
     /**
@@ -347,6 +366,8 @@ public class UserService {
             user.getLockedUntil(),
             user.getPasswordHash() != null
         );
+
+        dto.setMcpAllowed(user.isMcpAllowed());
 
         magicLoginTokenRepository.findTopByUserOrderByCreatedAtDesc(user).ifPresent(token -> {
             dto.setLastMagicLinkCreatedAt(token.getCreatedAt());

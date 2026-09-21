@@ -11,7 +11,8 @@ public class UpdateUserDTO {
     private String name;
     private Role role;
     private Boolean enabled;
-    
+    private Boolean mcpAllowed;
+
     public UpdateUserDTO() {
     }
     
@@ -54,5 +55,16 @@ public class UpdateUserDTO {
     
     public void setEnabled(Boolean enabled) {
         this.enabled = enabled;
+    }
+
+    /**
+     * Admin-only switch; {@code null} leaves the current value unchanged.
+     */
+    public Boolean getMcpAllowed() {
+        return mcpAllowed;
+    }
+
+    public void setMcpAllowed(Boolean mcpAllowed) {
+        this.mcpAllowed = mcpAllowed;
     }
 }

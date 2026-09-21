@@ -51,7 +51,10 @@ public class User implements Serializable {
     
     @Column(name = "locked_until")
     private LocalDateTime lockedUntil;
-    
+
+    @Column(name = "mcp_allowed", nullable = false, columnDefinition = "boolean not null default false")
+    private boolean mcpAllowed = false;
+
     public User() {
         this.createdAt = LocalDateTime.now();
     }
@@ -164,6 +167,14 @@ public class User implements Serializable {
         this.lockedUntil = lockedUntil;
     }
     
+    public boolean isMcpAllowed() {
+        return mcpAllowed;
+    }
+
+    public void setMcpAllowed(boolean mcpAllowed) {
+        this.mcpAllowed = mcpAllowed;
+    }
+
     /**
      * Check if the account is currently locked
      */

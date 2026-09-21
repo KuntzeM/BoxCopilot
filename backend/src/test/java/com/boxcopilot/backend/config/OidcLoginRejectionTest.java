@@ -185,7 +185,7 @@ class OidcLoginRejectionTest {
 
         @Bean
         UserService userService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
-            return new UserService(userRepository, passwordEncoder, mock(MagicLoginTokenRepository.class));
+            return new UserService(userRepository, passwordEncoder, mock(MagicLoginTokenRepository.class), event -> { });
         }
 
         @Bean

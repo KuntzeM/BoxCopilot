@@ -20,6 +20,7 @@ public class UserDTO {
     private Integer failedLoginAttempts;
     private LocalDateTime lockedUntil;
     private Boolean hasPassword;
+    private Boolean mcpAllowed;
     private LocalDateTime lastMagicLinkCreatedAt;
     private LocalDateTime lastMagicLinkExpiresAt;
     private Boolean lastMagicLinkUsed;
@@ -146,6 +147,14 @@ public class UserDTO {
     
     public void setHasPassword(Boolean hasPassword) {
         this.hasPassword = hasPassword;
+    }
+
+    public Boolean getMcpAllowed() {
+        return mcpAllowed;
+    }
+
+    public void setMcpAllowed(Boolean mcpAllowed) {
+        this.mcpAllowed = mcpAllowed;
     }
 
     public LocalDateTime getLastMagicLinkCreatedAt() {
