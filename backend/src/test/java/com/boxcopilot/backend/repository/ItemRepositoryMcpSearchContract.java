@@ -7,12 +7,11 @@ import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -21,23 +20,20 @@ import static com.boxcopilot.backend.repository.McpReadRepositoryTestSupport.ite
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
-@DataJpaTest(properties = {
-        "spring.flyway.enabled=false",
-        "spring.jpa.properties.hibernate.generate_statistics=true"
-})
-@ActiveProfiles("test")
-class ItemRepositoryMcpSearchTest {
+/** Test bodies shared by the H2 and Postgres runs; transactional here because Spring resolves it on the declaring class. */
+@Transactional
+abstract class ItemRepositoryMcpSearchContract {
 
     private static final Pageable FIRST_50_BY_NAME = PageRequest.of(0, 50, Sort.by("name"));
 
     @Autowired
-    private ItemRepository itemRepository;
+    protected ItemRepository itemRepository;
 
     @Autowired
-    private TestEntityManager em;
+    protected TestEntityManager em;
 
     @Autowired
-    private EntityManagerFactory entityManagerFactory;
+    protected EntityManagerFactory entityManagerFactory;
 
     private List<String> names(String term) {
         return itemRepository.findByNameContainingIgnoreCase(term, FIRST_50_BY_NAME)
@@ -47,13 +43,13 @@ class ItemRepositoryMcpSearchTest {
     @Test
     void findsByNameCaseInsensitivelyAndSorted() {
         Box box = box(em, 1, "Kitchen", "Kitchen", null);
-        item(em, box, "Winter Jacket");
-        item(em, box, "jacket hanger");
-        item(em, box, "Plates");
+        item(em, box, "jacket red");
+        item(em, box, "jacket blue");
+        item(em, box, "plates");
         em.flush();
         em.clear();
 
-        assertThat(names("JACKET")).containsExactly("Winter Jacket", "jacket hanger");
+        assertThat(names("JACKET")).containsExactly("jacket blue", "jacket red");
     }
 
     @Test

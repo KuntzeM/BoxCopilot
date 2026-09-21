@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -58,6 +59,12 @@ public class DefaultMcpReadService implements McpReadService {
                 .toList();
     }
 
+    /**
+     * Matches in memory instead of SQL because {@code Box.description} is a {@code @Lob String}: on Postgres
+     * Hibernate stores it as a large object and keeps only the object id in the TEXT column, so the column
+     * cannot be searched with LIKE. The candidate set is the whole box list (or one room), which is small for a
+     * household move; this keeps the search correct whether or not the mapping is fixed later.
+     */
     @Override
     public List<McpBoxHit> searchBoxes(String query, String room, int limit) {
         String term = optionalTerm(query, "query");
@@ -65,8 +72,11 @@ public class DefaultMcpReadService implements McpReadService {
         if (term == null && roomName == null) {
             throw new IllegalArgumentException("Either query or room is required");
         }
-        List<Box> boxes = findBoxes(term, roomName, page(limit, BOX_SORT)).stream()
+        checkLimit(limit);
+        List<Box> boxes = candidateBoxes(roomName).stream()
                 .filter(box -> box.getBoxNumber() != null)
+                .filter(box -> term == null || matches(box, term))
+                .limit(limit)
                 .toList();
         Map<Long, Long> counts = itemCounts(boxes);
         return boxes.stream()
@@ -93,14 +103,22 @@ public class DefaultMcpReadService implements McpReadService {
                 .flatMap(item -> loadImage(item, size));
     }
 
-    private List<Box> findBoxes(String term, String room, Pageable page) {
-        if (term == null) {
-            return boxRepository.findByCurrentRoomIgnoreCaseOrTargetRoomIgnoreCase(room, room, page);
-        }
+    private List<Box> candidateBoxes(String room) {
         if (room == null) {
-            return boxRepository.searchByTerm(term, page);
+            return boxRepository.findAll(BOX_SORT);
         }
-        return boxRepository.searchByTermInRoom(term, room, page);
+        return boxRepository.findByCurrentRoomIgnoreCaseOrTargetRoomIgnoreCase(room, room, BOX_SORT);
+    }
+
+    private static boolean matches(Box box, String term) {
+        return term.equals(String.valueOf(box.getBoxNumber()))
+                || containsIgnoreCase(box.getCurrentRoom(), term)
+                || containsIgnoreCase(box.getTargetRoom(), term)
+                || containsIgnoreCase(box.getDescription(), term);
+    }
+
+    private static boolean containsIgnoreCase(String text, String term) {
+        return text != null && text.toLowerCase(Locale.ROOT).contains(term.toLowerCase(Locale.ROOT));
     }
 
     private Map<Long, Long> itemCounts(List<Box> boxes) {
@@ -133,10 +151,14 @@ public class DefaultMcpReadService implements McpReadService {
     }
 
     private static Pageable page(int limit, Sort sort) {
+        checkLimit(limit);
+        return PageRequest.of(0, limit, sort);
+    }
+
+    private static void checkLimit(int limit) {
         if (limit < MIN_LIMIT || limit > MAX_LIMIT) {
             throw new IllegalArgumentException("limit must be between " + MIN_LIMIT + " and " + MAX_LIMIT);
         }
-        return PageRequest.of(0, limit, sort);
     }
 
     private static String requireTerm(String value, String field) {
