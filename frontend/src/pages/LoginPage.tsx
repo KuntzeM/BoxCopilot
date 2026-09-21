@@ -30,8 +30,9 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
     setLoading(true);
 
     try {
-      // First, ensure CSRF token is fetched
-      await axios.get('/api/v1/csrf');
+      // Fetch a fresh CSRF token and send it explicitly, the login POST is CSRF-protected
+      const csrfResponse = await axios.get<{ token: string }>('/api/v1/csrf');
+      axios.defaults.headers.common['X-XSRF-TOKEN'] = csrfResponse.data.token;
       
       const formData = new URLSearchParams();
       formData.append('username', username);

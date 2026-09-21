@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -63,7 +64,8 @@ public class OAuth2SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, 
+    @Order(3)
+    SecurityFilterChain securityFilterChain(HttpSecurity http,
                                            AuthenticationSuccessHandler authenticationSuccessHandler,
                                            AuthenticationFailureHandler authenticationFailureHandler) throws Exception {
         
@@ -71,7 +73,6 @@ public class OAuth2SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                .ignoringRequestMatchers("/api/auth/login", "/api/v1/auth/magic-login")
             )
             .authorizeHttpRequests(auth -> auth
                 // Admin endpoints - require ADMIN role
@@ -81,7 +82,7 @@ public class OAuth2SecurityConfig {
                 .requestMatchers("/api/v1/public/items/**").permitAll()
                 .requestMatchers("/api/v1/me", "/api/v1/csrf").permitAll()
                 .requestMatchers("/api/auth/login", "/api/v1/auth/magic-login").permitAll()
-                .requestMatchers("/login/**", "/oauth2/**", "/error").permitAll()
+                .requestMatchers("/login/**", "/oauth2/authorization/**", "/error").permitAll()
                 // All other API endpoints require authentication
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().authenticated()

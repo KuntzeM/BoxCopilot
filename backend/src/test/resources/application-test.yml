@@ -19,6 +19,8 @@ app:
   image:
     storage:
       path: ${APP_IMAGE_STORAGE_PATH:./data/images}
+  admin:
+    password: test-admin-password
   magiclink:
     frontend-base-url: ${FRONTEND_URL:http://localhost:3000}
 

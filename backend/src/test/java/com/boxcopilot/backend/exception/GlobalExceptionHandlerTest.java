@@ -1,0 +1,80 @@
+package com.boxcopilot.backend.exception;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.core.MethodParameter;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.validation.BeanPropertyBindingResult;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class GlobalExceptionHandlerTest {
+
+    private static final String INTERNAL_DETAIL = "jdbc:postgresql://db:5432/boxpilot SQLSTATE 23505";
+
+    private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
+
+    @Test
+    void unexpectedExceptionReturnsGenericMessageWithoutDetails() {
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
+                handler.handleGenericException(new RuntimeException(INTERNAL_DETAIL));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+        assertThat(response.getBody().getMessage())
+                .isEqualTo("An unexpected error occurred")
+                .doesNotContain("jdbc")
+                .doesNotContain("SQLSTATE");
+    }
+
+    @Test
+    void authenticationExceptionReturnsGenericMessageWithoutDetails() {
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
+                handler.handleAuthenticationException(new BadCredentialsException(INTERNAL_DETAIL));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody().getMessage())
+                .isEqualTo("Authentication required")
+                .doesNotContain("jdbc");
+    }
+
+    @Test
+    void accessDeniedReturnsGenericMessageWithoutDetails() {
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
+                handler.handleAccessDeniedException(new AccessDeniedException(INTERNAL_DETAIL));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(response.getBody().getMessage())
+                .isEqualTo("Access denied")
+                .doesNotContain("jdbc");
+    }
+
+    @Test
+    void fileStorageErrorReturnsGenericMessageWithoutPaths() {
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
+                handler.handleFileStorageException(new FileStorageException("Cannot write /var/boxcopilot/images/x.png"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+        assertThat(response.getBody().getMessage())
+                .isEqualTo("File storage error")
+                .doesNotContain("/var/boxcopilot");
+    }
+
+    @Test
+    void validationErrorsKeepFieldNamesAndConstraintMessages() throws NoSuchMethodException {
+        BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(new Object(), "request");
+        bindingResult.addError(new FieldError("request", "name", "must not be blank"));
+        MethodArgumentNotValidException ex = new MethodArgumentNotValidException(
+                new MethodParameter(Object.class.getDeclaredMethod("toString"), -1), bindingResult);
+
+        ResponseEntity<GlobalExceptionHandler.ValidationErrorResponse> response =
+                handler.handleValidationExceptions(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().getMessage()).isEqualTo("Validation failed");
+        assertThat(response.getBody().getFieldErrors()).containsEntry("name", "must not be blank");
+    }
+}

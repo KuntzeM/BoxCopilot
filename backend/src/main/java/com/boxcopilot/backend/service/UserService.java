@@ -12,6 +12,7 @@ import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +23,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
+@DependsOn("adminPasswordGuard")
 public class UserService {
     
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
@@ -34,7 +36,7 @@ public class UserService {
     @Value("${app.admin.username:admin}")
     private String defaultAdminUsername;
     
-    @Value("${app.admin.password:admin}")
+    @Value("${app.admin.password}")
     private String defaultAdminPassword;
     
     @Value("${app.admin.name:Administrator}")
@@ -260,6 +262,7 @@ public class UserService {
         if (existingUser.isPresent()) {
             // Update last login
             User user = existingUser.get();
+            assertMayLogIn(user);
             user.setLastLogin(LocalDateTime.now());
             user.resetFailedAttempts();
             log.info("Existing Nextcloud user logged in: {}", user.getUsername());
@@ -279,6 +282,17 @@ public class UserService {
         return savedUser;
     }
     
+    private void assertMayLogIn(User user) {
+        if (user.isAccountLocked()) {
+            log.warn("OIDC login rejected for locked user: {}", user.getUsername());
+            throw new CustomUserDetailsService.AccountLockedException("Account is locked until " + user.getLockedUntil());
+        }
+        if (!Boolean.TRUE.equals(user.getEnabled())) {
+            log.warn("OIDC login rejected for disabled user: {}", user.getUsername());
+            throw new CustomUserDetailsService.DisabledException("Account is disabled");
+        }
+    }
+
     /**
      * Resolve username conflicts by adding suffix
      */

@@ -33,7 +33,7 @@ public class GlobalExceptionHandler {
         log.warn("Authentication failed: {}", ex.getMessage());
         ErrorResponse error = new ErrorResponse(
             HttpStatus.UNAUTHORIZED.value(),
-            "Authentication required: " + ex.getMessage(),
+            "Authentication required",
             Instant.now()
         );
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
@@ -47,7 +47,7 @@ public class GlobalExceptionHandler {
         log.warn("Access denied: {}", ex.getMessage());
         ErrorResponse error = new ErrorResponse(
             HttpStatus.FORBIDDEN.value(),
-            "Access denied: " + ex.getMessage(),
+            "Access denied",
             Instant.now()
         );
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
@@ -75,7 +75,7 @@ public class GlobalExceptionHandler {
         log.error("File storage error: {}", ex.getMessage(), ex);
         ErrorResponse error = new ErrorResponse(
             HttpStatus.INTERNAL_SERVER_ERROR.value(),
-            ex.getMessage(),
+            "File storage error",
             Instant.now()
         );
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
@@ -112,7 +112,7 @@ public class GlobalExceptionHandler {
         log.error("Unexpected error occurred: {}", ex.getMessage(), ex);
         ErrorResponse error = new ErrorResponse(
             HttpStatus.INTERNAL_SERVER_ERROR.value(),
-            "An unexpected error occurred: " + ex.getMessage(),
+            "An unexpected error occurred",
             Instant.now()
         );
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
