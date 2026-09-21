@@ -232,8 +232,8 @@ BoxPilot/
    - Failure: redirects to `${FRONTEND_URL}/login?error=true` (or `?locked=true`)
 3. **Magic Login Flow**:
    - Admin generates link via `POST /api/v1/admin/users/{id}/magic-link`
-   - User clicks link → `GET /api/v1/auth/magic-login?token={uuid}`
-   - Backend validates token, creates session, redirects to `${FRONTEND_URL}/?login=success`
+   - User opens `${FRONTEND_URL}/magic#t={uuid}`; the SPA strips the fragment, fetches `/api/v1/csrf` and calls `POST /api/v1/auth/magic-login` with `{"token": "..."}`
+   - Backend checks user enabled/unlocked, consumes the token atomically, creates the session (401 on any failure); the SPA then navigates to `/`
 4. **Image Upload**:
    - Frontend sends multipart/form-data to `/api/v1/items/{id}/image`
    - Backend saves to `app.image.storage-path` and stores path in `Item.imagePath`

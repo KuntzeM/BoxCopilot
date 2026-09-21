@@ -11,8 +11,9 @@ spring:
     hibernate:
       ddl-auto: update
     database-platform: org.hibernate.dialect.H2Dialect
-  session:
-    store-type: none
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.session.SessionAutoConfiguration
 
 # Image Storage for tests
 app:
@@ -21,8 +22,6 @@ app:
       path: ${APP_IMAGE_STORAGE_PATH:./data/images}
   admin:
     password: test-admin-password
-  magiclink:
-    frontend-base-url: ${FRONTEND_URL:http://localhost:3000}
 
 # For test profile we use NoSecurityConfig which permits all requests (no auth)
 frontend:

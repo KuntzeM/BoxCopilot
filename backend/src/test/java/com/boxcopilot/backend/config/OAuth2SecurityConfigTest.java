@@ -11,6 +11,7 @@ import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
@@ -87,8 +88,19 @@ class OAuth2SecurityConfigTest {
 
     @Test
     void magicLoginPostWithoutCsrfTokenIsRejected() throws Exception {
-        mockMvc.perform(post("/api/v1/auth/magic-login").param("token", "abc"))
+        mockMvc.perform(post("/api/v1/auth/magic-login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"token\":\"abc\"}"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void magicLoginPostWithCsrfTokenPassesTheChainWithoutAuthentication() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/magic-login")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"token\":\"abc\"}"))
+                .andExpect(status().isNotFound());
     }
 
     @Test

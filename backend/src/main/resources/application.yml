@@ -39,7 +39,6 @@ app:
     name: ${ADMIN_NAME:Administrator}
   magiclink:
     default-valid-hours: ${MAGIC_LINK_VALID_HOURS:24}
-    backend-base-url: ${BACKEND_URL:}
 
 logging:
   level:

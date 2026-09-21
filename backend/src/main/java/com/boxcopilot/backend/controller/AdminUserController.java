@@ -140,7 +140,7 @@ public class AdminUserController {
     @PostMapping("/{id}/magic-link")
     public ResponseEntity<MagicLinkResponseDTO> generateMagicLink(
             @PathVariable Long id,
-            @RequestBody(required = false) CreateMagicLinkRequestDTO request,
+            @Valid @RequestBody(required = false) CreateMagicLinkRequestDTO request,
             @AuthenticationPrincipal Object principal) {
         
         log.info("Generating magic link for user with id: {}", id);
