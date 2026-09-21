@@ -1,21 +1,23 @@
 package com.boxcopilot.backend.mcp.security;
 
+import com.boxcopilot.backend.mcp.McpEndpoints;
 import com.boxcopilot.backend.mcp.McpProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.RequestCacheConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.NullSecurityContextRepository;
 
 /**
- * The MCP resource server chain. It sits in front of the application chain and covers only the MCP endpoint and
- * the protected-resource metadata, so nothing else in the application changes.
+ * The MCP resource server chain. It sits in front of the application chain and covers only the MCP endpoint
+ * and the protected-resource metadata, so nothing else in the application changes. The paths come from
+ * {@link McpEndpoints}, which {@code McpStartupGuard} also pins the transport to.
  *
  * <p>The chain is bearer-only: no session is read or created, no request is cached, CSRF and CORS are off
  * (there is no browser and no cookie involved), and authentication comes exclusively from the opaque access
@@ -27,33 +29,30 @@ import org.springframework.security.web.context.NullSecurityContextRepository;
 @ConditionalOnProperty(prefix = "app.mcp", name = "enabled", havingValue = "true")
 class McpSecurityConfig {
 
-    static final String MCP_ENDPOINT = "/mcp";
-    static final String MCP_PATTERN = "/mcp/**";
-    static final String METADATA_PATTERN = "/.well-known/oauth-protected-resource/**";
-    static final String READ_AUTHORITY = "SCOPE_" + McpOAuth2Attributes.SCOPE_READ;
-
     @Bean
     @Order(2)
     SecurityFilterChain mcpSecurityFilterChain(HttpSecurity http, McpOpaqueTokenIntrospector introspector,
                                                McpProperties properties) throws Exception {
         McpBearerChallenge challenge =
-                new McpBearerChallenge(properties.backendUrl() + McpProtectedResourceMetadataController.PATH);
+                new McpBearerChallenge(properties.backendUrl() + McpEndpoints.PROTECTED_RESOURCE_METADATA);
         McpAuthenticationEntryPoint entryPoint = new McpAuthenticationEntryPoint(challenge);
         McpAccessDeniedHandler accessDeniedHandler = new McpAccessDeniedHandler(challenge);
 
         return http
-                .securityMatcher(MCP_ENDPOINT, MCP_PATTERN, METADATA_PATTERN)
+                .securityMatcher(McpEndpoints.MCP, McpEndpoints.MCP_PATTERN,
+                        McpEndpoints.PROTECTED_RESOURCE_METADATA_PATTERN)
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
-                .requestCache(cache -> cache.disable())
+                .requestCache(RequestCacheConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .securityContext(context -> context.securityContextRepository(new NullSecurityContextRepository()))
                 .authorizeHttpRequests(requests -> requests
-                        .requestMatchers(METADATA_PATTERN).permitAll()
-                        .requestMatchers(MCP_ENDPOINT, MCP_PATTERN).hasAuthority(READ_AUTHORITY)
+                        .requestMatchers(McpEndpoints.PROTECTED_RESOURCE_METADATA_PATTERN).permitAll()
+                        .requestMatchers(McpEndpoints.MCP, McpEndpoints.MCP_PATTERN)
+                        .hasAuthority(McpOAuth2Attributes.READ_AUTHORITY)
                         .anyRequest().denyAll())
                 .oauth2ResourceServer(resourceServer -> resourceServer
                         .opaqueToken(opaque -> opaque.introspector(introspector))
@@ -62,7 +61,6 @@ class McpSecurityConfig {
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(entryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
-                .anonymous(Customizer.withDefaults())
                 .build();
     }
 }

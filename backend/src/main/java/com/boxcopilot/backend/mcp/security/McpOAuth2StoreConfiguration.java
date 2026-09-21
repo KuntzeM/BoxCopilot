@@ -8,6 +8,8 @@ import org.springframework.security.oauth2.server.authorization.JdbcOAuth2Author
 import org.springframework.security.oauth2.server.authorization.client.JdbcRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 
+import java.time.Clock;
+
 /**
  * The persistent OAuth2 stores (Flyway tables {@code oauth2_registered_client} and {@code oauth2_authorization}).
  *
@@ -27,10 +29,10 @@ class McpOAuth2StoreConfiguration {
     @Bean
     McpAuthorizationService mcpAuthorizationService(JdbcTemplate jdbcTemplate,
                                                     RegisteredClientRepository registeredClientRepository,
-                                                    McpAccessPolicy accessPolicy) {
+                                                    McpAuthorizationPolicy accessPolicy, Clock clock) {
         JdbcOAuth2AuthorizationService store =
                 new JdbcOAuth2AuthorizationService(jdbcTemplate, registeredClientRepository);
-        return new McpAuthorizationService(store, accessPolicy, jdbcTemplate);
+        return new McpAuthorizationService(store, accessPolicy, jdbcTemplate, clock);
     }
 
     @Bean

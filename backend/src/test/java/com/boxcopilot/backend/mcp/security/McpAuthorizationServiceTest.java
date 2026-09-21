@@ -13,8 +13,10 @@ import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,10 +40,13 @@ class McpAuthorizationServiceTest {
             .clientSettings(ClientSettings.builder().setting(McpOAuth2Attributes.CLIENT_USER_ID, "42").build())
             .build();
 
+    private static final Instant NOW = Instant.parse("2026-09-22T12:00:00Z");
+
     private final OAuth2AuthorizationService delegate = mock(OAuth2AuthorizationService.class);
-    private final McpAccessPolicy policy = mock(McpAccessPolicy.class);
+    private final McpAuthorizationPolicy policy = mock(McpAuthorizationPolicy.class);
     private final JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
-    private final McpAuthorizationService service = new McpAuthorizationService(delegate, policy, jdbcTemplate);
+    private final McpAuthorizationService service = new McpAuthorizationService(delegate, policy, jdbcTemplate,
+            Clock.fixed(NOW, ZoneOffset.UTC));
 
     private static OAuth2Authorization.Builder builder() {
         return OAuth2Authorization.withRegisteredClient(CLIENT)
@@ -64,18 +69,15 @@ class McpAuthorizationServiceTest {
 
     @Test
     void theFirstSaveStampsTheConnectionStart() {
-        Instant before = Instant.now();
-
         service.save(builder().build());
 
-        String startedAt = captureSaved().getAttribute(McpOAuth2Attributes.STARTED_AT);
-        assertThat(Instant.ofEpochSecond(Long.parseLong(startedAt)))
-                .isBetween(before.minusSeconds(5), Instant.now().plusSeconds(5));
+        assertThat(captureSaved().<String>getAttribute(McpOAuth2Attributes.STARTED_AT))
+                .isEqualTo(String.valueOf(NOW.getEpochSecond()));
     }
 
     @Test
     void aLaterSaveLeavesTheConnectionStartUntouched() {
-        String startedAt = String.valueOf(Instant.now().minus(Duration.ofDays(3)).getEpochSecond());
+        String startedAt = String.valueOf(NOW.minus(Duration.ofDays(3)).getEpochSecond());
 
         service.save(builder().attribute(McpOAuth2Attributes.STARTED_AT, startedAt).build());
 
@@ -83,15 +85,40 @@ class McpAuthorizationServiceTest {
     }
 
     @Test
+    void aStampBeyondTheClockToleranceIsPulledBackToNow() {
+        String farFuture = String.valueOf(NOW.plus(Duration.ofDays(365)).getEpochSecond());
+
+        service.save(builder().attribute(McpOAuth2Attributes.STARTED_AT, farFuture).build());
+
+        assertThat(captureSaved().<String>getAttribute(McpOAuth2Attributes.STARTED_AT))
+                .isEqualTo(String.valueOf(NOW.getEpochSecond()));
+    }
+
+    @Test
+    void aStampWithinTheClockToleranceIsKept() {
+        String slightlyAhead = String.valueOf(NOW.plus(McpAuthorizationPolicy.MAX_CLOCK_SKEW).getEpochSecond());
+
+        service.save(builder().attribute(McpOAuth2Attributes.STARTED_AT, slightlyAhead).build());
+
+        assertThat(captureSaved().<String>getAttribute(McpOAuth2Attributes.STARTED_AT)).isEqualTo(slightlyAhead);
+    }
+
+    @Test
+    void anUnreadableStampIsNeitherRepairedNorReplaced() {
+        service.save(builder().attribute(McpOAuth2Attributes.STARTED_AT, "not-a-timestamp").build());
+
+        assertThat(captureSaved().<String>getAttribute(McpOAuth2Attributes.STARTED_AT)).isEqualTo("not-a-timestamp");
+    }
+
+    @Test
     void aRefreshTokenRotationKeepsTheConnectionStartAndGetsAFreshTokenLifetime() {
-        Instant firstIssuedAt = Instant.now().minus(Duration.ofDays(3));
+        Instant firstIssuedAt = NOW.minus(Duration.ofDays(3));
         OAuth2Authorization first = withRefreshToken(builder(), "refresh-1", firstIssuedAt);
         service.save(first);
         OAuth2Authorization stamped = captureSaved();
 
         // This is what Spring Authorization Server does on a refresh: copy, then replace the refresh token.
-        Instant rotatedAt = Instant.now();
-        OAuth2Authorization rotated = withRefreshToken(OAuth2Authorization.from(stamped), "refresh-2", rotatedAt);
+        OAuth2Authorization rotated = withRefreshToken(OAuth2Authorization.from(stamped), "refresh-2", NOW);
         service.save(rotated);
 
         ArgumentCaptor<OAuth2Authorization> captor = ArgumentCaptor.forClass(OAuth2Authorization.class);

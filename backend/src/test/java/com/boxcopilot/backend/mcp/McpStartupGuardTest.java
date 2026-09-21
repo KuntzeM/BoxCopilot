@@ -3,6 +3,7 @@ package com.boxcopilot.backend.mcp;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 
+import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -14,9 +15,13 @@ class McpStartupGuardTest {
     private static final List<String> REDIRECT_URIS = List.of("https://claude.ai/api/mcp/auth_callback");
 
     private static McpStartupGuard guard(String backendUrl, List<String> redirectUris, String... profiles) {
-        MockEnvironment environment = new MockEnvironment();
+        return guard(new McpProperties(true, backendUrl, redirectUris, null), new MockEnvironment(), profiles);
+    }
+
+    private static McpStartupGuard guard(McpProperties properties, MockEnvironment environment,
+                                         String... profiles) {
         environment.setActiveProfiles(profiles);
-        return new McpStartupGuard(new McpProperties(true, backendUrl, redirectUris, null), environment);
+        return new McpStartupGuard(properties, environment);
     }
 
     @Test
@@ -115,8 +120,39 @@ class McpStartupGuardTest {
     }
 
     @Test
+    void acceptsTheDefaultTransportEndpoint() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty(McpEndpoints.ENDPOINT_PROPERTY, McpEndpoints.MCP);
+
+        assertThatCode(guard(new McpProperties(true, "http://localhost:8080", REDIRECT_URIS, null), environment,
+                "dev")::afterPropertiesSet).doesNotThrowAnyException();
+    }
+
+    @Test
+    void rejectsATransportEndpointOtherThanTheProtectedPath() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty(McpEndpoints.ENDPOINT_PROPERTY, "/mcp-server");
+
+        assertThatThrownBy(guard(new McpProperties(true, "http://localhost:8080", REDIRECT_URIS, null), environment,
+                "dev")::afterPropertiesSet)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(McpEndpoints.ENDPOINT_PROPERTY);
+    }
+
+    @Test
+    void rejectsZeroOrNegativeMaxConnectionAge() {
+        for (Duration age : List.of(Duration.ZERO, Duration.ofDays(-1))) {
+            assertThatThrownBy(guard(new McpProperties(true, "http://localhost:8080", REDIRECT_URIS, age),
+                    new MockEnvironment(), "dev")::afterPropertiesSet)
+                    .as("%s", age)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("app.mcp.max-connection-age");
+        }
+    }
+
+    @Test
     void maxConnectionAgeDefaultsToFourteenDays() {
         assertThat(new McpProperties(true, "https://x", List.of(), null).maxConnectionAge())
-                .isEqualTo(java.time.Duration.ofHours(336));
+                .isEqualTo(Duration.ofHours(336));
     }
 }

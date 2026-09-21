@@ -86,6 +86,42 @@ class McpResourceServerIntegrationTest extends McpIntegrationTestBase {
     }
 
     @Test
+    void aSubPathOfTheMcpEndpointIsProtectedToo() throws Exception {
+        User user = createUser(true, true);
+        saveAuthorization(createClient(user.getId()), user.getId(), "access-subpath");
+
+        MvcResult withoutToken = mockMvc.perform(post("/mcp/anything")
+                .contentType(MediaType.APPLICATION_JSON).header("Accept", ACCEPT).content(toolsListRequest()))
+                .andReturn();
+        assertThat(withoutToken.getResponse().getStatus()).isEqualTo(401);
+        assertThat(withoutToken.getResponse().getHeader(HttpHeaders.WWW_AUTHENTICATE))
+                .isEqualTo(EXPECTED_CHALLENGE);
+
+        MvcResult withSession = mockMvc.perform(post("/mcp/anything")
+                .session(sessionFor(user))
+                .contentType(MediaType.APPLICATION_JSON).header("Accept", ACCEPT).content(toolsListRequest()))
+                .andReturn();
+        assertThat(withSession.getResponse().getStatus()).isEqualTo(401);
+        assertThat(withSession.getResponse().getContentAsString()).doesNotContain("search_items");
+    }
+
+    @Test
+    void aToolCallWithAValidTokenReturnsContentOverTheRealProtocol() throws Exception {
+        User user = createUser(true, true);
+        saveAuthorization(createClient(user.getId()), user.getId(), "access-tool-call");
+
+        MvcResult result = mcp("access-tool-call", """
+                {"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"search_items",
+                "arguments":{"query":"lamp","limit":5}}}""");
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(response.at("/result/isError").asBoolean()).isFalse();
+        JsonNode content = objectMapper.readTree(response.at("/result/content/0/text").asText());
+        assertThat(content.has("items")).isTrue();
+    }
+
+    @Test
     void aRefreshTokenPresentedAsBearerIsRejected() throws Exception {
         User user = createUser(true, true);
         saveAuthorization(createClient(user.getId()), user.getId(), "access-refresh-case");

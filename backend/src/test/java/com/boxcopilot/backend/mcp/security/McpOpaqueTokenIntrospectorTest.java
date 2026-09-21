@@ -48,7 +48,7 @@ class McpOpaqueTokenIntrospectorTest {
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
                 .authorizedScopes(scopes)
                 .token(new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, "access-value", issuedAt,
-                        expiresAt))
+                        expiresAt, scopes))
                 .refreshToken(new OAuth2RefreshToken("refresh-value", issuedAt))
                 .build();
     }
@@ -116,6 +116,26 @@ class McpOpaqueTokenIntrospectorTest {
 
         assertThatThrownBy(() -> introspector.introspect("access-value"))
                 .isInstanceOf(BadOpaqueTokenException.class);
+    }
+
+    @Test
+    void anAuthorityIsOnlyDerivedFromAScopeThatBothTheTokenAndTheAuthorizationCarry() {
+        Instant now = Instant.now();
+        OAuth2Authorization authorization = OAuth2Authorization.withRegisteredClient(CLIENT)
+                .id("authorization-id")
+                .principalName("42")
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .authorizedScopes(Set.of(McpOAuth2Attributes.SCOPE_READ, "mcp:admin"))
+                .token(new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, "access-value", now,
+                        now.plus(Duration.ofMinutes(30)), Set.of(McpOAuth2Attributes.SCOPE_READ, "mcp:write")))
+                .build();
+        when(authorizationService.findByToken(anyString(), any())).thenReturn(authorization);
+
+        OAuth2AuthenticatedPrincipal principal = introspector.introspect("access-value");
+
+        assertThat(principal.getAuthorities()).extracting(GrantedAuthority::getAuthority)
+                .containsExactly("SCOPE_mcp:read");
+        assertThat(principal.<String>getAttribute("scope")).isEqualTo("mcp:read");
     }
 
     @Test

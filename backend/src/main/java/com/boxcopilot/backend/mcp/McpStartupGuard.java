@@ -47,6 +47,23 @@ class McpStartupGuard implements InitializingBean {
             throw new IllegalStateException(
                     "app.mcp.enabled=true requires at least one non-blank redirect URI (app.mcp.redirect-uris)");
         }
+        if (properties.maxConnectionAge().isZero() || properties.maxConnectionAge().isNegative()) {
+            throw new IllegalStateException("app.mcp.max-connection-age must be a positive duration");
+        }
+        requirePinnedTransportEndpoint();
+    }
+
+    /**
+     * The resource server chain matches {@link McpEndpoints#MCP} literally. If the transport were published
+     * anywhere else, its router function would fall through to the application chain, where a session cookie
+     * would reach the tools. Moving the endpoint is therefore a startup error rather than a silent downgrade.
+     */
+    private void requirePinnedTransportEndpoint() {
+        String configured = environment.getProperty(McpEndpoints.ENDPOINT_PROPERTY, McpEndpoints.MCP);
+        if (!McpEndpoints.MCP.equals(configured)) {
+            throw new IllegalStateException(McpEndpoints.ENDPOINT_PROPERTY + " must be '" + McpEndpoints.MCP
+                    + "'; the MCP resource server chain only protects that path");
+        }
     }
 
     /**

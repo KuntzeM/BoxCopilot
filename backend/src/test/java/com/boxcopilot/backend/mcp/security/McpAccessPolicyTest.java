@@ -15,9 +15,11 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 
@@ -35,11 +37,20 @@ class McpAccessPolicyTest {
     private static final long USER_ID = 42L;
     private static final String CLIENT_ID = "registered-client-id";
     private static final Duration MAX_AGE = Duration.ofDays(14);
+    private static final Instant NOW = Instant.parse("2026-09-22T12:00:00Z");
 
     private final UserRepository userRepository = mock(UserRepository.class);
     private final RegisteredClientRepository clientRepository = mock(RegisteredClientRepository.class);
+    private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
     private final McpAccessPolicy policy = new McpAccessPolicy(userRepository, clientRepository,
-            new McpProperties(true, "https://boxpilot.example.com", List.of("https://claude.ai/cb"), MAX_AGE));
+            new McpProperties(true, "https://boxpilot.example.com", List.of("https://claude.ai/cb"), MAX_AGE),
+            clock);
+
+    private static OAuth2Authorization startedAt(Instant startedAt) {
+        return authorizationBuilder()
+                .attribute(McpOAuth2Attributes.STARTED_AT, String.valueOf(startedAt.getEpochSecond()))
+                .build();
+    }
 
     private static User user() {
         User user = new User("someone", "Someone", AuthProvider.LOCAL, Role.USER);
@@ -73,9 +84,7 @@ class McpAccessPolicyTest {
     }
 
     private static OAuth2Authorization authorization() {
-        return authorizationBuilder()
-                .attribute(McpOAuth2Attributes.STARTED_AT, String.valueOf(Instant.now().getEpochSecond()))
-                .build();
+        return startedAt(NOW);
     }
 
     @BeforeEach
@@ -162,7 +171,7 @@ class McpAccessPolicyTest {
     void deniesWhenThePrincipalIsNotANumericUserId() {
         OAuth2Authorization authorization = authorizationBuilder()
                 .principalName("someone")
-                .attribute(McpOAuth2Attributes.STARTED_AT, String.valueOf(Instant.now().getEpochSecond()))
+                .attribute(McpOAuth2Attributes.STARTED_AT, String.valueOf(NOW.getEpochSecond()))
                 .build();
 
         assertThat(policy.checkAuthorization(authorization)).isFalse();
@@ -185,30 +194,33 @@ class McpAccessPolicyTest {
     @Test
     void deniesWhenTheStartTimestampIsNotAString() {
         OAuth2Authorization authorization = authorizationBuilder()
-                .attribute(McpOAuth2Attributes.STARTED_AT, Instant.now().getEpochSecond())
+                .attribute(McpOAuth2Attributes.STARTED_AT, NOW.getEpochSecond())
                 .build();
 
         assertThat(policy.checkAuthorization(authorization)).isFalse();
     }
 
     @Test
-    void deniesWhenTheAbsoluteConnectionAgeIsExceeded() {
-        OAuth2Authorization tooOld = authorizationBuilder()
-                .attribute(McpOAuth2Attributes.STARTED_AT,
-                        String.valueOf(Instant.now().minus(MAX_AGE).minusSeconds(60).getEpochSecond()))
-                .build();
+    void deniesWhenTheStartTimestampLiesInTheFuture() {
+        Instant beyondTolerance = NOW.plus(McpAuthorizationPolicy.MAX_CLOCK_SKEW).plusSeconds(1);
 
-        assertThat(policy.checkAuthorization(tooOld)).isFalse();
+        assertThat(policy.checkAuthorization(startedAt(beyondTolerance))).isFalse();
+        assertThat(policy.checkAuthorization(startedAt(NOW.plus(Duration.ofDays(365))))).isFalse();
     }
 
     @Test
-    void allowsJustBeforeTheAbsoluteConnectionAgeIsExceeded() {
-        OAuth2Authorization almostTooOld = authorizationBuilder()
-                .attribute(McpOAuth2Attributes.STARTED_AT,
-                        String.valueOf(Instant.now().minus(MAX_AGE).plusSeconds(60).getEpochSecond()))
-                .build();
+    void toleratesASmallClockDifference() {
+        assertThat(policy.checkAuthorization(startedAt(NOW.plus(McpAuthorizationPolicy.MAX_CLOCK_SKEW)))).isTrue();
+    }
 
-        assertThat(policy.checkAuthorization(almostTooOld)).isTrue();
+    @Test
+    void deniesOneSecondAfterTheAbsoluteConnectionAgeIsExceeded() {
+        assertThat(policy.checkAuthorization(startedAt(NOW.minus(MAX_AGE).minusSeconds(1)))).isFalse();
+    }
+
+    @Test
+    void allowsExactlyOnTheAbsoluteConnectionAgeBoundary() {
+        assertThat(policy.checkAuthorization(startedAt(NOW.minus(MAX_AGE)))).isTrue();
     }
 
     @Test

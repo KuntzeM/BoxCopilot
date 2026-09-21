@@ -11,6 +11,8 @@ enum McpDenyReason {
     CLIENT_BINDING,
     /** The authorization carries no start timestamp, so its absolute age cannot be established. */
     NO_START_TIMESTAMP,
+    /** The start timestamp lies further in the future than the tolerated clock difference. */
+    START_TIMESTAMP_IN_FUTURE,
     /** The connection has exceeded the configured absolute age; re-consent is required. */
     CONNECTION_TOO_OLD,
     /** No user with this id exists any more. */

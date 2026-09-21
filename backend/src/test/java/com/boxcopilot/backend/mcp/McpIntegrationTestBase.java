@@ -8,6 +8,7 @@ import com.boxcopilot.backend.mcp.security.McpOAuth2Attributes;
 import com.boxcopilot.backend.repository.PostgresContainerSupport;
 import com.boxcopilot.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -29,10 +30,14 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.security.oauth2.server.authorization.settings.OAuth2TokenFormat;
 import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.context.ApplicationContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.junit.jupiter.Testcontainers;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -46,9 +51,7 @@ import java.util.UUID;
  * are deliberately absent.
  */
 @Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(properties = {
-        "app.mcp.enabled=true",
-        "spring.main.allow-bean-definition-overriding=false"})
+@SpringBootTest(properties = "app.mcp.enabled=true")
 @AutoConfigureMockMvc
 @ActiveProfiles({"dev", "mcp-test"})
 @ContextConfiguration(initializers = PostgresContainerSupport.class)
@@ -56,6 +59,8 @@ import java.util.UUID;
 public abstract class McpIntegrationTestBase {
 
     protected static final String ACCEPT = "application/json, text/event-stream";
+
+    private static final String TEST_USER_PREFIX = "mcp-test-user-";
 
     @Autowired
     protected MockMvc mockMvc;
@@ -67,6 +72,8 @@ public abstract class McpIntegrationTestBase {
     protected McpAuthorizationService authorizationService;
     @Autowired
     protected JdbcTemplate jdbcTemplate;
+    @Autowired
+    protected ApplicationContext applicationContext;
 
     /**
      * Replaces the OIDC client registration of the {@code dev} profile. Its {@code issuer-uri} would be resolved
@@ -93,14 +100,25 @@ public abstract class McpIntegrationTestBase {
         }
     }
 
+    /**
+     * Only the MCP chain and the application chain may exist. A third one would mean Boot's resource-server or
+     * authorization-server defaults came back and started deciding about requests.
+     */
+    @Test
+    void exactlyTwoSecurityFilterChainsAreRegistered() {
+        assertThat(applicationContext.getBeansOfType(SecurityFilterChain.class)).hasSize(2);
+    }
+
+    /** The users are committed rows, so they are removed by their generated name rather than rolled back. */
     @BeforeEach
-    void clearOAuth2Tables() {
+    void clearOAuth2TablesAndTestUsers() {
         jdbcTemplate.update("DELETE FROM oauth2_authorization");
         jdbcTemplate.update("DELETE FROM oauth2_registered_client");
+        jdbcTemplate.update("DELETE FROM users WHERE username LIKE ?", TEST_USER_PREFIX + "%");
     }
 
     protected User createUser(boolean enabled, boolean mcpAllowed) {
-        User user = new User("user-" + UUID.randomUUID(), "MCP user", AuthProvider.LOCAL, Role.USER);
+        User user = new User(TEST_USER_PREFIX + UUID.randomUUID(), "MCP user", AuthProvider.LOCAL, Role.USER);
         user.setEnabled(enabled);
         user.setMcpAllowed(mcpAllowed);
         return userRepository.save(user);

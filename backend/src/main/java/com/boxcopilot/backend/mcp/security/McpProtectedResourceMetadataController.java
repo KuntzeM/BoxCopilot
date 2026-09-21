@@ -1,5 +1,6 @@
 package com.boxcopilot.backend.mcp.security;
 
+import com.boxcopilot.backend.mcp.McpEndpoints;
 import com.boxcopilot.backend.mcp.McpProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
@@ -19,20 +20,18 @@ import java.util.Map;
 @ConditionalOnProperty(prefix = "app.mcp", name = "enabled", havingValue = "true")
 class McpProtectedResourceMetadataController {
 
-    static final String PATH = "/.well-known/oauth-protected-resource/mcp";
-
     private final Map<String, Object> metadata;
 
     McpProtectedResourceMetadataController(McpProperties properties) {
         Map<String, Object> document = new LinkedHashMap<>();
-        document.put("resource", properties.backendUrl() + McpSecurityConfig.MCP_ENDPOINT);
+        document.put("resource", properties.backendUrl() + McpEndpoints.MCP);
         document.put("authorization_servers", List.of(properties.backendUrl()));
         document.put("scopes_supported", List.of(McpOAuth2Attributes.SCOPE_READ));
         document.put("bearer_methods_supported", List.of("header"));
         this.metadata = Collections.unmodifiableMap(document);
     }
 
-    @GetMapping(path = PATH, produces = MediaType.APPLICATION_JSON_VALUE)
+    @GetMapping(path = McpEndpoints.PROTECTED_RESOURCE_METADATA, produces = MediaType.APPLICATION_JSON_VALUE)
     Map<String, Object> protectedResourceMetadata() {
         return metadata;
     }

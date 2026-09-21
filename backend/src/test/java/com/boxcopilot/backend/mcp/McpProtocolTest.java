@@ -18,7 +18,11 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.core.DefaultOAuth2AuthenticatedPrincipal;
+import org.springframework.security.oauth2.core.OAuth2AccessToken;
+import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthentication;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -36,7 +40,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /**
@@ -91,13 +95,28 @@ class McpProtocolTest {
     @MockitoBean
     private McpUserGate userGate;
 
+    /** The transport only trusts a bearer token, so the tests authenticate the way the resource server does. */
+    private static BearerTokenAuthentication bearerToken(String subject) {
+        java.time.Instant now = java.time.Instant.now();
+        var principal = new DefaultOAuth2AuthenticatedPrincipal(subject, java.util.Map.of("sub", subject),
+                List.of(new SimpleGrantedAuthority("SCOPE_mcp:read")));
+        var accessToken = new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, "token-value", now,
+                now.plusSeconds(1800));
+        return new BearerTokenAuthentication(principal, accessToken, principal.getAuthorities());
+    }
+
     private MvcResult rpc(String userName, String body) throws Exception {
+        return rpc(userName == null ? null : bearerToken(userName), body);
+    }
+
+    private MvcResult rpc(org.springframework.security.core.Authentication authentication, String body)
+            throws Exception {
         var request = post("/mcp")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Accept", ACCEPT)
                 .content(body);
-        if (userName != null) {
-            request = request.with(user(userName));
+        if (authentication != null) {
+            request = request.with(authentication(authentication));
         }
         return mockMvc.perform(request).andReturn();
     }
@@ -155,6 +174,19 @@ class McpProtocolTest {
     }
 
     @Test
+    void toolCallWithASessionAuthenticationIsDeniedAndReachesNoData() throws Exception {
+        var sessionAuthentication = org.springframework.security.authentication.UsernamePasswordAuthenticationToken
+                .authenticated("42", null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+
+        MvcResult result = rpc(sessionAuthentication, call("search_items", "{\"query\":\"lamp\"}"));
+        JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
+
+        assertThat(response.at("/result/isError").asBoolean()).isTrue();
+        assertThat(response.at("/result/content/0/text").asText()).isEqualTo(BoxPilotMcpTools.GENERIC_ERROR);
+        verifyNoInteractions(userGate, readService);
+    }
+
+    @Test
     void toolCallForUserWithoutNumericIdIsDeniedAndReachesNoData() throws Exception {
         JsonNode response = rpcJson("not-a-number", call("search_items", "{\"query\":\"lamp\"}"));
 
@@ -192,7 +224,7 @@ class McpProtocolTest {
 
     @Test
     void unauthenticatedRequestNeverReachesTheTools() throws Exception {
-        MvcResult result = rpc(null, call("search_items", "{\"query\":\"lamp\"}"));
+        MvcResult result = rpc((String) null, call("search_items", "{\"query\":\"lamp\"}"));
 
         assertThat(result.getResponse().getStatus()).isIn(401, 403);
         verifyNoInteractions(userGate, readService);

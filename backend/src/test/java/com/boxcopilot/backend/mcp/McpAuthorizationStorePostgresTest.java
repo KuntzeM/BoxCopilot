@@ -144,6 +144,48 @@ class McpAuthorizationStorePostgresTest extends McpIntegrationTestBase {
     }
 
     @Test
+    void removeByPrincipalDeletesOnlyThatUsersAuthorizations() {
+        User user = createUser(true, true);
+        User other = createUser(true, true);
+        RegisteredClient client = createClient(user.getId());
+        RegisteredClient othersClient = createClient(other.getId());
+        saveAuthorization(client, user.getId(), "access-remove-1");
+        saveAuthorization(client, user.getId(), "access-remove-2");
+        saveAuthorization(othersClient, other.getId(), "access-keep");
+
+        int removed = authorizationService.removeByPrincipal(String.valueOf(user.getId()));
+
+        assertThat(removed).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM oauth2_authorization WHERE principal_name = ?", Long.class,
+                String.valueOf(user.getId()))).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM oauth2_authorization WHERE principal_name = ?", Long.class,
+                String.valueOf(other.getId()))).isEqualTo(1L);
+        assertThat(registeredClientRepository.findById(client.getId())).isNotNull();
+    }
+
+    @Test
+    void deletingARegisteredClientCascadesToItsAuthorizations() {
+        User user = createUser(true, true);
+        RegisteredClient client = createClient(user.getId());
+        saveAuthorization(client, user.getId(), "access-cascade");
+
+        jdbcTemplate.update("DELETE FROM oauth2_registered_client WHERE id = ?", client.getId());
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM oauth2_authorization WHERE registered_client_id = ?", Long.class,
+                client.getId())).isZero();
+    }
+
+    @Test
+    void theForeignKeyOfTheAuthorizationTableIsIndexed() {
+        assertThat(jdbcTemplate.queryForList(
+                "SELECT indexdef FROM pg_indexes WHERE tablename = 'oauth2_authorization'", String.class))
+                .anyMatch(definition -> definition.contains("(registered_client_id)"));
+    }
+
+    @Test
     void theOnlyAuthorizationServiceInTheContextIsTheDecorator() {
         assertThat(context.getBeansOfType(OAuth2AuthorizationService.class)).hasSize(1);
         assertThat(context.getBean(OAuth2AuthorizationService.class)).isSameAs(authorizationService);

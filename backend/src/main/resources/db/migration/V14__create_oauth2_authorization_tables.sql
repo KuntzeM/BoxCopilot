@@ -73,3 +73,5 @@ CREATE INDEX ix_oauth2_authorization_refresh_token ON oauth2_authorization (refr
 CREATE INDEX ix_oauth2_authorization_code ON oauth2_authorization (authorization_code_value);
 CREATE INDEX ix_oauth2_authorization_state ON oauth2_authorization (state);
 CREATE INDEX ix_oauth2_authorization_principal_name ON oauth2_authorization (principal_name);
+-- Without this the cascading delete of a client scans the whole table.
+CREATE INDEX ix_oauth2_authorization_registered_client ON oauth2_authorization (registered_client_id);

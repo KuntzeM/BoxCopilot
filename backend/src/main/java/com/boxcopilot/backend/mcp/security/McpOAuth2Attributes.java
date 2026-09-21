@@ -20,8 +20,17 @@ public final class McpOAuth2Attributes {
      */
     public static final String STARTED_AT = "boxpilot.started_at";
 
-    /** The only scope BoxPilot issues; the resource server requires the matching {@code SCOPE_} authority. */
+    /** The only scope BoxPilot issues; the resource server requires the matching authority. */
     public static final String SCOPE_READ = "mcp:read";
+
+    /**
+     * Prefix Spring Security uses for authorities derived from scopes. It has no public constant in Spring
+     * Security, so it is pinned here and used by both the introspector and the resource server chain.
+     */
+    public static final String SCOPE_AUTHORITY_PREFIX = "SCOPE_";
+
+    /** The authority the MCP endpoint requires. */
+    public static final String READ_AUTHORITY = SCOPE_AUTHORITY_PREFIX + SCOPE_READ;
 
     private McpOAuth2Attributes() {
     }
