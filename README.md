@@ -72,12 +72,12 @@ mvn spring-boot:run
 Runs on port 8080 with H2 file-based database at `./data/boxcopilot-dev`.
 
 **Default Admin User:**  
-On first startup, a default admin account is created:
-- Username: `admin`
-- Password: `admin`
+On first startup, a default admin account is created from `ADMIN_USERNAME` / `ADMIN_PASSWORD`:
+- Username: `admin` (default)
+- Password: `admin` in the `dev` profile only (override with `ADMIN_PASSWORD`)
 - Role: `ADMIN`
 
-**Important:** Change the default password immediately after first login.
+**Important:** In the `prod` profile `ADMIN_PASSWORD` has no default. Startup fails if it is empty or `admin`, or if an existing ADMIN account still has the password `admin`. Set `REDIS_PASSWORD` as well (Redis runs with `requirepass`).
 
 ### Frontend
 ```bash

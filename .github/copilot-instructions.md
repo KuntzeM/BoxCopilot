@@ -73,7 +73,8 @@ BoxPilot/
 │   │   ├── BoxCopilotApplication.java       # Application entry point
 │   │   ├── config/                           # Configuration beans
 │   │   │   ├── OAuth2SecurityConfig.java    # Security config with OIDC (dev/prod profiles)
-│   │   │   ├── NoSecurityConfig.java        # Disabled security (test profile)
+│   │   │   ├── AdminPasswordGuard.java      # Rejects the default admin password (prod)
+│   │   │   ├── StartupGuard.java            # Aborts startup on unsafe profile combinations
 │   │   │   └── RedisConfig.java             # Redis session management
 │   │   ├── controller/                       # REST controllers
 │   │   │   ├── AuthController.java          # Authentication endpoints
@@ -108,7 +109,6 @@ BoxPilot/
 │   │   ├── application.yml                   # Default profile
 │   │   ├── application-dev.yml               # Dev profile (H2, OIDC enabled)
 │   │   ├── application-prod.yml              # Production profile (PostgreSQL, Redis)
-│   │   ├── application-test.yml              # Test profile (no security)
 │   │   ├── logback-spring.xml                # Logging configuration
 │   │   └── db/migration/
 │   │       └── V1__init.sql                  # Flyway migration (if used)
@@ -206,7 +206,8 @@ BoxPilot/
    - Example: `CreateUserDTO` has optional `password` field for magic-link-only accounts
 5. **Configuration** (`config/`):
    - `OAuth2SecurityConfig`: Security filter chain for dev/prod (dual auth enabled)
-   - `NoSecurityConfig`: Security disabled for test profile
+   - `NoSecurityConfig` (in `src/test`): Security disabled for the `test` profile, never packaged into the jar
+   - `AdminPasswordGuard`: Fails prod startup when the admin password is missing or the default
    - `ServiceConfiguration`: Resolves circular dependencies (e.g., UserService ↔ MagicLoginTokenService)
    - Profile-based activation: `@Profile({"dev", "prod"})` vs `@Profile("test")`
 
@@ -288,7 +289,7 @@ Frontend runs on port 5173 (Vite dev server). API calls proxied to `http://local
 cd backend
 mvn test
 ```
-Tests run with `test` profile (NoSecurityConfig, H2 in-memory).
+Tests run with `test` profile (`NoSecurityConfig` and `application-test.yml` live in `backend/src/test`; H2 in-memory).
 
 ### Database Migrations
 Flyway migrations are in `backend/src/main/resources/db/migration/`:
@@ -325,7 +326,7 @@ Services: postgres, redis, backend (port 8080), frontend (port 80). Traefik labe
   - `IllegalArgumentException` for validation failures
   - `GlobalExceptionHandler` for centralized HTTP responses
 - **DTO Validation**: Use `@Valid`, `@NotBlank`, `@Email`, etc. on DTOs
-- **Profile Configuration**: `@Profile({"dev", "prod"})` for SecurityConfig; `@Profile("test")` for NoSecurityConfig
+- **Profile Configuration**: `@Profile({"dev", "prod"})` for SecurityConfig; `@Profile("test")` for NoSecurityConfig (test sources only)
 - **Circular Dependencies**: Resolve via setter injection (see `ServiceConfiguration.java`)
 
 ### Frontend Code Style
