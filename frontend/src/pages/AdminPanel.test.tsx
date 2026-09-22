@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { LanguageProvider } from '../context/LanguageContext';
 import { userService } from '../services/userService';
 import { AuthProvider, Role, User } from '../types/models';
@@ -85,5 +85,22 @@ describe('AdminPanel MCP switch', () => {
 
     await waitFor(() => expect(userService.updateUser).toHaveBeenCalledTimes(1));
     expect(userService.updateUser).toHaveBeenCalledWith(7, expect.objectContaining({ mcpAllowed: false }));
+  });
+
+  it('keeps mcpAllowed=true when the admin only edits name and role', async () => {
+    const user = buildUser({ mcpAllowed: true });
+    vi.mocked(userService.updateUser).mockResolvedValue({ ...user, name: 'Alice B.', role: Role.ADMIN });
+    await openEditDialogFor(user);
+
+    const dialog = within(screen.getByRole('dialog'));
+    fireEvent.change(dialog.getByLabelText('Name'), { target: { value: 'Alice B.' } });
+    fireEvent.mouseDown(dialog.getByRole('combobox'));
+    fireEvent.click(await screen.findByRole('option', { name: 'Admin' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(userService.updateUser).toHaveBeenCalledTimes(1));
+    const payload = vi.mocked(userService.updateUser).mock.calls[0][1];
+    expect(payload).toEqual(expect.objectContaining({ name: 'Alice B.', role: Role.ADMIN }));
+    expect(payload.mcpAllowed).toBe(true);
   });
 });

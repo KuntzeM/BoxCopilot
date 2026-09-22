@@ -109,7 +109,7 @@ export default function AdminPanel() {
   const [menuAnchor, setMenuAnchor] = useState<{ [key: number]: HTMLElement | null }>({});
 
   // Form state
-  const [formData, setFormData] = useState<Partial<CreateUserPayload | UpdateUserPayload>>({});
+  const [formData, setFormData] = useState<Partial<CreateUserPayload & UpdateUserPayload>>({});
   const [newPassword, setNewPassword] = useState('');
   const [magicLinkData, setMagicLinkData] = useState<{ url: string; expiresAt: string } | null>(null);
 
@@ -155,7 +155,7 @@ export default function AdminPanel() {
   const handleUpdateUser = async () => {
     if (!selectedUser) return;
     try {
-      await userService.updateUser(selectedUser.id, formData as UpdateUserPayload);
+      await userService.updateUser(selectedUser.id, formData);
       setSuccessMessage(t('admin.userUpdated'));
       setEditDialogOpen(false);
       setFormData({});
@@ -695,7 +695,7 @@ export default function AdminPanel() {
             margin="normal"
             label={t('admin.passwordOptional')}
             type="password"
-            value={(formData as CreateUserPayload).password || ''}
+            value={formData.password || ''}
             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
             helperText={t('admin.passwordless')}
           />
@@ -784,7 +784,7 @@ export default function AdminPanel() {
           <FormControlLabel
             control={
               <Switch
-                checked={(formData as UpdateUserPayload).mcpAllowed === true}
+                checked={formData.mcpAllowed === true}
                 onChange={(e) => setFormData({ ...formData, mcpAllowed: e.target.checked })}
               />
             }
