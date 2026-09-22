@@ -271,6 +271,37 @@ export const de = {
     expiry1month: '1 Monat',
     generate: 'Generieren',
   },
+  mcp: {
+    title: 'Claude-Verbindung',
+    description:
+      'Mit der Claude-Verbindung kann Claude Ihre Boxen und Items lesen. Der Zugriff ist rein lesend, Claude kann nichts ändern.',
+    privacyNote: 'Die abgefragten Daten werden an den KI-Anbieter übertragen.',
+    clientIdLabel: 'Client-ID',
+    connectorUrlLabel: 'Connector-URL',
+    copyClientId: 'Client-ID kopieren',
+    copyConnectorUrl: 'Connector-URL kopieren',
+    copied: 'In die Zwischenablage kopiert',
+    copyFailed: 'Kopieren nicht möglich. Bitte den Wert markieren und manuell kopieren.',
+    howToTitle: 'So verbinden Sie Claude',
+    howTo:
+      'Legen Sie in Claude einen benutzerdefinierten Connector mit der Connector-URL an und tragen Sie in den erweiterten Einstellungen die Client-ID als OAuth-Client-ID ein. Beim Verbinden melden Sie sich bei BoxCopilot an und bestätigen den Zugriff.',
+    loading: 'Client-ID wird geladen...',
+    loadFailed: 'Die Client-ID konnte nicht geladen werden.',
+    retry: 'Erneut versuchen',
+    regenerate: 'Neu erzeugen',
+    regenerateTitle: 'Client-ID neu erzeugen?',
+    regenerateWarning:
+      'Die bestehende Verbindung funktioniert danach nicht mehr. Alle Verbindungen werden getrennt und Claude muss mit der neuen Client-ID erneut verbunden werden.',
+    regenerated: 'Neue Client-ID erzeugt',
+    regenerateFailed: 'Die Client-ID konnte nicht neu erzeugt werden.',
+    revokeAll: 'Alle Verbindungen widerrufen',
+    revokeTitle: 'Alle Verbindungen widerrufen?',
+    revokeWarning: 'Claude verliert sofort den Zugriff auf Ihre Daten.',
+    revoke: 'Widerrufen',
+    revoked: 'Alle Verbindungen wurden widerrufen.',
+    revokeFailed: 'Die Verbindungen konnten nicht widerrufen werden.',
+    close: 'Schließen',
+  },
 };
 
 export type TranslationKeys = typeof de;

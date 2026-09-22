@@ -139,8 +139,14 @@ export interface UserPrincipal {
   isAdmin: boolean;
   csrfToken?: string;
   authenticated: boolean;
+  mcpPending?: boolean;
+  mcpAllowed?: boolean;
   // Legacy OIDC fields (for backward compatibility)
   sub?: string;
   email?: string;
   preferredUsername?: string;
+}
+
+export interface McpClientInfo {
+  clientId: string;
 }

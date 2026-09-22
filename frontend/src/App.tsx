@@ -20,15 +20,16 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-import { 
-  Inventory2, 
-  WbSunny, 
-  DarkMode, 
-  Logout, 
+import {
+  Inventory2,
+  WbSunny,
+  DarkMode,
+  Logout,
   AdminPanelSettings,
   Menu as MenuIcon,
   Language as LanguageIcon,
 } from '@mui/icons-material';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 import axios from './services/axiosConfig';
 import BoxList from './pages/BoxList';
 import PublicPreview from './pages/PublicPreview';
@@ -36,9 +37,11 @@ import BoxEditPage from './pages/BoxEditPage';
 import LoginPage from './pages/LoginPage';
 import MagicLoginPage from './pages/MagicLoginPage';
 import AdminPanel from './pages/AdminPanel';
+import ClaudeConnectionDialog from './components/ClaudeConnectionDialog';
 import { CookieThemeProvider, useThemeContext } from './context/ThemeContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { useTranslation } from './hooks/useTranslation';
+import { useMcpContinue } from './hooks/useMcpContinue';
 import LanguageSelector from './components/LanguageSelector';
 import { Role, UserPrincipal } from './types/models';
 
@@ -97,6 +100,7 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [claudeDialogOpen, setClaudeDialogOpen] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -120,6 +124,11 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
 
   const handleMobileAdminClick = () => {
     navigate('/app/admin');
+    handleCloseMobileMenu();
+  };
+
+  const handleMobileClaudeClick = () => {
+    setClaudeDialogOpen(true);
     handleCloseMobileMenu();
   };
 
@@ -185,6 +194,16 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
                   sx={{ ml: 1 }}
                 >
                   Admin
+                </Button>
+              )}
+              {user?.mcpAllowed === true && (
+                <Button
+                  color="inherit"
+                  startIcon={<SmartToyIcon />}
+                  onClick={() => setClaudeDialogOpen(true)}
+                  sx={{ ml: 1 }}
+                >
+                  {t('mcp.title')}
                 </Button>
               )}
               <Button
@@ -253,6 +272,16 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
               </ListItemButton>
             )}
 
+            {/* Claude Connection */}
+            {user?.mcpAllowed === true && (
+              <ListItemButton onClick={handleMobileClaudeClick} sx={{ minHeight: 56 }}>
+                <ListItemIcon>
+                  <SmartToyIcon color="primary" />
+                </ListItemIcon>
+                <ListItemText primary={t('mcp.title')} />
+              </ListItemButton>
+            )}
+
             {/* Logout */}
             <ListItemButton onClick={handleMobileLogout} sx={{ minHeight: 56 }}>
               <ListItemIcon>
@@ -267,6 +296,10 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
         {children}
       </Container>
+
+      {user?.mcpAllowed === true && (
+        <ClaudeConnectionDialog open={claudeDialogOpen} onClose={() => setClaudeDialogOpen(false)} />
+      )}
     </>
   );
 }
@@ -302,6 +335,8 @@ export default function App() {
 
     checkAuth();
   }, []);
+
+  useMcpContinue(isAuthenticated, user?.mcpPending);
 
   return (
     <CookieThemeProvider>
