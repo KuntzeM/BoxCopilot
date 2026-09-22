@@ -96,7 +96,8 @@ class McpFlagOffTest {
                     assertThat(context).hasSingleBean(BoxPilotMcpTools.class);
                     assertThat(context).hasSingleBean(McpProperties.class);
                     assertThat(context.getBean(McpProperties.class).redirectUris())
-                            .containsExactly("https://claude.ai/api/mcp/auth_callback");
+                            .containsExactly("https://claude.ai/api/mcp/auth_callback",
+                                    "http://127.0.0.1:41000/callback");
                 });
     }
 

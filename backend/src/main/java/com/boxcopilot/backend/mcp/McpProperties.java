@@ -27,14 +27,7 @@ public record McpProperties(boolean enabled, String backendUrl, List<String> red
 
     public McpProperties {
         redirectUris = redirectUris == null ? List.of() : List.copyOf(redirectUris);
-        backendUrl = stripTrailingSlash(backendUrl);
+        backendUrl = McpUrls.withoutTrailingSlash(backendUrl);
         maxConnectionAge = maxConnectionAge == null ? DEFAULT_MAX_CONNECTION_AGE : maxConnectionAge;
-    }
-
-    private static String stripTrailingSlash(String url) {
-        if (url == null || !url.endsWith("/")) {
-            return url;
-        }
-        return url.substring(0, url.length() - 1);
     }
 }

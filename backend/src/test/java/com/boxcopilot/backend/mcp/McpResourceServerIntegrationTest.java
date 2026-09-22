@@ -9,10 +9,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
@@ -24,7 +20,6 @@ import org.springframework.test.web.servlet.MvcResult;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,15 +42,6 @@ class McpResourceServerIntegrationTest extends McpIntegrationTestBase {
             request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
         }
         return mockMvc.perform(request).andReturn();
-    }
-
-    private static MockHttpSession sessionFor(User user) {
-        SecurityContext context = SecurityContextHolder.createEmptyContext();
-        context.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(user.getUsername(), null,
-                List.of(new SimpleGrantedAuthority("ROLE_USER"))));
-        MockHttpSession session = new MockHttpSession();
-        session.setAttribute("SPRING_SECURITY_CONTEXT", context);
-        return session;
     }
 
     private long countAuthorizations() {

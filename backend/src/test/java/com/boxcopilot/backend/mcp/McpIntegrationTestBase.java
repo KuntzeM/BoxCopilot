@@ -7,6 +7,15 @@ import com.boxcopilot.backend.mcp.security.McpAuthorizationService;
 import com.boxcopilot.backend.mcp.security.McpOAuth2Attributes;
 import com.boxcopilot.backend.repository.PostgresContainerSupport;
 import com.boxcopilot.backend.repository.UserRepository;
+import com.boxcopilot.backend.service.CustomUserDetailsService;
+import org.springframework.mock.web.MockHttpSession;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,9 +36,6 @@ import org.springframework.security.oauth2.core.oidc.IdTokenClaimNames;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
-import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
-import org.springframework.security.oauth2.server.authorization.settings.OAuth2TokenFormat;
-import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.ContextConfiguration;
@@ -59,6 +65,10 @@ import java.util.UUID;
 public abstract class McpIntegrationTestBase {
 
     protected static final String ACCEPT = "application/json, text/event-stream";
+
+    /** The redirect URIs of {@code application-mcp-test.yml}; the first one is Claude's callback. */
+    protected static final List<String> REDIRECT_URIS =
+            List.of("https://claude.ai/api/mcp/auth_callback", "http://127.0.0.1:41000/callback");
 
     private static final String TEST_USER_PREFIX = "mcp-test-user-";
 
@@ -101,12 +111,13 @@ public abstract class McpIntegrationTestBase {
     }
 
     /**
-     * Only the MCP chain and the application chain may exist. A third one would mean Boot's resource-server or
-     * authorization-server defaults came back and started deciding about requests.
+     * The authorization server chain, the MCP chain and the application chain, and nothing else. A fourth one
+     * would mean Boot's resource-server or authorization-server defaults came back and started deciding about
+     * requests.
      */
     @Test
-    void exactlyTwoSecurityFilterChainsAreRegistered() {
-        assertThat(applicationContext.getBeansOfType(SecurityFilterChain.class)).hasSize(2);
+    void exactlyThreeSecurityFilterChainsAreRegistered() {
+        assertThat(applicationContext.getBeansOfType(SecurityFilterChain.class)).hasSize(3);
     }
 
     /** The users are committed rows, so they are removed by their generated name rather than rolled back. */
@@ -126,28 +137,25 @@ public abstract class McpIntegrationTestBase {
 
     /** A public client as the connection provisioning will create it: bound to exactly one user. */
     protected RegisteredClient createClient(long boundUserId) {
-        RegisteredClient client = RegisteredClient.withId(UUID.randomUUID().toString())
-                .clientId(UUID.randomUUID().toString())
-                .clientName("Claude connection")
-                .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
-                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-                .redirectUri("https://claude.ai/api/mcp/auth_callback")
-                .scope(McpOAuth2Attributes.SCOPE_READ)
-                .clientSettings(ClientSettings.builder()
-                        .requireAuthorizationConsent(true)
-                        .requireProofKey(true)
-                        .setting(McpOAuth2Attributes.CLIENT_USER_ID, String.valueOf(boundUserId))
-                        .build())
-                .tokenSettings(TokenSettings.builder()
-                        .accessTokenFormat(OAuth2TokenFormat.REFERENCE)
-                        .accessTokenTimeToLive(Duration.ofMinutes(30))
-                        .refreshTokenTimeToLive(Duration.ofDays(7))
-                        .reuseRefreshTokens(false)
-                        .build())
-                .build();
+        RegisteredClient client = RegisteredClientFixtures.publicClient(boundUserId, REDIRECT_URIS).build();
         registeredClientRepository.save(client);
         return client;
+    }
+
+    /** A session holding the application's own principal, exactly as a form login leaves it behind. */
+    protected static MockHttpSession sessionFor(User user) {
+        SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
+        securityContext.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(
+                new CustomUserDetailsService.CustomUserPrincipal(user), null,
+                List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))));
+        MockHttpSession session = new MockHttpSession();
+        session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, securityContext);
+        return session;
+    }
+
+    protected static SecurityContext storedSecurityContext(MockHttpSession session) {
+        return (SecurityContext) session
+                .getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
     }
 
     protected OAuth2Authorization.Builder authorizationBuilder(RegisteredClient client, long userId,

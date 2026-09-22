@@ -19,6 +19,11 @@ spring:
   session:
     store-type: none
 
+# As in production: the issuer tests prove that the advertised metadata stays on the configured backend URL even
+# though forwarded headers are honoured for everything else.
+server:
+  forward-headers-strategy: framework
+
 # The MCP tests run the real chains, so they need the dev profile as well; these values replace the ones a
 # developer machine would supply. app.mcp.enabled is deliberately NOT set here: every test states the flag
 # itself, which keeps the flag-off tests honest under this very profile.
@@ -27,6 +32,8 @@ app:
     backend-url: http://localhost
     redirect-uris:
       - https://claude.ai/api/mcp/auth_callback
+      # A fixed loopback port for Claude Code; the tests prove that no other port is accepted for it
+      - http://127.0.0.1:41000/callback
     max-connection-age: 14d
   image:
     storage:
