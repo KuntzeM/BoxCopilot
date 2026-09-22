@@ -14,8 +14,13 @@ class McpStartupGuardTest {
 
     private static final List<String> REDIRECT_URIS = List.of("https://claude.ai/api/mcp/auth_callback");
 
+    /** Enabled MCP properties; the rate limits and the cleanup cron fall back to their documented defaults. */
+    private static McpProperties properties(String backendUrl, List<String> redirectUris, Duration maxAge) {
+        return new McpProperties(true, backendUrl, redirectUris, maxAge, null, null, null);
+    }
+
     private static McpStartupGuard guard(String backendUrl, List<String> redirectUris, String... profiles) {
-        return guard(new McpProperties(true, backendUrl, redirectUris, null, null), new MockEnvironment(), profiles);
+        return guard(properties(backendUrl, redirectUris, null), new MockEnvironment(), profiles);
     }
 
     private static McpStartupGuard guard(McpProperties properties, MockEnvironment environment,
@@ -108,14 +113,14 @@ class McpStartupGuardTest {
 
     @Test
     void missingRedirectUrisBecomeEmptyList() {
-        assertThat(new McpProperties(true, "http://x", null, null, null).redirectUris()).isEmpty();
+        assertThat(properties("http://x", null, null).redirectUris()).isEmpty();
     }
 
     @Test
     void aSingleTrailingSlashIsRemovedFromTheBackendUrl() {
-        assertThat(new McpProperties(true, "https://boxpilot.example.com/", List.of(), null, null).backendUrl())
+        assertThat(properties("https://boxpilot.example.com/", List.of(), null).backendUrl())
                 .isEqualTo("https://boxpilot.example.com");
-        assertThat(new McpProperties(true, "https://boxpilot.example.com", List.of(), null, null).backendUrl())
+        assertThat(properties("https://boxpilot.example.com", List.of(), null).backendUrl())
                 .isEqualTo("https://boxpilot.example.com");
     }
 
@@ -124,7 +129,7 @@ class McpStartupGuardTest {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty(McpEndpoints.ENDPOINT_PROPERTY, McpEndpoints.MCP);
 
-        assertThatCode(guard(new McpProperties(true, "http://localhost:8080", REDIRECT_URIS, null, null), environment,
+        assertThatCode(guard(properties("http://localhost:8080", REDIRECT_URIS, null), environment,
                 "dev")::afterPropertiesSet).doesNotThrowAnyException();
     }
 
@@ -133,7 +138,7 @@ class McpStartupGuardTest {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty(McpEndpoints.ENDPOINT_PROPERTY, "/mcp-server");
 
-        assertThatThrownBy(guard(new McpProperties(true, "http://localhost:8080", REDIRECT_URIS, null, null), environment,
+        assertThatThrownBy(guard(properties("http://localhost:8080", REDIRECT_URIS, null), environment,
                 "dev")::afterPropertiesSet)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining(McpEndpoints.ENDPOINT_PROPERTY);
@@ -142,7 +147,7 @@ class McpStartupGuardTest {
     @Test
     void rejectsZeroOrNegativeMaxConnectionAge() {
         for (Duration age : List.of(Duration.ZERO, Duration.ofDays(-1))) {
-            assertThatThrownBy(guard(new McpProperties(true, "http://localhost:8080", REDIRECT_URIS, age, null),
+            assertThatThrownBy(guard(properties("http://localhost:8080", REDIRECT_URIS, age),
                     new MockEnvironment(), "dev")::afterPropertiesSet)
                     .as("%s", age)
                     .isInstanceOf(IllegalStateException.class)
@@ -155,7 +160,7 @@ class McpStartupGuardTest {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty(McpEndpoints.PROTOCOL_PROPERTY, "STATELESS");
 
-        assertThatCode(guard(new McpProperties(true, "http://localhost:8080", REDIRECT_URIS, null, null), environment,
+        assertThatCode(guard(properties("http://localhost:8080", REDIRECT_URIS, null), environment,
                 "dev")::afterPropertiesSet).doesNotThrowAnyException();
     }
 
@@ -165,7 +170,7 @@ class McpStartupGuardTest {
             MockEnvironment environment = new MockEnvironment()
                     .withProperty(McpEndpoints.PROTOCOL_PROPERTY, protocol);
 
-            assertThatThrownBy(guard(new McpProperties(true, "http://localhost:8080", REDIRECT_URIS, null, null),
+            assertThatThrownBy(guard(properties("http://localhost:8080", REDIRECT_URIS, null),
                     environment, "dev")::afterPropertiesSet)
                     .as("%s", protocol)
                     .isInstanceOf(IllegalStateException.class)
@@ -178,7 +183,7 @@ class McpStartupGuardTest {
         for (String property : McpEndpoints.SESSION_TRANSPORT_PROPERTIES) {
             MockEnvironment environment = new MockEnvironment().withProperty(property, "/sse");
 
-            assertThatThrownBy(guard(new McpProperties(true, "http://localhost:8080", REDIRECT_URIS, null, null),
+            assertThatThrownBy(guard(properties("http://localhost:8080", REDIRECT_URIS, null),
                     environment, "dev")::afterPropertiesSet)
                     .as("%s", property)
                     .isInstanceOf(IllegalStateException.class)
@@ -188,7 +193,32 @@ class McpStartupGuardTest {
 
     @Test
     void maxConnectionAgeDefaultsToFourteenDays() {
-        assertThat(new McpProperties(true, "https://x", List.of(), null, null).maxConnectionAge())
+        assertThat(properties("https://x", List.of(), null).maxConnectionAge())
                 .isEqualTo(Duration.ofHours(336));
+    }
+
+    /** The specification's starting values; they are also spelled out in {@code application.yml}. */
+    @Test
+    void theRateLimitsDefaultToTheSpecifiedStartingValues() {
+        McpProperties.RateLimit rateLimit = properties("https://x", List.of(), null).rateLimit();
+
+        assertThat(rateLimit.callsPerMinute()).isEqualTo(60);
+        assertThat(rateLimit.imageCallsPerDay()).isEqualTo(200);
+        assertThat(rateLimit.authorizationRequestsPerMinute()).isEqualTo(30);
+        assertThat(rateLimit.failedTokenLookupsPerMinute()).isEqualTo(30);
+    }
+
+    /** A limit of zero would switch the protection off rather than tighten it, so it falls back too. */
+    @Test
+    void aNonPositiveRateLimitFallsBackToItsDefault() {
+        assertThat(new McpProperties.RateLimit(-1, 0, -30, 0))
+                .isEqualTo(new McpProperties.RateLimit(60, 200, 30, 30));
+    }
+
+    @Test
+    void theCleanupCronDefaultsToNightlyAtThree() {
+        assertThat(properties("https://x", List.of(), null).cleanupCron()).isEqualTo("0 0 3 * * *");
+        assertThat(new McpProperties(true, "https://x", List.of(), null, null, null, "  ").cleanupCron())
+                .isEqualTo("0 0 3 * * *");
     }
 }

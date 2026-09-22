@@ -2,6 +2,9 @@ package com.boxcopilot.backend.mcp.security;
 
 import com.boxcopilot.backend.mcp.McpEndpoints;
 import com.boxcopilot.backend.mcp.McpProperties;
+import com.boxcopilot.backend.mcp.abuse.McpFailedTokenRateLimitFilter;
+import com.boxcopilot.backend.mcp.abuse.McpRateLimits;
+import com.boxcopilot.backend.mcp.abuse.McpSubjectRateLimitFilter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,8 +14,13 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.RequestCacheConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.context.NullSecurityContextRepository;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 /**
  * The MCP resource server chain. It sits in front of the application chain and covers only the MCP endpoint
@@ -32,7 +40,11 @@ class McpSecurityConfig {
     @Bean
     @Order(2)
     SecurityFilterChain mcpSecurityFilterChain(HttpSecurity http, McpOpaqueTokenIntrospector introspector,
-                                               McpProperties properties) throws Exception {
+                                               McpProperties properties, McpRateLimits rateLimits)
+            throws Exception {
+        RequestMatcher mcpEndpoint = new OrRequestMatcher(
+                PathPatternRequestMatcher.withDefaults().matcher(McpEndpoints.MCP),
+                PathPatternRequestMatcher.withDefaults().matcher(McpEndpoints.MCP_PATTERN));
         McpBearerChallenge challenge =
                 new McpBearerChallenge(properties.backendUrl() + McpEndpoints.PROTECTED_RESOURCE_METADATA);
         McpAuthenticationEntryPoint entryPoint = new McpAuthenticationEntryPoint(challenge);
@@ -61,6 +73,13 @@ class McpSecurityConfig {
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(entryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
+                // Ahead of the bearer filter, so an address that has already burnt its budget of invalid tokens
+                // costs no further database query; behind the authorization filter, so the per-subject limit
+                // counts an established identity rather than a claimed one. Neither replaces a security check.
+                .addFilterBefore(new McpFailedTokenRateLimitFilter(mcpEndpoint, rateLimits.failedTokenLookups()),
+                        BearerTokenAuthenticationFilter.class)
+                .addFilterAfter(new McpSubjectRateLimitFilter(mcpEndpoint, rateLimits.toolCalls()),
+                        AuthorizationFilter.class)
                 .build();
     }
 }

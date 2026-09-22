@@ -42,7 +42,7 @@ class McpClientProvisioningServiceTest {
 
     private final McpClientProvisioningService service = new McpClientProvisioningService(userClients,
             registeredClientRepository, authorizations, userGate, userLock, clientIdGenerator,
-            new McpProperties(true, "https://boxpilot.example", REDIRECT_URIS, Duration.ofDays(14), null));
+            new McpProperties(true, "https://boxpilot.example", REDIRECT_URIS, Duration.ofDays(14), null, null, null));
 
     private static RegisteredClient existingClient(String clientId) {
         return RegisteredClient.withId("row-id")

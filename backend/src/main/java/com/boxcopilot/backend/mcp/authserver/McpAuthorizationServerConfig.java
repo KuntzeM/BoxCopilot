@@ -3,6 +3,8 @@ package com.boxcopilot.backend.mcp.authserver;
 import com.boxcopilot.backend.mcp.McpProperties;
 import com.boxcopilot.backend.mcp.McpUrls;
 import com.boxcopilot.backend.mcp.McpUserGate;
+import com.boxcopilot.backend.mcp.abuse.McpIpRateLimitFilter;
+import com.boxcopilot.backend.mcp.abuse.McpRateLimits;
 import com.boxcopilot.backend.mcp.security.McpOAuth2Attributes;
 import com.boxcopilot.backend.mcp.web.McpPendingCookies;
 import org.springframework.beans.factory.ObjectProvider;
@@ -36,6 +38,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.DelegatingAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
@@ -118,10 +121,14 @@ class McpAuthorizationServerConfig {
                                                           McpSessionUserResolver userResolver, McpUserGate userGate,
                                                           McpPendingCookies pendingCookies,
                                                           AuthorizationServerSettings settings,
+                                                          McpRateLimits rateLimits,
                                                           ObjectProvider<SecurityContextRepository> contextRepository,
                                                           @Value("${frontend.url}") String frontendUrl)
             throws Exception {
         RequestMatcher authorizeMatcher = matcher(settings.getAuthorizationEndpoint());
+        RequestMatcher rateLimitedEndpoints = new OrRequestMatcher(
+                PathPatternRequestMatcher.withDefaults().matcher(settings.getAuthorizationEndpoint()),
+                PathPatternRequestMatcher.withDefaults().matcher(settings.getTokenEndpoint()));
         RequestMatcher consentSubmission = PathPatternRequestMatcher.withDefaults()
                 .matcher(HttpMethod.POST, settings.getAuthorizationEndpoint());
         RequestMatcher revocationEndpoint = PathPatternRequestMatcher.withDefaults()
@@ -177,7 +184,12 @@ class McpAuthorizationServerConfig {
                         entryPoint(authorizeMatcher, pendingCookies, frontendUrl)))
                 .addFilterAfter(new McpConsentCsrfFilter(consentSubmission, csrfRequestHandler), CsrfFilter.class)
                 .addFilterAfter(new McpAuthenticationNormalizationFilter(authorizeMatcher, userResolver, userGate),
-                        CsrfFilter.class);
+                        CsrfFilter.class)
+                // In front of everything else in this chain: the flood this guards against is meant to be
+                // stopped before it reaches the session, the client store and the authorization store, and it
+                // applies whether or not the caller is authenticated.
+                .addFilterBefore(new McpIpRateLimitFilter(rateLimitedEndpoints, rateLimits.authorizationRequests()),
+                        SecurityContextHolderFilter.class);
 
         return http.build();
     }

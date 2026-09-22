@@ -62,6 +62,15 @@ app:
     redirect-uris:
       - https://claude.ai/api/mcp/auth_callback
     max-connection-age: 14d
+    # Daily removal of authorizations that are expired, too old or were never completed.
+    cleanup-cron: ${APP_MCP_CLEANUP_CRON:0 0 3 * * *}
+    # Abuse protection, counted in this process. The two per-minute call limits are keyed by the token subject,
+    # the other two by the client address, which is trustworthy only behind the internal proxies (M4).
+    rate-limit:
+      calls-per-minute: ${APP_MCP_CALLS_PER_MINUTE:60}
+      image-calls-per-day: ${APP_MCP_IMAGE_CALLS_PER_DAY:200}
+      authorization-requests-per-minute: ${APP_MCP_AUTHORIZATION_REQUESTS_PER_MINUTE:30}
+      failed-token-lookups-per-minute: ${APP_MCP_FAILED_TOKEN_LOOKUPS_PER_MINUTE:30}
 
 logging:
   level:

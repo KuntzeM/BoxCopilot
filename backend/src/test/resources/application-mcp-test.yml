@@ -35,6 +35,14 @@ app:
       # A fixed loopback port for Claude Code; the tests prove that no other port is accepted for it
       - http://127.0.0.1:41000/callback
     max-connection-age: 14d
+    # The whole suite calls from one address and reaches the endpoints far faster than any real client, so the
+    # limits are lifted out of the way here. McpRateLimitIntegrationTest sets tiny limits of its own, and
+    # McpRateLimiterTest proves the counter itself; the production defaults are asserted in McpStartupGuardTest.
+    rate-limit:
+      calls-per-minute: 1000000
+      image-calls-per-day: 1000000
+      authorization-requests-per-minute: 1000000
+      failed-token-lookups-per-minute: 1000000
   image:
     storage:
       path: ./target/mcp-test-images
