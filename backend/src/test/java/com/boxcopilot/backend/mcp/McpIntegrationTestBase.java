@@ -9,6 +9,7 @@ import com.boxcopilot.backend.repository.PostgresContainerSupport;
 import com.boxcopilot.backend.repository.UserRepository;
 import com.boxcopilot.backend.service.CustomUserDetailsService;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.orm.jpa.support.OpenEntityManagerInViewInterceptor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
@@ -118,6 +119,18 @@ public abstract class McpIntegrationTestBase {
     @Test
     void exactlyThreeSecurityFilterChainsAreRegistered() {
         assertThat(applicationContext.getBeansOfType(SecurityFilterChain.class)).hasSize(3);
+    }
+
+    /**
+     * No persistence context spans a request. Every MCP path reads the user twice - the resource server through
+     * the introspector and then the tools, the authorization server through the session resolver and then the
+     * gate, the provisioning endpoints through the controller and then the gate - and the second read is the
+     * one that decides. With an open session in view it would be answered from the first-level cache of the
+     * first read, and a withdrawal that commits in between would go unnoticed.
+     */
+    @Test
+    void noPersistenceContextSpansTheRequest() {
+        assertThat(applicationContext.getBeansOfType(OpenEntityManagerInViewInterceptor.class)).isEmpty();
     }
 
     /** The users are committed rows, so they are removed by their generated name rather than rolled back. */

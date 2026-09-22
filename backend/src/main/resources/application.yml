@@ -10,6 +10,12 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: false
+    # No persistence context spanning the whole request. It would hold a connection for the duration of every
+    # request and, worse, serve a second read of a row from the first-level cache of the first one: a check
+    # that reloads the user on purpose - as the MCP access policy does - would then decide on state that was
+    # read before the request even reached it. Every lazy association of this application is dereferenced
+    # inside its service transaction, so nothing depends on the open view.
+    open-in-view: false
   jackson:
     serialization:
       write-dates-as-timestamps: false
