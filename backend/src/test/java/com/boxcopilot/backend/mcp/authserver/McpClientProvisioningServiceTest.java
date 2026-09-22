@@ -37,10 +37,11 @@ class McpClientProvisioningServiceTest {
     private final RegisteredClientRepository registeredClientRepository = mock(RegisteredClientRepository.class);
     private final McpAuthorizationRegistry authorizations = mock(McpAuthorizationRegistry.class);
     private final McpUserGate userGate = mock(McpUserGate.class);
+    private final McpUserLock userLock = mock(McpUserLock.class);
     private final McpClientIdGenerator clientIdGenerator = mock(McpClientIdGenerator.class);
 
     private final McpClientProvisioningService service = new McpClientProvisioningService(userClients,
-            registeredClientRepository, authorizations, userGate, clientIdGenerator,
+            registeredClientRepository, authorizations, userGate, userLock, clientIdGenerator,
             new McpProperties(true, "https://boxpilot.example", REDIRECT_URIS, Duration.ofDays(14), null));
 
     private static RegisteredClient existingClient(String clientId) {
@@ -101,6 +102,22 @@ class McpClientProvisioningServiceTest {
         verifyNoInteractions(userClients, registeredClientRepository, authorizations, clientIdGenerator);
     }
 
+    /**
+     * The lock has to be held before the state of the user is read, or a concurrent request could pass the same
+     * check and create a second client.
+     */
+    @Test
+    void provisionTakesTheUserLockBeforeItReadsAnything() {
+        when(userClients.findByUserId(USER_ID)).thenReturn(Optional.of(existingClient("existing-client-id")));
+
+        service.provision(USER_ID);
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(userLock, userGate, userClients);
+        order.verify(userLock).lock(USER_ID);
+        order.verify(userGate).requireActiveUser(USER_ID);
+        order.verify(userClients).findByUserId(USER_ID);
+    }
+
     // ---------------------------------------------------------------- regenerate
 
     @Test
@@ -109,8 +126,9 @@ class McpClientProvisioningServiceTest {
 
         assertThat(service.regenerate(USER_ID)).isEqualTo("new-client-id");
 
-        org.mockito.InOrder order = org.mockito.Mockito.inOrder(authorizations, userClients,
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(userLock, authorizations, userClients,
                 registeredClientRepository);
+        order.verify(userLock).lock(USER_ID);
         order.verify(authorizations).removeByPrincipal(PRINCIPAL);
         order.verify(userClients).deleteByUserId(USER_ID);
         order.verify(registeredClientRepository).save(org.mockito.ArgumentMatchers.any());
@@ -127,10 +145,16 @@ class McpClientProvisioningServiceTest {
 
     // ---------------------------------------------------------------- revoke
 
+    /**
+     * Giving up one's own connections asks the lenient gate: a temporary lock must not keep a user from ending
+     * a connection, which is the one thing a locked account may still want to do.
+     */
     @Test
     void revokeConnectionsDeletesTheAuthorizationsAndKeepsTheClient() {
         service.revokeConnections(USER_ID);
 
+        verify(userGate).requireUserAllowedToRevoke(USER_ID);
+        verify(userGate, never()).requireActiveUser(anyLong());
         verify(authorizations).removeByPrincipal(PRINCIPAL);
         verify(userClients, never()).deleteByUserId(anyLong());
         verify(registeredClientRepository, never()).save(org.mockito.ArgumentMatchers.any());
@@ -138,7 +162,7 @@ class McpClientProvisioningServiceTest {
 
     @Test
     void revokeConnectionsIsRefusedForAUserTheGateRejects() {
-        doThrow(new McpAccessDeniedException("denied")).when(userGate).requireActiveUser(USER_ID);
+        doThrow(new McpAccessDeniedException("denied")).when(userGate).requireUserAllowedToRevoke(USER_ID);
 
         assertThatThrownBy(() -> service.revokeConnections(USER_ID)).isInstanceOf(McpAccessDeniedException.class);
 
@@ -155,8 +179,10 @@ class McpClientProvisioningServiceTest {
 
         service.revokeAllAccess(USER_ID);
 
-        verify(authorizations).removeByPrincipal(PRINCIPAL);
-        verify(userClients).deleteByUserId(USER_ID);
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(userLock, authorizations, userClients);
+        order.verify(userLock).lock(USER_ID);
+        order.verify(authorizations).removeByPrincipal(PRINCIPAL);
+        order.verify(userClients).deleteByUserId(USER_ID);
         verifyNoInteractions(userGate, registeredClientRepository);
     }
 }

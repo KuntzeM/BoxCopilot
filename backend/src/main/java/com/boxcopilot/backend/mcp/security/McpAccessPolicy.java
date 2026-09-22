@@ -17,6 +17,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * The single place that decides whether MCP access is currently allowed. It is fail-closed: every call reloads
@@ -73,9 +74,19 @@ public class McpAccessPolicy implements McpUserGate, McpAuthorizationPolicy {
 
     @Override
     public void requireActiveUser(long userId) {
+        requireUser(userId, Set.of());
+    }
+
+    @Override
+    public void requireUserAllowedToRevoke(long userId) {
+        requireUser(userId, Set.of(McpDenyReason.USER_LOCKED));
+    }
+
+    /** @param tolerated reasons that do not deny here, whatever the state of the user is otherwise */
+    private void requireUser(long userId, Set<McpDenyReason> tolerated) {
         Optional<McpDenyReason> reason;
         try {
-            reason = checkUser(userId);
+            reason = checkUser(userId).filter(found -> !tolerated.contains(found));
         } catch (RuntimeException e) {
             denyBecauseOfError(userId, e);
             throw new McpAccessDeniedException("MCP access denied: " + McpDenyReason.ERROR);

@@ -145,6 +145,11 @@ class McpAllowedAdminOnlyTest {
      * {@code /api/v1/me} reports {@code mcpAllowed} so that the SPA knows whether to offer the connection
      * dialog. That is a read-only answer: no controller takes a {@link UserPrincipalDTO} as input, so the field
      * can never travel the other way and grant the flag to its owner.
+     *
+     * <p>This test alone is <em>not</em> the write-side guard. The surface that can actually set the flag is
+     * {@link UpdateUserDTO}, and {@link #onlyAdminUserEndpointsAcceptTheUpdateUserDto()} is what pins it to
+     * {@link AdminUserController}; {@link #createUserDtoDoesNotCarryMcpAllowed()} covers creation. Read the
+     * three together before changing any of them.
      */
     @Test
     void thePrincipalDtoReportsMcpAllowedButIsNeverAcceptedAsInput() {

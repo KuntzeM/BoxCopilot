@@ -75,7 +75,18 @@ class McpClientController {
                 .orElseThrow(() -> new McpAccessDeniedException("no BoxPilot account behind this session"));
     }
 
-    /** The response body of both provisioning endpoints. */
+    /**
+     * The response body of both provisioning endpoints.
+     *
+     * <p>Its {@code toString} hides the id: Spring MVC writes the body of a response into the log as soon as
+     * {@code org.springframework.web} is set to DEBUG, and the client id is a credential that must not appear
+     * there. Serialisation is unaffected, because Jackson reads the record component.
+     */
     record McpClientResponse(String clientId) {
+
+        @Override
+        public String toString() {
+            return "McpClientResponse[clientId=***]";
+        }
     }
 }

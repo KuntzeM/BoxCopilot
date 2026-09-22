@@ -18,8 +18,13 @@ import java.util.List;
  * removed - with every connection - when the user loses MCP access.
  *
  * <p>Every operation a user triggers passes {@link McpUserGate}, which reloads the user and refuses a disabled,
- * locked, unknown or not-allowed one. {@link #revokeAllAccess(long)} is the exception: it runs while access is
- * being withdrawn, so the gate would refuse exactly the teardown that has to happen.
+ * locked, unknown or not-allowed one. {@link #revokeConnections(long)} tolerates a lock, because ending one's
+ * own connections only removes access. {@link #revokeAllAccess(long)} asks nothing at all: it runs while access
+ * is being withdrawn, so the gate would refuse exactly the teardown that has to happen.
+ *
+ * <p>Everything that creates or destroys a client first takes the row lock of the user ({@link McpUserLock}), so
+ * two requests for the same user, and a request racing a revocation, cannot interleave between their check and
+ * their write.
  *
  * <p>Nothing here logs a client id. It is the credential of a public client, and the specification forbids it in
  * logs; a log line names the user and what happened.
@@ -34,17 +39,20 @@ public class McpClientProvisioningService {
     private final RegisteredClientRepository registeredClientRepository;
     private final McpAuthorizationRegistry authorizations;
     private final McpUserGate userGate;
+    private final McpUserLock userLock;
     private final McpClientIdGenerator clientIdGenerator;
     private final List<String> redirectUris;
 
     public McpClientProvisioningService(McpUserClients userClients,
                                         RegisteredClientRepository registeredClientRepository,
                                         McpAuthorizationRegistry authorizations, McpUserGate userGate,
-                                        McpClientIdGenerator clientIdGenerator, McpProperties properties) {
+                                        McpUserLock userLock, McpClientIdGenerator clientIdGenerator,
+                                        McpProperties properties) {
         this.userClients = userClients;
         this.registeredClientRepository = registeredClientRepository;
         this.authorizations = authorizations;
         this.userGate = userGate;
+        this.userLock = userLock;
         this.clientIdGenerator = clientIdGenerator;
         this.redirectUris = properties.redirectUris();
     }
@@ -56,6 +64,7 @@ public class McpClientProvisioningService {
      */
     @Transactional
     public String provision(long userId) {
+        userLock.lock(userId);
         userGate.requireActiveUser(userId);
         return userClients.findByUserId(userId)
                 .map(RegisteredClient::getClientId)
@@ -70,6 +79,7 @@ public class McpClientProvisioningService {
      */
     @Transactional
     public String regenerate(long userId) {
+        userLock.lock(userId);
         userGate.requireActiveUser(userId);
         int connections = removeConnectionsAndClient(userId);
         String clientId = create(userId);
@@ -77,10 +87,13 @@ public class McpClientProvisioningService {
         return clientId;
     }
 
-    /** Ends every connection of the user; the client itself stays and can be connected again. */
+    /**
+     * Ends every connection of the user; the client itself stays and can be connected again. A temporarily
+     * locked user may do this: it only ever takes access away, and a lock is the moment one wants it most.
+     */
     @Transactional
     public void revokeConnections(long userId) {
-        userGate.requireActiveUser(userId);
+        userGate.requireUserAllowedToRevoke(userId);
         int connections = authorizations.removeByPrincipal(String.valueOf(userId));
         log.info("MCP connections revoked: userId={} revokedConnections={}", userId, connections);
     }
@@ -91,6 +104,7 @@ public class McpClientProvisioningService {
      */
     @Transactional
     public void revokeAllAccess(long userId) {
+        userLock.lock(userId);
         int connections = removeConnectionsAndClient(userId);
         log.info("MCP access revoked: userId={} revokedConnections={}", userId, connections);
     }

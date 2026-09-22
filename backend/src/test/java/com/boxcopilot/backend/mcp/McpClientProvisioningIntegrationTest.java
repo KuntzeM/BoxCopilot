@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -47,20 +48,27 @@ class McpClientProvisioningIntegrationTest extends McpIntegrationTestBase {
     private ObjectMapper objectMapper;
 
     private ListAppender<ILoggingEvent> logAppender;
-    private ch.qos.logback.classic.Logger mcpLogger;
+    private ch.qos.logback.classic.Logger rootLogger;
+    private Level originalLevel;
 
+    /**
+     * Everything is captured, not just the application logger: a client id leaking through Spring Security,
+     * Hibernate or the JDBC layer would be just as fatal, and those can be raised to DEBUG in an installation.
+     */
     @BeforeEach
-    void captureMcpLogs() {
-        mcpLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger("com.boxcopilot.backend");
-        mcpLogger.setLevel(Level.TRACE);
+    void captureAllLogs() {
+        rootLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+        originalLevel = rootLogger.getLevel();
+        rootLogger.setLevel(Level.TRACE);
         logAppender = new ListAppender<>();
         logAppender.start();
-        mcpLogger.addAppender(logAppender);
+        rootLogger.addAppender(logAppender);
     }
 
     @AfterEach
-    void releaseMcpLogs() {
-        mcpLogger.detachAppender(logAppender);
+    void releaseLogs() {
+        rootLogger.detachAppender(logAppender);
+        rootLogger.setLevel(originalLevel);
     }
 
     // ---------------------------------------------------------------- provisioning
@@ -220,7 +228,7 @@ class McpClientProvisioningIntegrationTest extends McpIntegrationTestBase {
         assertThat(perform(post(CLIENT_ENDPOINT), sessionFor(user)).getResponse().getStatus()).isEqualTo(403);
     }
 
-    /** A temporary lock denies, but it deletes nothing: the client and its connections survive it. */
+    /** A temporary lock denies provisioning, but it deletes nothing: the client survives it. */
     @Test
     void aLockedUserIsRefusedWithoutLosingTheClient() throws Exception {
         User user = createUser(true, true);
@@ -230,9 +238,29 @@ class McpClientProvisioningIntegrationTest extends McpIntegrationTestBase {
         userRepository.save(user);
 
         assertThat(perform(post(CLIENT_ENDPOINT), sessionFor(user)).getResponse().getStatus()).isEqualTo(403);
-        assertThat(perform(delete(CONNECTIONS_ENDPOINT), sessionFor(user)).getResponse().getStatus()).isEqualTo(403);
+        assertThat(perform(post(REGENERATE_ENDPOINT), sessionFor(user)).getResponse().getStatus()).isEqualTo(403);
         assertThat(registeredClientRepository.findByClientId(clientId)).isNotNull();
         assertThat(authorizationRows()).isEqualTo(1);
+    }
+
+    /**
+     * Cutting one's own connections is the one thing a locked account may still do - it only removes access,
+     * and a lock is exactly when a user wants a connection gone.
+     */
+    @Test
+    void aLockedUserCanStillEndTheirConnections() throws Exception {
+        User user = createUser(true, true);
+        String clientId = clientId(provision(sessionFor(user)));
+        saveAuthorization(registeredClientRepository.findByClientId(clientId), user.getId(), "locked-user-token");
+        user.setLockedUntil(LocalDateTime.now().plusHours(1));
+        userRepository.save(user);
+
+        MvcResult result = perform(delete(CONNECTIONS_ENDPOINT), sessionFor(user));
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(204);
+        assertThat(authorizationRows()).isZero();
+        assertThat(registeredClientRepository.findByClientId(clientId)).isNotNull();
+        assertThat(mcpStatus("locked-user-token")).isEqualTo(401);
     }
 
     // ---------------------------------------------------------------- /api/v1/me
@@ -265,6 +293,14 @@ class McpClientProvisioningIntegrationTest extends McpIntegrationTestBase {
 
     // ---------------------------------------------------------------- logging
 
+    /**
+     * Every logger of the application is watched at TRACE, not only {@code com.boxcopilot.backend}: a client id
+     * leaking through Spring Security, Spring MVC, Spring JDBC or Hibernate would be just as fatal.
+     *
+     * <p>{@code org.postgresql} is the one exception. Its TRACE level is a dump of the wire protocol, which
+     * prints the bound parameters of every statement the whole application executes - that is a debugging mode
+     * of the driver, not a log line the application writes, and it exposes every value, not just this one.
+     */
     @Test
     void noClientIdEverReachesTheLogs() throws Exception {
         User user = createUser(true, true);
@@ -274,9 +310,13 @@ class McpClientProvisioningIntegrationTest extends McpIntegrationTestBase {
         String second = clientId(perform(post(REGENERATE_ENDPOINT), session));
         perform(delete(CONNECTIONS_ENDPOINT), session);
 
-        assertThat(logAppender.list).isNotEmpty();
-        for (ILoggingEvent event : logAppender.list) {
-            assertThat(event.getFormattedMessage()).doesNotContain(first).doesNotContain(second);
+        List<ILoggingEvent> applicationLogs = logAppender.list.stream()
+                .filter(event -> !event.getLoggerName().startsWith("org.postgresql"))
+                .toList();
+        assertThat(applicationLogs).isNotEmpty();
+        for (ILoggingEvent event : applicationLogs) {
+            assertThat(event.getFormattedMessage()).as("logger %s", event.getLoggerName())
+                    .doesNotContain(first).doesNotContain(second);
         }
     }
 

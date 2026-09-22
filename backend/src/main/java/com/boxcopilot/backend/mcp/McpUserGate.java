@@ -11,4 +11,13 @@ public interface McpUserGate {
      *                                  this cannot be determined
      */
     void requireActiveUser(long userId);
+
+    /**
+     * The same check, but tolerant of a temporary lock: giving up one's own access only ever removes access, so
+     * a locked user must not be kept from ending their connections - that is the moment they need it most.
+     *
+     * @throws McpAccessDeniedException if the user is unknown, disabled or not allowed to use MCP, or if this
+     *                                  cannot be determined
+     */
+    void requireUserAllowedToRevoke(long userId);
 }

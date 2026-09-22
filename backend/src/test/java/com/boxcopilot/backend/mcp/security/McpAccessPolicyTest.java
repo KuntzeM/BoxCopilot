@@ -127,6 +127,33 @@ class McpAccessPolicyTest {
         assertThatThrownBy(() -> policy.requireActiveUser(USER_ID)).isInstanceOf(McpAccessDeniedException.class);
     }
 
+    /**
+     * Ending one's own connections only ever takes access away, so a lock - which is exactly when a user wants
+     * to cut a connection - does not stand in the way. Everything else still denies.
+     */
+    @Test
+    void letsALockedUserGiveUpTheirOwnAccess() {
+        User locked = user();
+        locked.setLockedUntil(LocalDateTime.now().plusHours(1));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(locked));
+
+        assertThatCode(() -> policy.requireUserAllowedToRevoke(USER_ID)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void refusesEvenARevocationForAUserThatIsNotAllowedAtAll() {
+        User disabled = user();
+        disabled.setEnabled(false);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(disabled));
+
+        assertThatThrownBy(() -> policy.requireUserAllowedToRevoke(USER_ID))
+                .isInstanceOf(McpAccessDeniedException.class);
+
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> policy.requireUserAllowedToRevoke(USER_ID))
+                .isInstanceOf(McpAccessDeniedException.class);
+    }
+
     @Test
     void allowsUserWhoseLockHasExpired() {
         User wasLocked = user();

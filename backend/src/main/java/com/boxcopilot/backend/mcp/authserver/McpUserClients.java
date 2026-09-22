@@ -28,8 +28,11 @@ import java.util.Optional;
 @ConditionalOnProperty(prefix = "app.mcp", name = "enabled", havingValue = "true")
 public class McpUserClients {
 
-    static final String SELECT_IDS_BY_BINDING =
-            "SELECT id FROM oauth2_registered_client WHERE client_settings LIKE ? ORDER BY client_id_issued_at, id";
+    /** {@code !} escapes the {@code _} of the setting name, which {@code LIKE} would otherwise read as "any". */
+    static final String LIKE_ESCAPE = "!";
+
+    static final String SELECT_IDS_BY_BINDING = "SELECT id FROM oauth2_registered_client "
+            + "WHERE client_settings LIKE ? ESCAPE '" + LIKE_ESCAPE + "' ORDER BY client_id_issued_at, id";
 
     static final String DELETE_BY_ID = "DELETE FROM oauth2_registered_client WHERE id = ?";
 
@@ -74,9 +77,21 @@ public class McpUserClients {
 
     /**
      * The settings are stored as a JSON object whose values carry no whitespace, so the binding of a user always
-     * appears as one contiguous fragment. The closing quote keeps user 42 from matching user 421.
+     * appears as one contiguous fragment. The closing quote keeps user 42 from matching user 421, and the
+     * wildcards of the fragment itself are escaped so that the pre-select stays as narrow as it reads.
      */
-    private static String bindingPattern(long userId) {
-        return "%\"" + McpOAuth2Attributes.CLIENT_USER_ID + "\":\"" + userId + "\"%";
+    static String bindingPattern(long userId) {
+        return "%" + escapeLike("\"" + McpOAuth2Attributes.CLIENT_USER_ID + "\":\"" + userId + "\"") + "%";
+    }
+
+    private static String escapeLike(String literal) {
+        StringBuilder escaped = new StringBuilder(literal.length());
+        for (char c : literal.toCharArray()) {
+            if (c == '%' || c == '_' || c == LIKE_ESCAPE.charAt(0)) {
+                escaped.append(LIKE_ESCAPE);
+            }
+            escaped.append(c);
+        }
+        return escaped.toString();
     }
 }

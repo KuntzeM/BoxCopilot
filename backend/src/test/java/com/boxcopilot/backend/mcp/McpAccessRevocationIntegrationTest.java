@@ -4,6 +4,7 @@ import com.boxcopilot.backend.domain.Role;
 import com.boxcopilot.backend.domain.User;
 import com.boxcopilot.backend.dto.UpdateUserDTO;
 import com.boxcopilot.backend.mcp.authserver.McpAccessRevokedListener;
+import com.boxcopilot.backend.mcp.authserver.McpUserClients;
 import com.boxcopilot.backend.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,11 +13,15 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 
 /**
  * What happens to a client and its connections when the account changes: withdrawing MCP access, disabling and
@@ -28,6 +33,8 @@ class McpAccessRevocationIntegrationTest extends McpIntegrationTestBase {
     private UserService userService;
     @Autowired
     private PlatformTransactionManager transactionManager;
+    @MockitoSpyBean
+    private McpUserClients userClients;
 
     @Test
     void withdrawingMcpAccessRemovesTheClientAndEveryConnection() {
@@ -111,6 +118,24 @@ class McpAccessRevocationIntegrationTest extends McpIntegrationTestBase {
             status.setRollbackOnly();
             return null;
         });
+
+        assertThat(userRepository.findById(user.getId()).orElseThrow().isMcpAllowed()).isTrue();
+        assertThat(clientRows()).isEqualTo(1);
+        assertThat(authorizationRows()).isEqualTo(1);
+    }
+
+    /**
+     * The other direction of the same atomicity: when the teardown fails, the user change goes with it. Nobody
+     * ends up without MCP access while a working client is still registered.
+     */
+    @Test
+    void aFailingTeardownRollsTheUserChangeBack() {
+        User user = connectedUser();
+        doThrow(new DataAccessResourceFailureException("client store unavailable"))
+                .when(userClients).deleteByUserId(user.getId());
+
+        assertThatThrownBy(() -> userService.updateUser(user.getId(), mcpAllowed(false)))
+                .isInstanceOf(DataAccessResourceFailureException.class);
 
         assertThat(userRepository.findById(user.getId()).orElseThrow().isMcpAllowed()).isTrue();
         assertThat(clientRows()).isEqualTo(1);
