@@ -1,8 +1,13 @@
 package com.boxcopilot.backend.mcp;
 
+import com.boxcopilot.backend.domain.AuthProvider;
+import com.boxcopilot.backend.domain.Role;
+import com.boxcopilot.backend.domain.User;
 import com.boxcopilot.backend.mcp.authserver.McpSessionUserResolver;
+import com.boxcopilot.backend.repository.UserRepository;
 import com.boxcopilot.backend.mcp.security.McpAccessPolicy;
 import com.boxcopilot.backend.mcp.web.McpPendingCookies;
+import com.boxcopilot.backend.service.McpAllowanceProbe;
 import com.boxcopilot.backend.service.McpPendingProbe;
 import jakarta.servlet.http.Cookie;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -35,9 +40,13 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import com.boxcopilot.backend.repository.PostgresContainerSupport;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /**
  * The same real chains the MCP tests use, but with the flag off: no MCP bean, no authorization-server bean, and
@@ -59,6 +68,8 @@ class McpFlagOffRealChainsTest {
     private ApplicationContext context;
     @Autowired
     private MockMvc mockMvc;
+    @Autowired
+    private UserRepository userRepository;
 
     private static MockHttpSession authenticatedSession() {
         SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
@@ -96,6 +107,42 @@ class McpFlagOffRealChainsTest {
         request.setCookies(new Cookie("mcp_authz", "c3RhdGU9MQ"));
 
         assertThat(context.getBean(McpPendingProbe.class).isPending(request)).isFalse();
+    }
+
+    /** The neutral port falls back to "not allowed", so the SPA never offers the dialog. */
+    @Test
+    void theAllowanceProbeFallsBackToNotAllowed() {
+        assertThat(context.getBean(McpAllowanceProbe.class).isAllowed(1L)).isFalse();
+    }
+
+    /** Even a user the database allows is not allowed while the feature is off. */
+    @Test
+    void meReportsThatMcpIsNotAllowed() throws Exception {
+        User user = new User("mcp-test-user-" + UUID.randomUUID(), "MCP user", AuthProvider.LOCAL, Role.USER);
+        user.setEnabled(true);
+        user.setMcpAllowed(true);
+        User saved = userRepository.save(user);
+        try {
+            MvcResult result = mockMvc.perform(get("/api/v1/me")
+                    .session(McpIntegrationTestBase.sessionFor(saved))).andReturn();
+
+            assertThat(result.getResponse().getContentAsString()).contains("\"mcpAllowed\":false");
+        } finally {
+            userRepository.delete(saved);
+        }
+    }
+
+    /** Without the feature there is no provisioning endpoint at all, not even for an authenticated caller. */
+    @Test
+    void theProvisioningEndpointsAreGone() throws Exception {
+        MockHttpSession session = authenticatedSession();
+
+        assertThat(mockMvc.perform(post("/api/v1/me/mcp-client").session(session).with(csrf()))
+                .andReturn().getResponse().getStatus()).isEqualTo(404);
+        assertThat(mockMvc.perform(post("/api/v1/me/mcp-client/regenerate").session(session).with(csrf()))
+                .andReturn().getResponse().getStatus()).isEqualTo(404);
+        assertThat(mockMvc.perform(delete("/api/v1/me/mcp-connections").session(session).with(csrf()))
+                .andReturn().getResponse().getStatus()).isEqualTo(404);
     }
 
     @Test
