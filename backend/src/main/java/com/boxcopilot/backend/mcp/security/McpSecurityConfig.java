@@ -3,6 +3,7 @@ package com.boxcopilot.backend.mcp.security;
 import com.boxcopilot.backend.mcp.McpEndpoints;
 import com.boxcopilot.backend.mcp.McpProperties;
 import com.boxcopilot.backend.mcp.abuse.McpFailedTokenRateLimitFilter;
+import com.boxcopilot.backend.mcp.abuse.McpRateLimitAudit;
 import com.boxcopilot.backend.mcp.abuse.McpRateLimits;
 import com.boxcopilot.backend.mcp.abuse.McpSubjectRateLimitFilter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -40,8 +41,8 @@ class McpSecurityConfig {
     @Bean
     @Order(2)
     SecurityFilterChain mcpSecurityFilterChain(HttpSecurity http, McpOpaqueTokenIntrospector introspector,
-                                               McpProperties properties, McpRateLimits rateLimits)
-            throws Exception {
+                                               McpProperties properties, McpRateLimits rateLimits,
+                                               McpRateLimitAudit rateLimitAudit) throws Exception {
         RequestMatcher mcpEndpoint = new OrRequestMatcher(
                 PathPatternRequestMatcher.withDefaults().matcher(McpEndpoints.MCP),
                 PathPatternRequestMatcher.withDefaults().matcher(McpEndpoints.MCP_PATTERN));
@@ -73,12 +74,13 @@ class McpSecurityConfig {
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(entryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
-                // Ahead of the bearer filter, so an address that has already burnt its budget of invalid tokens
-                // costs no further database query; behind the authorization filter, so the per-subject limit
-                // counts an established identity rather than a claimed one. Neither replaces a security check.
-                .addFilterBefore(new McpFailedTokenRateLimitFilter(mcpEndpoint, rateLimits.failedTokenLookups()),
-                        BearerTokenAuthenticationFilter.class)
-                .addFilterAfter(new McpSubjectRateLimitFilter(mcpEndpoint, rateLimits.toolCalls()),
+                // Around the bearer filter, so the failure limiter sees the outcome of every token lookup this
+                // chain makes - including one aimed at the metadata document, which the bearer filter
+                // authenticates just the same; behind the authorization filter, so the per-subject limit counts
+                // an established identity rather than a claimed one. Neither replaces a security check.
+                .addFilterBefore(new McpFailedTokenRateLimitFilter(rateLimits.failedTokenLookups(),
+                        rateLimitAudit), BearerTokenAuthenticationFilter.class)
+                .addFilterAfter(new McpSubjectRateLimitFilter(mcpEndpoint, rateLimits.toolCalls(), rateLimitAudit),
                         AuthorizationFilter.class)
                 .build();
     }

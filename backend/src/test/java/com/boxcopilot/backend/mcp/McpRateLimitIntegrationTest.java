@@ -1,15 +1,27 @@
 package com.boxcopilot.backend.mcp;
 
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.boxcopilot.backend.domain.User;
+import com.boxcopilot.backend.mcp.abuse.McpRateLimit;
+import com.boxcopilot.backend.mcp.abuse.McpRateLimitAudit;
 import com.boxcopilot.backend.mcp.abuse.McpRateLimitResponse;
 import com.boxcopilot.backend.mcp.authserver.McpAuthorizationServerEndpoints;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -29,6 +41,40 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 class McpRateLimitIntegrationTest extends McpIntegrationTestBase {
 
     private static final int TOO_MANY_REQUESTS = 429;
+    private static final String AUDIT_PREFIX = "MCP rate limit reached ";
+
+    @Autowired
+    private MeterRegistry meterRegistry;
+
+    private ListAppender<ILoggingEvent> logAppender;
+    private ch.qos.logback.classic.Logger rootLogger;
+
+    /** The audit line is INFO, so the level is left as it is; only the appender is added. */
+    @BeforeEach
+    void captureAuditLines() {
+        rootLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+        logAppender = new ListAppender<>();
+        logAppender.start();
+        rootLogger.addAppender(logAppender);
+    }
+
+    @AfterEach
+    void releaseLogs() {
+        rootLogger.detachAppender(logAppender);
+    }
+
+    private List<String> auditLines() {
+        return logAppender.list.stream()
+                .map(ILoggingEvent::getFormattedMessage)
+                .filter(message -> message.startsWith(AUDIT_PREFIX))
+                .toList();
+    }
+
+    private double counted(McpRateLimit limit) {
+        return meterRegistry.find(McpRateLimitAudit.COUNTER)
+                .tag(McpRateLimitAudit.LIMIT_TAG, limit.tag())
+                .counters().stream().mapToDouble(counter -> counter.count()).sum();
+    }
 
     private static RequestPostProcessor from(String address) {
         return request -> {
@@ -43,6 +89,16 @@ class McpRateLimitIntegrationTest extends McpIntegrationTestBase {
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Accept", ACCEPT)
                 .content(toolsListRequest());
+        if (bearerToken != null) {
+            request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
+        }
+        return mockMvc.perform(request).andReturn();
+    }
+
+    /** The protected-resource metadata: same chain, same bearer filter, but publicly readable. */
+    private MvcResult metadata(String bearerToken, String address) throws Exception {
+        MockHttpServletRequestBuilder request =
+                get(McpEndpoints.PROTECTED_RESOURCE_METADATA).with(from(address));
         if (bearerToken != null) {
             request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
         }
@@ -94,13 +150,60 @@ class McpRateLimitIntegrationTest extends McpIntegrationTestBase {
     // ---------------------------------------------------------------- failed token lookups
 
     @Test
-    void failedTokenLookupsAreCountedPerAddressAndStopFurtherDatabaseWork() throws Exception {
+    void failedTokenLookupsAreCountedPerAddressAndTheNextFailureIsRejected() throws Exception {
         for (int attempt = 1; attempt <= 2; attempt++) {
             assertThat(mcp("not-a-token-" + attempt, "198.51.100.12").getResponse().getStatus())
                     .as("attempt %d", attempt).isEqualTo(401);
         }
 
         assertRateLimited(mcp("not-a-token-3", "198.51.100.12"));
+    }
+
+    /**
+     * The metadata document is in the same chain and {@code permitAll}, but the bearer filter authenticates a
+     * token presented to it just the same and pays the same database query. Guessing there must therefore cost
+     * the same budget, or it would be a free lane for guessing tokens.
+     */
+    @Test
+    void bearerTokensSprayedAtTheMetadataDocumentSpendTheSameBudget() throws Exception {
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            assertThat(metadata("not-a-token-" + attempt, "198.51.100.17").getResponse().getStatus())
+                    .as("attempt %d", attempt).isEqualTo(401);
+        }
+
+        assertRateLimited(metadata("not-a-token-3", "198.51.100.17"));
+        assertRateLimited(mcp("not-a-token-4", "198.51.100.17"));
+    }
+
+    /** Without a token the metadata document stays public; the limit must not have closed it. */
+    @Test
+    void theMetadataDocumentRemainsReadableWithoutAToken() throws Exception {
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            assertThat(metadata(null, "198.51.100.18").getResponse().getStatus())
+                    .as("attempt %d", attempt).isEqualTo(200);
+        }
+    }
+
+    /**
+     * Claude's egress addresses are shared by every Claude user, so refusing up front would let one caller
+     * guessing at tokens lock out everybody else behind the same address. Whether a token resolves cannot be
+     * known without the lookup, so a good token is always served and only the guesses are rejected.
+     */
+    @Test
+    void anExhaustedFailureBudgetNeverBlocksAValidToken() throws Exception {
+        User user = createUser(true, true);
+        saveAuthorization(createClient(user.getId()), user.getId(), "rate-interleaved");
+
+        // Two guesses fill the failure budget, the third is past it; the good token is served throughout.
+        // Three rounds is also all the per-subject budget of this test allows, which is a different limit.
+        assertThat(mcp("not-a-token-1", "198.51.100.19").getResponse().getStatus()).isEqualTo(401);
+        assertThat(mcp("rate-interleaved", "198.51.100.19").getResponse().getStatus()).isEqualTo(200);
+        assertThat(mcp("not-a-token-2", "198.51.100.19").getResponse().getStatus()).isEqualTo(401);
+        assertThat(mcp("rate-interleaved", "198.51.100.19").getResponse().getStatus()).isEqualTo(200);
+
+        assertRateLimited(mcp("not-a-token-3", "198.51.100.19"));
+
+        assertThat(mcp("rate-interleaved", "198.51.100.19").getResponse().getStatus()).isEqualTo(200);
     }
 
     @Test
@@ -162,6 +265,68 @@ class McpRateLimitIntegrationTest extends McpIntegrationTestBase {
 
         assertRateLimited(mockMvc.perform(post(McpAuthorizationServerEndpoints.TOKEN)
                 .with(from("198.51.100.21"))).andReturn());
+    }
+
+    // ---------------------------------------------------------------- audit and metrics of a rejection
+
+    /**
+     * A caller reaching a limit is exactly the event the protection exists for, so none of the three filters
+     * may reject in silence. The tag is the limit's fixed name and never the blocked key, so a caller cannot
+     * create time series at will.
+     */
+    @Test
+    void theSubjectLimitRecordsItsRejectionOnceWithTheSubjectAndTheAddress() throws Exception {
+        User user = createUser(true, true);
+        saveAuthorization(createClient(user.getId()), user.getId(), "rate-audited");
+        double before = counted(McpRateLimit.TOOL_CALLS);
+        for (int call = 1; call <= 3; call++) {
+            mcp("rate-audited", "198.51.100.30");
+        }
+
+        assertRateLimited(mcp("rate-audited", "198.51.100.30"));
+
+        assertThat(auditLines()).singleElement().asString()
+                .isEqualTo("MCP rate limit reached limit=calls sub=" + user.getId() + " ip=198.51.100.30");
+        assertThat(counted(McpRateLimit.TOOL_CALLS)).isEqualTo(before + 1);
+    }
+
+    @Test
+    void theFailedTokenLimitRecordsItsRejectionOnceWithoutASubject() throws Exception {
+        double before = counted(McpRateLimit.FAILED_TOKEN_LOOKUPS);
+        mcp("not-a-token", "198.51.100.31");
+        mcp("not-a-token", "198.51.100.31");
+
+        assertRateLimited(mcp("not-a-token", "198.51.100.31"));
+
+        assertThat(auditLines()).singleElement().asString()
+                .isEqualTo("MCP rate limit reached limit=failed_token_lookups sub=- ip=198.51.100.31");
+        assertThat(counted(McpRateLimit.FAILED_TOKEN_LOOKUPS)).isEqualTo(before + 1);
+    }
+
+    @Test
+    void theAddressLimitOnTheAuthorizationServerRecordsItsRejectionOnce() throws Exception {
+        double before = counted(McpRateLimit.AUTHORIZATION_REQUESTS);
+        mockMvc.perform(get(McpAuthorizationServerEndpoints.AUTHORIZE).with(from("198.51.100.32")));
+        mockMvc.perform(get(McpAuthorizationServerEndpoints.AUTHORIZE).with(from("198.51.100.32")));
+
+        assertRateLimited(mockMvc.perform(get(McpAuthorizationServerEndpoints.AUTHORIZE)
+                .with(from("198.51.100.32"))).andReturn());
+
+        assertThat(auditLines()).singleElement().asString()
+                .isEqualTo("MCP rate limit reached limit=authorization_requests sub=- ip=198.51.100.32");
+        assertThat(counted(McpRateLimit.AUTHORIZATION_REQUESTS)).isEqualTo(before + 1);
+    }
+
+    /** A call that stays within its limit is not an abuse event and must leave no audit line behind. */
+    @Test
+    void acceptedCallsRecordNothing() throws Exception {
+        User user = createUser(true, true);
+        saveAuthorization(createClient(user.getId()), user.getId(), "rate-quiet");
+
+        assertThat(mcp("rate-quiet", "198.51.100.33").getResponse().getStatus()).isEqualTo(200);
+        assertThat(mcp("not-a-token", "198.51.100.33").getResponse().getStatus()).isEqualTo(401);
+
+        assertThat(auditLines()).isEmpty();
     }
 
     /** The consent page and the metadata document are not part of the flood the limit guards against. */

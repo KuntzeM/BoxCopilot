@@ -22,19 +22,24 @@ public class McpIpRateLimitFilter extends OncePerRequestFilter {
 
     private final RequestMatcher matcher;
     private final McpRateLimiter limiter;
+    private final McpRateLimitAudit audit;
 
-    public McpIpRateLimitFilter(RequestMatcher matcher, McpRateLimiter limiter) {
+    public McpIpRateLimitFilter(RequestMatcher matcher, McpRateLimiter limiter, McpRateLimitAudit audit) {
         Assert.notNull(matcher, "matcher cannot be null");
         Assert.notNull(limiter, "limiter cannot be null");
+        Assert.notNull(audit, "audit cannot be null");
         this.matcher = matcher;
         this.limiter = limiter;
+        this.audit = audit;
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        if (matcher.matches(request) && !limiter.tryAcquire(McpClientAddress.of(request))) {
+        String clientAddress = McpClientAddress.of(request);
+        if (matcher.matches(request) && !limiter.tryAcquire(clientAddress)) {
             McpRateLimitResponse.write(response, limiter.window());
+            audit.rejected(McpRateLimit.AUTHORIZATION_REQUESTS, null, clientAddress);
             return;
         }
         chain.doFilter(request, response);

@@ -1,5 +1,6 @@
 package com.boxcopilot.backend.mcp;
 
+import com.boxcopilot.backend.mcp.abuse.McpRateLimitAudit;
 import com.boxcopilot.backend.mcp.abuse.McpRateLimits;
 import com.boxcopilot.backend.mcp.observability.McpAuditLogger;
 import com.boxcopilot.backend.mcp.observability.McpToolMetrics;
@@ -77,7 +78,8 @@ class McpProtocolTest {
             org.springframework.ai.mcp.server.autoconfigure.McpServerStreamableHttpWebMvcAutoConfiguration.class,
             org.springframework.ai.mcp.server.autoconfigure.McpServerSseWebMvcAutoConfiguration.class})
     @Import({McpConfiguration.class, McpTransportConfiguration.class, McpStartupGuard.class,
-            McpRateLimits.class, McpAuditLogger.class, McpToolMetrics.class, BoxPilotMcpTools.class})
+            McpRateLimits.class, McpRateLimitAudit.class, McpAuditLogger.class, McpToolMetrics.class,
+            BoxPilotMcpTools.class})
     static class TestApplication {
 
         @Bean

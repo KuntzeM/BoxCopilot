@@ -24,12 +24,15 @@ public class McpSubjectRateLimitFilter extends OncePerRequestFilter {
 
     private final RequestMatcher matcher;
     private final McpRateLimiter limiter;
+    private final McpRateLimitAudit audit;
 
-    public McpSubjectRateLimitFilter(RequestMatcher matcher, McpRateLimiter limiter) {
+    public McpSubjectRateLimitFilter(RequestMatcher matcher, McpRateLimiter limiter, McpRateLimitAudit audit) {
         Assert.notNull(matcher, "matcher cannot be null");
         Assert.notNull(limiter, "limiter cannot be null");
+        Assert.notNull(audit, "audit cannot be null");
         this.matcher = matcher;
         this.limiter = limiter;
+        this.audit = audit;
     }
 
     @Override
@@ -38,6 +41,7 @@ public class McpSubjectRateLimitFilter extends OncePerRequestFilter {
         String subject = authenticatedSubject();
         if (subject != null && matcher.matches(request) && !limiter.tryAcquire(subject)) {
             McpRateLimitResponse.write(response, limiter.window());
+            audit.rejected(McpRateLimit.TOOL_CALLS, subject, McpClientAddress.of(request));
             return;
         }
         chain.doFilter(request, response);

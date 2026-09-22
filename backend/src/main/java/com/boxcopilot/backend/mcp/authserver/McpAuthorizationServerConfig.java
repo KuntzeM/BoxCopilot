@@ -4,6 +4,7 @@ import com.boxcopilot.backend.mcp.McpProperties;
 import com.boxcopilot.backend.mcp.McpUrls;
 import com.boxcopilot.backend.mcp.McpUserGate;
 import com.boxcopilot.backend.mcp.abuse.McpIpRateLimitFilter;
+import com.boxcopilot.backend.mcp.abuse.McpRateLimitAudit;
 import com.boxcopilot.backend.mcp.abuse.McpRateLimits;
 import com.boxcopilot.backend.mcp.security.McpOAuth2Attributes;
 import com.boxcopilot.backend.mcp.web.McpPendingCookies;
@@ -121,7 +122,7 @@ class McpAuthorizationServerConfig {
                                                           McpSessionUserResolver userResolver, McpUserGate userGate,
                                                           McpPendingCookies pendingCookies,
                                                           AuthorizationServerSettings settings,
-                                                          McpRateLimits rateLimits,
+                                                          McpRateLimits rateLimits, McpRateLimitAudit rateLimitAudit,
                                                           ObjectProvider<SecurityContextRepository> contextRepository,
                                                           @Value("${frontend.url}") String frontendUrl)
             throws Exception {
@@ -188,8 +189,8 @@ class McpAuthorizationServerConfig {
                 // In front of everything else in this chain: the flood this guards against is meant to be
                 // stopped before it reaches the session, the client store and the authorization store, and it
                 // applies whether or not the caller is authenticated.
-                .addFilterBefore(new McpIpRateLimitFilter(rateLimitedEndpoints, rateLimits.authorizationRequests()),
-                        SecurityContextHolderFilter.class);
+                .addFilterBefore(new McpIpRateLimitFilter(rateLimitedEndpoints,
+                        rateLimits.authorizationRequests(), rateLimitAudit), SecurityContextHolderFilter.class);
 
         return http.build();
     }

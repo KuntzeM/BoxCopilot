@@ -1,5 +1,6 @@
 package com.boxcopilot.backend.mcp;
 
+import com.boxcopilot.backend.mcp.abuse.McpRateLimitAudit;
 import com.boxcopilot.backend.mcp.abuse.McpRateLimits;
 import com.boxcopilot.backend.mcp.observability.McpAuditLogger;
 import com.boxcopilot.backend.mcp.observability.McpToolMetrics;
@@ -52,7 +53,8 @@ class McpFlagOffTest {
             .withBean(McpReadService.class, () -> mock(McpReadService.class))
             .withBean(McpUserGate.class, () -> mock(McpUserGate.class))
             .withUserConfiguration(McpConfiguration.class, McpTransportConfiguration.class, McpStartupGuard.class,
-                    McpRateLimits.class, McpAuditLogger.class, McpToolMetrics.class, BoxPilotMcpTools.class);
+                    McpRateLimits.class, McpRateLimitAudit.class, McpAuditLogger.class, McpToolMetrics.class,
+                    BoxPilotMcpTools.class);
 
     @Test
     void flagDefaultsToOffAndNoMcpBeanExists() {
@@ -111,8 +113,8 @@ class McpFlagOffTest {
                         "app.mcp.redirect-uris=https://claude.ai/cb")
                 .withBean(McpReadService.class, () -> mock(McpReadService.class))
                 .withUserConfiguration(McpConfiguration.class, McpTransportConfiguration.class,
-                        McpStartupGuard.class, McpRateLimits.class, McpAuditLogger.class, McpToolMetrics.class,
-                        BoxPilotMcpTools.class)
+                        McpStartupGuard.class, McpRateLimits.class, McpRateLimitAudit.class,
+                        McpAuditLogger.class, McpToolMetrics.class, BoxPilotMcpTools.class)
                 .run(context -> assertThat(context.getStartupFailure())
                         .hasMessageContaining(McpUserGate.class.getName()));
     }
@@ -127,6 +129,7 @@ class McpFlagOffTest {
         assertThat(context).doesNotHaveBean(McpStartupGuard.class);
         assertThat(context).doesNotHaveBean(McpTransportContextExtractor.class);
         assertThat(context).doesNotHaveBean(McpRateLimits.class);
+        assertThat(context).doesNotHaveBean(McpRateLimitAudit.class);
         assertThat(context).doesNotHaveBean(McpAuditLogger.class);
         assertThat(context).doesNotHaveBean(McpToolMetrics.class);
         assertThat(context.getBeanNamesForType(io.modelcontextprotocol.server.McpServer.class)).isEmpty();

@@ -3,6 +3,8 @@ package com.boxcopilot.backend.mcp.security;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
@@ -41,14 +43,25 @@ public class McpAuthorizationService implements OAuth2AuthorizationService, McpA
      * connection start lives inside the serialised {@code attributes} column, which H2 and Postgres would have
      * to be asked about in two different dialects; the table holds one row per connection, so reading it is
      * cheap once a day.
+     *
+     * <p>The three token columns hold live secrets in clear text, and every rule only asks whether they are
+     * present. They are therefore reduced to a flag in the query and never enter the process: nothing can put
+     * them into a log line, an exception message or a generated {@code toString}.
      */
     static final String SELECT_FOR_CLEANUP = """
-            SELECT id, attributes, access_token_value, access_token_expires_at, refresh_token_value,
-                   refresh_token_expires_at, authorization_code_value, authorization_code_expires_at
+            SELECT id, attributes,
+                   CASE WHEN access_token_value IS NULL THEN 0 ELSE 1 END AS has_access_token,
+                   access_token_expires_at,
+                   CASE WHEN refresh_token_value IS NULL THEN 0 ELSE 1 END AS has_refresh_token,
+                   refresh_token_expires_at,
+                   CASE WHEN authorization_code_value IS NULL THEN 0 ELSE 1 END AS has_authorization_code,
+                   authorization_code_expires_at
             FROM oauth2_authorization""";
 
-    /** Reads one plain string field out of the stored attributes; no typed value is deserialised here. */
+    /** Reads one plain scalar field out of the stored attributes; no typed value is deserialised here. */
     private static final ObjectMapper ATTRIBUTE_READER = new ObjectMapper();
+
+    private static final Logger log = LoggerFactory.getLogger(McpAuthorizationService.class);
 
     private final OAuth2AuthorizationService delegate;
     private final McpAuthorizationPolicy policy;
@@ -112,11 +125,11 @@ public class McpAuthorizationService implements OAuth2AuthorizationService, McpA
     private static CleanupRow readCleanupRow(ResultSet resultSet, int rowNumber) throws SQLException {
         return new CleanupRow(resultSet.getString("id"),
                 readStartedAt(resultSet.getString("attributes")),
-                resultSet.getString("access_token_value"),
+                resultSet.getBoolean("has_access_token"),
                 instant(resultSet, "access_token_expires_at"),
-                resultSet.getString("refresh_token_value"),
+                resultSet.getBoolean("has_refresh_token"),
                 instant(resultSet, "refresh_token_expires_at"),
-                resultSet.getString("authorization_code_value"),
+                resultSet.getBoolean("has_authorization_code"),
                 instant(resultSet, "authorization_code_expires_at"));
     }
 
@@ -128,6 +141,11 @@ public class McpAuthorizationService implements OAuth2AuthorizationService, McpA
     /**
      * Reads the connection start out of the stored attributes. An attribute set that cannot be read yields no
      * start: the policy already refuses such an authorization, and the cleanup deletes only what it can judge.
+     *
+     * <p>The stamp is written as a decimal string today, but the specification describes it as a {@code Long}
+     * and the storage type has changed once already. A number is therefore accepted just as readily, and a
+     * stamp of any other shape is reported at warning level rather than quietly turning the absolute-age rule
+     * off for every connection.
      */
     private static Instant readStartedAt(String attributes) {
         if (attributes == null || attributes.isBlank()) {
@@ -135,9 +153,18 @@ public class McpAuthorizationService implements OAuth2AuthorizationService, McpA
         }
         try {
             JsonNode startedAt = ATTRIBUTE_READER.readTree(attributes).get(McpOAuth2Attributes.STARTED_AT);
-            return startedAt == null || !startedAt.isTextual()
-                    ? null : Instant.ofEpochSecond(Long.parseLong(startedAt.asText()));
+            if (startedAt == null || startedAt.isNull()) {
+                return null;
+            }
+            if (!startedAt.isTextual() && !startedAt.isNumber()) {
+                log.warn("MCP cleanup cannot read {}: unexpected JSON node type {}",
+                        McpOAuth2Attributes.STARTED_AT, startedAt.getNodeType());
+                return null;
+            }
+            return Instant.ofEpochSecond(Long.parseLong(startedAt.asText()));
         } catch (JsonProcessingException | NumberFormatException | ArithmeticException e) {
+            log.warn("MCP cleanup cannot read {}: {}", McpOAuth2Attributes.STARTED_AT,
+                    e.getClass().getSimpleName());
             return null;
         }
     }
@@ -169,8 +196,8 @@ public class McpAuthorizationService implements OAuth2AuthorizationService, McpA
      *
      * @param startedAt when the connection was first authorized, or {@code null} if that is unreadable
      */
-    private record CleanupRow(String id, Instant startedAt, String accessTokenValue, Instant accessTokenExpiresAt,
-                              String refreshTokenValue, Instant refreshTokenExpiresAt, String codeValue,
+    private record CleanupRow(String id, Instant startedAt, boolean hasAccessToken, Instant accessTokenExpiresAt,
+                              boolean hasRefreshToken, Instant refreshTokenExpiresAt, boolean hasAuthorizationCode,
                               Instant codeExpiresAt) {
 
         boolean isSpent(Instant now, Instant earliestAllowedStart) {
@@ -179,13 +206,11 @@ public class McpAuthorizationService implements OAuth2AuthorizationService, McpA
         }
 
         private boolean refreshTokenExpired(Instant now) {
-            return refreshTokenValue != null && refreshTokenExpiresAt != null
-                    && refreshTokenExpiresAt.isBefore(now);
+            return hasRefreshToken && refreshTokenExpiresAt != null && refreshTokenExpiresAt.isBefore(now);
         }
 
         private boolean accessTokenExpiredWithoutRefreshToken(Instant now) {
-            return refreshTokenValue == null && accessTokenExpiresAt != null
-                    && accessTokenExpiresAt.isBefore(now);
+            return !hasRefreshToken && accessTokenExpiresAt != null && accessTokenExpiresAt.isBefore(now);
         }
 
         private boolean startedTooLongAgo(Instant earliestAllowedStart) {
@@ -194,8 +219,8 @@ public class McpAuthorizationService implements OAuth2AuthorizationService, McpA
 
         /** A code that expired before it was exchanged; the authorization never became a connection. */
         private boolean codeExpiredUnused(Instant now) {
-            return codeValue != null && codeExpiresAt != null && codeExpiresAt.isBefore(now)
-                    && accessTokenValue == null;
+            return hasAuthorizationCode && codeExpiresAt != null && codeExpiresAt.isBefore(now)
+                    && !hasAccessToken;
         }
     }
 

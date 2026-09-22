@@ -68,6 +68,7 @@ class McpForwardedHeadersConfigTest {
         assertThat(production.getProperty(STRATEGY)).isEqualTo("native");
     }
 
+    /** The override is a regular expression, and its name says so: CIDR notation would match nothing. */
     @Test
     void theTrustedProxyRangeIsConfigurableAndDefaultsToThePrivateAddressSpace() {
         assertThat(production.getProperty(INTERNAL_PROXIES, String.class))
@@ -75,7 +76,7 @@ class McpForwardedHeadersConfigTest {
 
         StandardEnvironment narrowed = productionEnvironment();
         narrowed.getPropertySources().addFirst(new org.springframework.core.env.MapPropertySource(
-                "operator", Map.of("TRUSTED_PROXY_CIDR", "172\\.18\\.0\\.2")));
+                "operator", Map.of("TRUSTED_PROXY_PATTERN", "172\\.18\\.0\\.2")));
 
         assertThat(narrowed.getProperty(INTERNAL_PROXIES)).isEqualTo("172\\.18\\.0\\.2");
     }
