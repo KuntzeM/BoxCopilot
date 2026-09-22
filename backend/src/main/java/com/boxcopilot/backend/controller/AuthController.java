@@ -3,6 +3,7 @@ package com.boxcopilot.backend.controller;
 import com.boxcopilot.backend.domain.User;
 import com.boxcopilot.backend.dto.UserPrincipalDTO;
 import com.boxcopilot.backend.service.CustomUserDetailsService;
+import com.boxcopilot.backend.service.McpAllowanceProbe;
 import com.boxcopilot.backend.service.McpPendingProbe;
 import com.boxcopilot.backend.repository.UserRepository;
 import org.slf4j.Logger;
@@ -27,10 +28,13 @@ public class AuthController {
     
     private final UserRepository userRepository;
     private final McpPendingProbe mcpPendingProbe;
+    private final McpAllowanceProbe mcpAllowanceProbe;
 
-    public AuthController(UserRepository userRepository, McpPendingProbe mcpPendingProbe) {
+    public AuthController(UserRepository userRepository, McpPendingProbe mcpPendingProbe,
+                          McpAllowanceProbe mcpAllowanceProbe) {
         this.userRepository = userRepository;
         this.mcpPendingProbe = mcpPendingProbe;
+        this.mcpAllowanceProbe = mcpAllowanceProbe;
     }
 
     /**
@@ -124,6 +128,8 @@ public class AuthController {
 
         // Authenticated callers learn whether an MCP authorization is waiting; anonymous ones never do.
         dto.setMcpPending(mcpPendingProbe.isPending(request));
+        // The same holds for the MCP allowance, which also decides whether the SPA offers the connection dialog.
+        dto.setMcpAllowed(mcpAllowanceProbe.isAllowed(dto.getId()));
 
         return ResponseEntity.ok(dto);
     }

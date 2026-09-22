@@ -24,6 +24,13 @@ public class UserPrincipalDTO {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean mcpPending;
 
+    /**
+     * Whether this user may use MCP: the feature has to be switched on and the account has to be allowed to.
+     * Like {@code mcpPending} it is only set for authenticated callers; an anonymous one learns nothing.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean mcpAllowed;
+
     public UserPrincipalDTO() {
     }
 
@@ -137,6 +144,14 @@ public class UserPrincipalDTO {
 
     public void setMcpPending(Boolean mcpPending) {
         this.mcpPending = mcpPending;
+    }
+
+    public Boolean getMcpAllowed() {
+        return mcpAllowed;
+    }
+
+    public void setMcpAllowed(Boolean mcpAllowed) {
+        this.mcpAllowed = mcpAllowed;
     }
 
     public boolean isAdmin() {

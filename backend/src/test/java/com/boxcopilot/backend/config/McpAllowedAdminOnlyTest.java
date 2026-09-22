@@ -141,10 +141,22 @@ class McpAllowedAdminOnlyTest {
         assertThat(acceptingControllers).containsExactly(AdminUserController.class.getName());
     }
 
+    /**
+     * {@code /api/v1/me} reports {@code mcpAllowed} so that the SPA knows whether to offer the connection
+     * dialog. That is a read-only answer: no controller takes a {@link UserPrincipalDTO} as input, so the field
+     * can never travel the other way and grant the flag to its owner.
+     */
     @Test
-    void selfServicePrincipalDtoDoesNotExposeOrAcceptMcpAllowed() {
+    void thePrincipalDtoReportsMcpAllowedButIsNeverAcceptedAsInput() {
         assertThat(Arrays.stream(UserPrincipalDTO.class.getDeclaredFields()).map(field -> field.getName()))
-                .doesNotContain("mcpAllowed");
+                .contains("mcpAllowed");
+
+        List<String> acceptingControllers = Arrays.stream(controllerClasses())
+                .filter(controller -> acceptsParameter(controller, UserPrincipalDTO.class))
+                .map(Class::getName)
+                .toList();
+
+        assertThat(acceptingControllers).isEmpty();
     }
 
     @Test
