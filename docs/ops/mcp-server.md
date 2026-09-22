@@ -205,7 +205,9 @@ documented there or has just been added there as part of this story.
 |---|---|---|---|---|
 | `APP_MCP_ENABLED` | `false` | — | Master kill-switch for the whole MCP feature (`app.mcp.enabled`). | Y |
 | `BACKEND_URL` | *(none)* | `APP_MCP_ENABLED=true` | Fixed OAuth issuer / resource identifier (`app.mcp.backend-url`). Startup fails without it (and without `https` in prod) when MCP is on. Never derived from the request or `X-Forwarded-*`. | Y |
+| `VITE_API_BASE_URL` | *(none, required)* | always | Base URL the SPA calls the backend on, baked into the frontend bundle at **build** time. **Must name the same origin as `BACKEND_URL`.** The backend sets the `mcp_authz` pending-authorization cookie and the OAuth issuer on `BACKEND_URL`, while the SPA builds the MCP "continue" URL and the connector URL shown in the "Claude-Verbindung" dialog from this value; if the two origins differ, the cookie is set on one origin and the continue-redirect points at the other, and the connect flow silently loops with no error. Nothing checks this at runtime — a Vite build-time variable and a Spring property cannot be cross-validated — so it is an operator invariant, kept visibly aligned in `.env.example`. Changing it requires a frontend rebuild. | Y |
 | `APP_MCP_CLEANUP_CRON` | `0 0 3 * * *` | optional | Cron schedule for the nightly authorization cleanup job. | Y |
+| `APP_MCP_COOKIE_SAME_SITE` | *(blank — follows the session cookie)* | optional | `SameSite` attribute of the short-lived `mcp_authz` pending-authorization cookie (`app.mcp.cookie-same-site`). Blank means it follows `server.servlet.session.cookie.same-site` (`none` in `application-prod.yml`), because the cookie has to travel on exactly the requests the session cookie travels on. Set it to `Lax` where frontend and backend share a site. | Y |
 | `APP_MCP_CALLS_PER_MINUTE` | `60` | optional | Per-subject rate limit on `/mcp` tool calls. | Y |
 | `APP_MCP_IMAGE_CALLS_PER_DAY` | `200` | optional | Per-subject daily quota on `get_item_image` calls (the expensive, large-payload tool). | Y |
 | `APP_MCP_AUTHORIZATION_REQUESTS_PER_MINUTE` | `30` | optional | Per-IP rate limit on `/oauth2/authorize` and `/oauth2/token`. Only meaningful if `TRUSTED_PROXY_PATTERN`/M4 is correctly configured — otherwise it rate-limits the proxy's address, not the caller's. | Y |
@@ -223,9 +225,11 @@ rather than added to `.env.example`. Change them in `backend/src/main/resources/
 ever needs a different value.
 
 `.env.example` in the repo root has been updated to include the MCP-specific variables above (`APP_MCP_ENABLED`,
-`BACKEND_URL`, `APP_MCP_CLEANUP_CRON` and the four rate-limit knobs, `TRUSTED_PROXY_PATTERN`) alongside the
-pre-existing entries; `REDIS_PASSWORD`, `ADMIN_PASSWORD`, `FRONTEND_URL` and `MAGIC_LINK_VALID_HOURS` were already
-present there from earlier stories and needed no change.
+`BACKEND_URL`, `APP_MCP_CLEANUP_CRON`, `APP_MCP_COOKIE_SAME_SITE` and the four rate-limit knobs,
+`TRUSTED_PROXY_PATTERN`) alongside the pre-existing entries; `REDIS_PASSWORD`, `ADMIN_PASSWORD`, `FRONTEND_URL`,
+`VITE_API_BASE_URL` and `MAGIC_LINK_VALID_HOURS` were already present there from earlier stories. `BACKEND_URL` and
+`VITE_API_BASE_URL` now ship with the same example origin and carry a comment on both entries stating that they
+must stay on the same origin.
 
 ## Open points (not covered by this sprint, needed before/at go-live)
 
@@ -240,7 +244,10 @@ ledger (`.superpowers/sdd/2026-09-21-mcp-server-sprint/progress.md`).
    has been driven against a live deployment — S12 could not do this itself (no browser, no claude.ai account, no
    public HTTPS origin in that environment). Whoever runs this before go-live needs:
 
-   **Prerequisites**
+   **Prerequisites** — note that `app.mcp.redirect-uris` is **YAML-only**: unlike the variables in the table
+   above it cannot be overridden by an environment variable, so adding the loopback callback below means editing
+   `backend/src/main/resources/application.yml` (or `application-prod.yml`) and rebuilding and redeploying the
+   backend image, not just changing `.env`. Remove the loopback entry again after the verification run.
    - Backend reachable over **public HTTPS** (Claude will not call a private host); `BACKEND_URL` set to exactly
      that origin, Traefik forwarding `X-Forwarded-*`.
    - `app.mcp.enabled=true`, `app.mcp.redirect-uris` containing `https://claude.ai/api/mcp/auth_callback` and
@@ -308,8 +315,11 @@ ledger (`.superpowers/sdd/2026-09-21-mcp-server-sprint/progress.md`).
      for the backend/frontend containers.
    - **Unified login error messages** — locked/disabled/wrong-password are still distinguishable in the login
      failure handler (`OAuth2SecurityConfig`), an account-enumeration nicety, not fixed this sprint.
-   - **Configurable cookie `SameSite`** — currently fixed to `none` in `application-prod.yml`; making it `Lax`
-     when frontend and backend share a site was noted as a future improvement, not implemented.
+   - **Configurable cookie `SameSite` for the *session* cookie** — still fixed to `none` in
+     `application-prod.yml`; making it `Lax` where frontend and backend share a site remains a future
+     improvement. This applies to the session cookie only: the MCP `mcp_authz` cookie *is* configurable, via
+     `APP_MCP_COOKIE_SAME_SITE` (see the environment variable table above), and only falls back to the session
+     cookie's value when that is left blank.
    - **Global LIKE-escaping audit** — spec §3.3 assumes Spring Data's derived `...ContainingIgnoreCase` methods
      escape `%`/`_` themselves; this was accepted based on framework behavior but a systematic check across all
      search paths (not just the new MCP ones) was not performed as a separate ticket.
@@ -320,3 +330,25 @@ ledger (`.superpowers/sdd/2026-09-21-mcp-server-sprint/progress.md`).
 8. **HTTP-layer rate-limit observability** — 429 responses from the IP-based limiters are not currently audited
    or counted through `McpAuditLogger`/`McpToolMetrics` (see "audit log" section above); adding that is not
    scheduled work, just a known gap.
+9. **Data-model ticket: `Box.description` is a Postgres large object** — the field is mapped as a JPA
+   `@Lob String`, which on Postgres becomes a large object (OID) rather than a `TEXT` column. A SQL
+   `LIKE`/`ILIKE` therefore cannot be used on it, which is why the MCP box-description search in
+   `DefaultMcpReadService` loads the candidate boxes and matches the description **in memory**. That is fine at
+   household-inventory sizes and was accepted for this sprint, but it does not scale: the fix is to map the
+   column properly as `TEXT` (`@Column(columnDefinition = "text")`, no `@Lob`) plus a Flyway data migration that
+   moves the existing large objects into the column, after which the search becomes an ordinary SQL query. Own
+   ticket, not MCP-specific — the same `@Lob` mapping affects every other read of `Box.description`.
+10. **Test hygiene: fixed box numbers in `McpEndToEndFlowTest`** — the scripted end-to-end flow uses hard-coded
+    box numbers (8120/8121) rather than generated ones. Against the ephemeral Testcontainers database this is
+    safe, but a crashed run that leaves rows behind, or a future parallel/shared-database setup, could collide
+    or make cleanup order matter. Low-priority follow-up: generate the numbers per run (or assert-and-clean
+    before creating them).
+11. **`mcpAllowed` in `/api/v1/me` does not reflect a temporary lock** — `McpUserAllowanceProbe` reports the
+    stored `users.mcp_allowed` flag only, while the actual gate (`McpAccessPolicy`) additionally denies a
+    temporarily locked account. A locked user therefore still sees the "Claude-Verbindung" dialog and gets a
+    bare `403` when a tool call or an authorize request is attempted. This is deliberate and documented in a
+    comment on the probe: a lock is temporary (it expires on its own) and the dialog's own maintenance actions
+    remain legitimate while it lasts. The residual rough edge is purely cosmetic — the dialog's error states are
+    not differentiated by HTTP status, so a `403` reads like any other failure. Turning that into an explicit
+    "not currently available" message is an optional UX follow-up, not a security matter: enforcement is correct
+    and fail-closed either way.
