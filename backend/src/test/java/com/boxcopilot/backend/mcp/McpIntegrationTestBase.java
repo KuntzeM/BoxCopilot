@@ -137,7 +137,7 @@ public abstract class McpIntegrationTestBase {
 
     /** A public client as the connection provisioning will create it: bound to exactly one user. */
     protected RegisteredClient createClient(long boundUserId) {
-        RegisteredClient client = RegisteredClientFixtures.publicClient(boundUserId, REDIRECT_URIS).build();
+        RegisteredClient client = RegisteredClientFixtures.publicClient(boundUserId, REDIRECT_URIS);
         registeredClientRepository.save(client);
         return client;
     }

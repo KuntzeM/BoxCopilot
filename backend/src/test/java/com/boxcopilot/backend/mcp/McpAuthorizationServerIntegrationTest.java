@@ -388,7 +388,7 @@ class McpAuthorizationServerIntegrationTest extends McpIntegrationTestBase {
     void omittingTheRedirectUriIsOnlyAllowedWithoutOpenIdConnect() throws Exception {
         User user = createUser(true, true);
         RegisteredClient client = RegisteredClientFixtures
-                .publicClient(user.getId(), List.of(CLAUDE_REDIRECT_URI)).build();
+                .publicClient(user.getId(), List.of(CLAUDE_REDIRECT_URI));
         registeredClientRepository.save(client);
         MockHttpSession session = sessionFor(user);
 

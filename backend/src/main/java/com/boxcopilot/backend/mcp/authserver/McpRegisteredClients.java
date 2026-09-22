@@ -1,11 +1,16 @@
 package com.boxcopilot.backend.mcp.authserver;
 
 import com.boxcopilot.backend.mcp.security.McpOAuth2Attributes;
+import org.springframework.security.oauth2.core.AuthorizationGrantType;
+import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.security.oauth2.server.authorization.settings.OAuth2TokenFormat;
 import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.UUID;
 
 /**
  * The client and token settings every BoxPilot MCP client is registered with. They are a single source of truth
@@ -26,7 +31,31 @@ public final class McpRegisteredClients {
     /** Idle window of a connection: without a refresh within this period the connection dies. */
     public static final Duration REFRESH_TOKEN_TIME_TO_LIVE = Duration.ofDays(7);
 
+    /** What the connection is called wherever a registered client is shown; it holds no user data. */
+    public static final String CLIENT_NAME = "Claude connection";
+
     private McpRegisteredClients() {
+    }
+
+    /**
+     * Builds the one client a user may hold: a public client with the fixed BoxPilot settings, bound to that user.
+     *
+     * @param userId       the internal user id the client is bound to
+     * @param clientId     the generated public client id
+     * @param redirectUris the configured redirect URIs; no other one may be used
+     */
+    public static RegisteredClient publicClient(long userId, String clientId, List<String> redirectUris) {
+        RegisteredClient.Builder builder = RegisteredClient.withId(UUID.randomUUID().toString())
+                .clientId(clientId)
+                .clientName(CLIENT_NAME)
+                .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                .scope(McpOAuth2Attributes.SCOPE_READ)
+                .clientSettings(clientSettings(userId))
+                .tokenSettings(tokenSettings());
+        redirectUris.forEach(builder::redirectUri);
+        return builder.build();
     }
 
     /**

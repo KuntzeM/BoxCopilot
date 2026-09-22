@@ -1,5 +1,9 @@
 package com.boxcopilot.backend.mcp.security;
 
+import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
+
+import java.util.Optional;
+
 /** The names BoxPilot adds to the Spring Authorization Server model, and the single scope it issues. */
 public final class McpOAuth2Attributes {
 
@@ -33,5 +37,22 @@ public final class McpOAuth2Attributes {
     public static final String READ_AUTHORITY = SCOPE_AUTHORITY_PREFIX + SCOPE_READ;
 
     private McpOAuth2Attributes() {
+    }
+
+    /**
+     * Reads the user a client is bound to.
+     *
+     * @return the bound user id, or empty if the setting is missing or not a user id
+     */
+    public static Optional<Long> boundUserId(ClientSettings clientSettings) {
+        if (clientSettings == null || !(clientSettings.getSetting(CLIENT_USER_ID) instanceof String bound)) {
+            return Optional.empty();
+        }
+        try {
+            long userId = Long.parseLong(bound);
+            return userId > 0 ? Optional.of(userId) : Optional.empty();
+        } catch (NumberFormatException e) {
+            return Optional.empty();
+        }
     }
 }
