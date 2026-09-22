@@ -234,27 +234,74 @@ step before or at go-live. Source: the sprint plan's "Out of scope this sprint" 
 (`docs/superpowers/plans/2026-09-21-mcp-server-sprint.md`), spec §7 Phase 0 spike items, spec §8, and the sprint
 ledger (`.superpowers/sdd/2026-09-21-mcp-server-sprint/progress.md`).
 
-1. **Manual MCP Inspector / Claude Free verification** — the automated test suite (through S12) covers the
-   protocol and security behavior with MockMvc/TestRestTemplate and a scripted MCP Inspector-style flow, but a
-   live run against a real Claude Free/Pro account and the actual MCP Inspector tool has not been performed. This
-   is the only way to confirm things that only a real client can show: whether Claude sends `scope`/`resource` on
-   authorize, how a per-user client ID behaves across a refresh in Claude's own client-credential storage
-   (spec §7 Phase 0.1, referencing a known Claude bug, issue #344), and how images render in Claude Mobile
-   (spec §7 Phase 0.5). **See S12's report
-   (`.superpowers/sdd/2026-09-21-mcp-server-sprint/S12-report.md`) for exact manual steps once that story has
-   landed** — at the time this document was written, S12 had not yet committed its report; if it still hasn't by
-   the time you read this, treat this whole point as a placeholder and check that file directly.
-2. **ChatGPT (Developer Mode) support** — explicitly out of scope for v1 (spec §1, §7 Phase 0.5); not tested at
+1. **Manual MCP Inspector / Claude Free verification** — the automated test suite (through S12, including the
+   scripted `McpEndToEndFlowTest`) covers the protocol and security behavior end to end with MockMvc/
+   TestRestTemplate/Testcontainers, but neither the actual MCP Inspector tool nor a real Claude Free/Pro account
+   has been driven against a live deployment — S12 could not do this itself (no browser, no claude.ai account, no
+   public HTTPS origin in that environment). Whoever runs this before go-live needs:
+
+   **Prerequisites**
+   - Backend reachable over **public HTTPS** (Claude will not call a private host); `BACKEND_URL` set to exactly
+     that origin, Traefik forwarding `X-Forwarded-*`.
+   - `app.mcp.enabled=true`, `app.mcp.redirect-uris` containing `https://claude.ai/api/mcp/auth_callback` and
+     `http://127.0.0.1:41000/callback`.
+   - A test user with `mcp_allowed` switched on in the admin panel, and at least one box with items and one item
+     with a photo.
+   - Traefik access logs configured without query strings (see "Client-ID confidentiality and access-log
+     handling" above — the client ID appears in the authorize query string).
+
+   **A. MCP Inspector**
+   1. `npx @modelcontextprotocol/inspector` (Node 18+) — opens the inspector UI in the browser.
+   2. Transport type **Streamable HTTP**, URL `https://<backend>/mcp`.
+   3. In **Authentication / OAuth**, choose OAuth 2.1 and enter the client ID from the BoxPilot "Claude-Verbindung"
+      dialog (`POST /api/v1/me/mcp-client`). Leave the client secret empty (public client) and let the inspector
+      use PKCE S256 and its own loopback redirect — if it can't be pinned to port 41000, either register its
+      actual loopback redirect URI first, or use the pre-registered `http://127.0.0.1:41000/callback`.
+   4. Press **Connect** and verify: the browser lands on the BoxPilot login page, then the consent page shows
+      *your* user name, scope `mcp:read` and the redirect host; approving returns to the inspector connected.
+   5. Verify **Tools** lists exactly `search_items`, `get_item_image`, `search_boxes`, `get_box_contents`, each
+      flagged read-only.
+   6. Run each tool against real data (a known item name, a room, a known box number, an `itemId` from a search
+      result) and confirm `get_item_image` actually renders the photo in the inspector's result pane.
+   7. Check the payloads: no `boxUuid`, `imageToken` or image URL should appear anywhere.
+   8. Negative checks: another user's client ID must be refused at authorize; switching `mcp_allowed` off must
+      fail the next tool call; switching it back on must require a fresh connection (client and authorizations
+      deleted, not just re-enabled).
+
+   **B. Claude Free, custom connector**
+   1. claude.ai → Settings → Connectors → **Add custom connector**, name `BoxPilot`, URL `https://<backend>/mcp`,
+      client ID from the BoxPilot dialog under advanced settings, no client secret.
+   2. Connect — the same login/consent pages must appear and the connector must end up "Connected".
+   3. In a chat, enable the connector and ask for inventory by room and for a photo of a specific item; confirm
+      all four tools get offered, the answers reflect real inventory, and the photo displays.
+   4. Repeat on the Claude **mobile app** with the same account specifically to check whether image content
+      renders there (spec §7 Phase 0.5).
+   5. Leave the connection idle past the 30-minute access-token lifetime, then use it again — the refresh must
+      happen transparently. Claude has a known bug with stored client credentials surviving a refresh
+      (issue #344, spec §7 Phase 0.1) — watch for an unexpected re-consent prompt.
+   6. Press "Alle Verbindungen widerrufen" in the BoxPilot dialog and confirm the connector stops working with no
+      further BoxPilot-side action.
+
+   This is the only way to confirm things a real client alone can show: whether Claude sends `scope`/`resource`
+   on authorize, the refresh/credential-storage behavior above, and mobile image rendering. See S12's report
+   (`.superpowers/sdd/2026-09-21-mcp-server-sprint/S12-report.md`, section 4) for the original write-up.
+2. **Traefik access logs must exclude the query string** — the client ID travels in the `/oauth2/authorize`
+   query string (see "Client-ID confidentiality and access-log handling" above). This sprint's stories only
+   verified that BoxPilot itself never logs the client ID; whoever operates the reverse proxy still needs to
+   confirm Traefik's access-log directive for this host omits or redacts the query string (or, failing that,
+   treat those logs as confidential with the same handling as the database — see "Database backup encryption"
+   above) before go-live. Flagged again during S12's QA pass as still open.
+3. **ChatGPT (Developer Mode) support** — explicitly out of scope for v1 (spec §1, §7 Phase 0.5); not tested at
    all with this implementation.
-3. **Spring Boot 3.5 support-status decision** — spec §8 flags that Boot 3.5's OSS support window is believed to
+4. **Spring Boot 3.5 support-status decision** — spec §8 flags that Boot 3.5's OSS support window is believed to
    end during 2026. This sprint did **not** make that call or perform the coordinated Boot 4 / Spring Security 7
    / Spring AI 2.x upgrade; it must be explicitly decided (upgrade, or documented risk acceptance) before
-   go-live, per the spec's own go-live conditions (§7).
-4. **Staging `flyway validate`** — `validate-on-migrate` stays `false` in `application-prod.yml`. Before it is
+   go-live, per the spec's own go-live conditions (§7). Still unresolved as of S12's QA pass.
+5. **Staging `flyway validate`** — `validate-on-migrate` stays `false` in `application-prod.yml`. Before it is
    ever turned on, a `flyway validate` run against a copy of the real production migration history on staging is
    required (spec §4.3); this sprint added the new MCP migrations but did not perform or automate that
    validation run.
-5. **Remaining §4.4 "Phase 4 and own tickets" items**, not bundled into this sprint's stories:
+6. **Remaining §4.4 "Phase 4 and own tickets" items**, not bundled into this sprint's stories:
    - **M3** — session invalidation on role change or user deactivation (sessions currently live for up to 34h and
      carry a snapshot of the user entity).
    - **Container hardening** — non-root user, `read_only` root filesystem with explicit volumes, `cap_drop: ALL`
@@ -266,10 +313,10 @@ ledger (`.superpowers/sdd/2026-09-21-mcp-server-sprint/progress.md`).
    - **Global LIKE-escaping audit** — spec §3.3 assumes Spring Data's derived `...ContainingIgnoreCase` methods
      escape `%`/`_` themselves; this was accepted based on framework behavior but a systematic check across all
      search paths (not just the new MCP ones) was not performed as a separate ticket.
-6. **Negative cache for failed token lookups** — a follow-up noted during the S10 review round: the fix that
+7. **Negative cache for failed token lookups** — a follow-up noted during the S10 review round: the fix that
    closed a rate-limit bypass (I3) made every invalid bearer token cost a real database lookup instead of being
    cheaply rejected. A short-lived hashed negative cache was suggested as a way to get the DB-cost protection
    back without reintroducing the bypass, but it is not built in this sprint.
-7. **HTTP-layer rate-limit observability** — 429 responses from the IP-based limiters are not currently audited
+8. **HTTP-layer rate-limit observability** — 429 responses from the IP-based limiters are not currently audited
    or counted through `McpAuditLogger`/`McpToolMetrics` (see "audit log" section above); adding that is not
    scheduled work, just a known gap.
