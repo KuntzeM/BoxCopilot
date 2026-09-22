@@ -44,6 +44,14 @@
 - Language
   - Switch between German and English; preference is remembered.
 
+- Claude / MCP integration
+  - Optional, read-only [Model Context Protocol](https://modelcontextprotocol.io/) server built into the backend, so Claude can search the inventory on the user's behalf. Off by default (`APP_MCP_ENABLED=false`).
+  - Four tools, all read-only: `search_items`, `get_item_image`, `search_boxes`, `get_box_contents`. No box UUIDs, image tokens or write access ever cross this boundary.
+  - An admin enables `mcp_allowed` for a user in the Admin Panel. That user then opens the "Claude-Verbindung" dialog (via the app menu), which shows their personal client ID and the `/mcp` connector URL, both one-click copyable.
+  - In Claude, add a Custom Connector with that `/mcp` URL. On first use, Claude opens a BoxPilot login/consent screen; after consenting, the connection is active. Each user gets their own client ID, bound to their account: pasting someone else's ID into Claude does not grant access to their data.
+  - The dialog also offers "Neu erzeugen" (regenerate the client ID, invalidating the old one) and "Alle Verbindungen widerrufen" (revoke every active connection for that user).
+  - Operations, security posture, the kill-switch and environment variables: see [`docs/ops/mcp-server.md`](docs/ops/mcp-server.md).
+
 ## Development
 
 ### Prerequisites
@@ -128,6 +136,12 @@ See [application-*.yml](backend/src/main/resources/) for profile configurations.
 - `GET /api/v1/public/{uuid}` - Get box preview by UUID
 - `GET /api/v1/public/items/{token}/image` - Get item thumbnail
 - `GET /api/v1/public/items/{token}/image/large` - Get large item image
+
+**Claude / MCP (only when `APP_MCP_ENABLED=true`):**
+- `POST /api/v1/me/mcp-client` - Get (create if missing) the caller's MCP client ID
+- `POST /api/v1/me/mcp-client/regenerate` - Replace the client ID, deleting the old one and its connections
+- `DELETE /api/v1/me/mcp-connections` - Revoke all of the caller's MCP connections
+- `POST /mcp` - MCP endpoint (OAuth 2.1 bearer token required); see [`docs/ops/mcp-server.md`](docs/ops/mcp-server.md)
 
 ## Production Deployment
 
