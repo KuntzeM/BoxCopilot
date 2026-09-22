@@ -1,13 +1,22 @@
 package com.boxcopilot.backend.mcp.security;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.util.Assert;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -24,6 +33,22 @@ import java.util.Optional;
 public class McpAuthorizationService implements OAuth2AuthorizationService, McpAuthorizationRegistry {
 
     static final String DELETE_BY_PRINCIPAL = "DELETE FROM oauth2_authorization WHERE principal_name = ?";
+
+    static final String DELETE_BY_ID = "DELETE FROM oauth2_authorization WHERE id = ?";
+
+    /**
+     * Everything the cleanup has to judge a row by. The decision is made in Java rather than in SQL because the
+     * connection start lives inside the serialised {@code attributes} column, which H2 and Postgres would have
+     * to be asked about in two different dialects; the table holds one row per connection, so reading it is
+     * cheap once a day.
+     */
+    static final String SELECT_FOR_CLEANUP = """
+            SELECT id, attributes, access_token_value, access_token_expires_at, refresh_token_value,
+                   refresh_token_expires_at, authorization_code_value, authorization_code_expires_at
+            FROM oauth2_authorization""";
+
+    /** Reads one plain string field out of the stored attributes; no typed value is deserialised here. */
+    private static final ObjectMapper ATTRIBUTE_READER = new ObjectMapper();
 
     private final OAuth2AuthorizationService delegate;
     private final McpAuthorizationPolicy policy;
@@ -68,6 +93,55 @@ public class McpAuthorizationService implements OAuth2AuthorizationService, McpA
         return jdbcTemplate.update(DELETE_BY_PRINCIPAL, principalName);
     }
 
+    @Override
+    public int deleteExpired(Instant now, Duration maxConnectionAge) {
+        Assert.notNull(now, "now cannot be null");
+        Assert.notNull(maxConnectionAge, "maxConnectionAge cannot be null");
+        Instant earliestAllowedStart = now.minus(maxConnectionAge);
+        List<Object[]> doomed = jdbcTemplate.query(SELECT_FOR_CLEANUP, McpAuthorizationService::readCleanupRow)
+                .stream()
+                .filter(row -> row.isSpent(now, earliestAllowedStart))
+                .map(row -> new Object[] {row.id()})
+                .toList();
+        if (doomed.isEmpty()) {
+            return 0;
+        }
+        return Arrays.stream(jdbcTemplate.batchUpdate(DELETE_BY_ID, doomed)).sum();
+    }
+
+    private static CleanupRow readCleanupRow(ResultSet resultSet, int rowNumber) throws SQLException {
+        return new CleanupRow(resultSet.getString("id"),
+                readStartedAt(resultSet.getString("attributes")),
+                resultSet.getString("access_token_value"),
+                instant(resultSet, "access_token_expires_at"),
+                resultSet.getString("refresh_token_value"),
+                instant(resultSet, "refresh_token_expires_at"),
+                resultSet.getString("authorization_code_value"),
+                instant(resultSet, "authorization_code_expires_at"));
+    }
+
+    private static Instant instant(ResultSet resultSet, String column) throws SQLException {
+        Timestamp timestamp = resultSet.getTimestamp(column);
+        return timestamp == null ? null : timestamp.toInstant();
+    }
+
+    /**
+     * Reads the connection start out of the stored attributes. An attribute set that cannot be read yields no
+     * start: the policy already refuses such an authorization, and the cleanup deletes only what it can judge.
+     */
+    private static Instant readStartedAt(String attributes) {
+        if (attributes == null || attributes.isBlank()) {
+            return null;
+        }
+        try {
+            JsonNode startedAt = ATTRIBUTE_READER.readTree(attributes).get(McpOAuth2Attributes.STARTED_AT);
+            return startedAt == null || !startedAt.isTextual()
+                    ? null : Instant.ofEpochSecond(Long.parseLong(startedAt.asText()));
+        } catch (JsonProcessingException | NumberFormatException | ArithmeticException e) {
+            return null;
+        }
+    }
+
     private OAuth2Authorization allowed(OAuth2Authorization authorization) {
         if (authorization == null) {
             return null;
@@ -88,6 +162,41 @@ public class McpAuthorizationService implements OAuth2AuthorizationService, McpA
         return OAuth2Authorization.from(authorization)
                 .attribute(McpOAuth2Attributes.STARTED_AT, String.valueOf(now.getEpochSecond()))
                 .build();
+    }
+
+    /**
+     * One stored authorization, reduced to what decides whether it can ever be used again.
+     *
+     * @param startedAt when the connection was first authorized, or {@code null} if that is unreadable
+     */
+    private record CleanupRow(String id, Instant startedAt, String accessTokenValue, Instant accessTokenExpiresAt,
+                              String refreshTokenValue, Instant refreshTokenExpiresAt, String codeValue,
+                              Instant codeExpiresAt) {
+
+        boolean isSpent(Instant now, Instant earliestAllowedStart) {
+            return refreshTokenExpired(now) || accessTokenExpiredWithoutRefreshToken(now)
+                    || startedTooLongAgo(earliestAllowedStart) || codeExpiredUnused(now);
+        }
+
+        private boolean refreshTokenExpired(Instant now) {
+            return refreshTokenValue != null && refreshTokenExpiresAt != null
+                    && refreshTokenExpiresAt.isBefore(now);
+        }
+
+        private boolean accessTokenExpiredWithoutRefreshToken(Instant now) {
+            return refreshTokenValue == null && accessTokenExpiresAt != null
+                    && accessTokenExpiresAt.isBefore(now);
+        }
+
+        private boolean startedTooLongAgo(Instant earliestAllowedStart) {
+            return startedAt != null && startedAt.isBefore(earliestAllowedStart);
+        }
+
+        /** A code that expired before it was exchanged; the authorization never became a connection. */
+        private boolean codeExpiredUnused(Instant now) {
+            return codeValue != null && codeExpiresAt != null && codeExpiresAt.isBefore(now)
+                    && accessTokenValue == null;
+        }
     }
 
     private static Optional<Instant> readStartedAt(OAuth2Authorization authorization) {

@@ -1,5 +1,8 @@
 package com.boxcopilot.backend.mcp;
 
+import com.boxcopilot.backend.mcp.abuse.McpRateLimits;
+import com.boxcopilot.backend.mcp.observability.McpAuditLogger;
+import com.boxcopilot.backend.mcp.observability.McpToolMetrics;
 import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.server.transport.WebMvcStatelessServerTransport;
 import org.junit.jupiter.api.Test;
@@ -49,7 +52,7 @@ class McpFlagOffTest {
             .withBean(McpReadService.class, () -> mock(McpReadService.class))
             .withBean(McpUserGate.class, () -> mock(McpUserGate.class))
             .withUserConfiguration(McpConfiguration.class, McpTransportConfiguration.class, McpStartupGuard.class,
-                    BoxPilotMcpTools.class);
+                    McpRateLimits.class, McpAuditLogger.class, McpToolMetrics.class, BoxPilotMcpTools.class);
 
     @Test
     void flagDefaultsToOffAndNoMcpBeanExists() {
@@ -107,8 +110,9 @@ class McpFlagOffTest {
                 .withPropertyValues("app.mcp.enabled=true", "app.mcp.backend-url=https://boxpilot.example.com",
                         "app.mcp.redirect-uris=https://claude.ai/cb")
                 .withBean(McpReadService.class, () -> mock(McpReadService.class))
-                .withUserConfiguration(McpConfiguration.class, McpTransportConfiguration.class, McpStartupGuard.class,
-                    BoxPilotMcpTools.class)
+                .withUserConfiguration(McpConfiguration.class, McpTransportConfiguration.class,
+                        McpStartupGuard.class, McpRateLimits.class, McpAuditLogger.class, McpToolMetrics.class,
+                        BoxPilotMcpTools.class)
                 .run(context -> assertThat(context.getStartupFailure())
                         .hasMessageContaining(McpUserGate.class.getName()));
     }
@@ -122,6 +126,9 @@ class McpFlagOffTest {
         assertThat(context).doesNotHaveBean(McpProperties.class);
         assertThat(context).doesNotHaveBean(McpStartupGuard.class);
         assertThat(context).doesNotHaveBean(McpTransportContextExtractor.class);
+        assertThat(context).doesNotHaveBean(McpRateLimits.class);
+        assertThat(context).doesNotHaveBean(McpAuditLogger.class);
+        assertThat(context).doesNotHaveBean(McpToolMetrics.class);
         assertThat(context.getBeanNamesForType(io.modelcontextprotocol.server.McpServer.class)).isEmpty();
     }
 }

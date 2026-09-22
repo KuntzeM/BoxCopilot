@@ -1,5 +1,8 @@
 package com.boxcopilot.backend.mcp;
 
+import com.boxcopilot.backend.mcp.abuse.McpRateLimits;
+import com.boxcopilot.backend.mcp.observability.McpAuditLogger;
+import com.boxcopilot.backend.mcp.observability.McpToolMetrics;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -73,7 +76,8 @@ class McpProtocolTest {
             org.springframework.ai.mcp.server.autoconfigure.McpServerStatelessWebMvcAutoConfiguration.class,
             org.springframework.ai.mcp.server.autoconfigure.McpServerStreamableHttpWebMvcAutoConfiguration.class,
             org.springframework.ai.mcp.server.autoconfigure.McpServerSseWebMvcAutoConfiguration.class})
-    @Import({McpConfiguration.class, McpTransportConfiguration.class, McpStartupGuard.class, BoxPilotMcpTools.class})
+    @Import({McpConfiguration.class, McpTransportConfiguration.class, McpStartupGuard.class,
+            McpRateLimits.class, McpAuditLogger.class, McpToolMetrics.class, BoxPilotMcpTools.class})
     static class TestApplication {
 
         @Bean
