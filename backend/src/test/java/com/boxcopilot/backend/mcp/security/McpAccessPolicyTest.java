@@ -43,7 +43,7 @@ class McpAccessPolicyTest {
     private final RegisteredClientRepository clientRepository = mock(RegisteredClientRepository.class);
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
     private final McpAccessPolicy policy = new McpAccessPolicy(userRepository, clientRepository,
-            new McpProperties(true, "https://boxpilot.example.com", List.of("https://claude.ai/cb"), MAX_AGE),
+            new McpProperties(true, "https://boxpilot.example.com", List.of("https://claude.ai/cb"), MAX_AGE, null),
             clock);
 
     private static OAuth2Authorization startedAt(Instant startedAt) {

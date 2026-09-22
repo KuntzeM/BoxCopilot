@@ -103,10 +103,14 @@ class OAuth2SecurityConfigTest {
                 .andExpect(status().isNotFound());
     }
 
+    /**
+     * Only the POST is public. The GET variant was removed with the magic-link rework, and leaving it open would
+     * keep a token-in-URL endpoint reachable, so the chain must no longer let it through.
+     */
     @Test
-    void magicLoginGetStaysPublic() throws Exception {
+    void magicLoginGetIsNoLongerPublic() throws Exception {
         mockMvc.perform(get("/api/v1/auth/magic-login").param("token", "abc"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

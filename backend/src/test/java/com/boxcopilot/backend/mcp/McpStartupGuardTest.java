@@ -15,7 +15,7 @@ class McpStartupGuardTest {
     private static final List<String> REDIRECT_URIS = List.of("https://claude.ai/api/mcp/auth_callback");
 
     private static McpStartupGuard guard(String backendUrl, List<String> redirectUris, String... profiles) {
-        return guard(new McpProperties(true, backendUrl, redirectUris, null), new MockEnvironment(), profiles);
+        return guard(new McpProperties(true, backendUrl, redirectUris, null, null), new MockEnvironment(), profiles);
     }
 
     private static McpStartupGuard guard(McpProperties properties, MockEnvironment environment,
@@ -108,14 +108,14 @@ class McpStartupGuardTest {
 
     @Test
     void missingRedirectUrisBecomeEmptyList() {
-        assertThat(new McpProperties(true, "http://x", null, null).redirectUris()).isEmpty();
+        assertThat(new McpProperties(true, "http://x", null, null, null).redirectUris()).isEmpty();
     }
 
     @Test
     void aSingleTrailingSlashIsRemovedFromTheBackendUrl() {
-        assertThat(new McpProperties(true, "https://boxpilot.example.com/", List.of(), null).backendUrl())
+        assertThat(new McpProperties(true, "https://boxpilot.example.com/", List.of(), null, null).backendUrl())
                 .isEqualTo("https://boxpilot.example.com");
-        assertThat(new McpProperties(true, "https://boxpilot.example.com", List.of(), null).backendUrl())
+        assertThat(new McpProperties(true, "https://boxpilot.example.com", List.of(), null, null).backendUrl())
                 .isEqualTo("https://boxpilot.example.com");
     }
 
@@ -124,7 +124,7 @@ class McpStartupGuardTest {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty(McpEndpoints.ENDPOINT_PROPERTY, McpEndpoints.MCP);
 
-        assertThatCode(guard(new McpProperties(true, "http://localhost:8080", REDIRECT_URIS, null), environment,
+        assertThatCode(guard(new McpProperties(true, "http://localhost:8080", REDIRECT_URIS, null, null), environment,
                 "dev")::afterPropertiesSet).doesNotThrowAnyException();
     }
 
@@ -133,7 +133,7 @@ class McpStartupGuardTest {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty(McpEndpoints.ENDPOINT_PROPERTY, "/mcp-server");
 
-        assertThatThrownBy(guard(new McpProperties(true, "http://localhost:8080", REDIRECT_URIS, null), environment,
+        assertThatThrownBy(guard(new McpProperties(true, "http://localhost:8080", REDIRECT_URIS, null, null), environment,
                 "dev")::afterPropertiesSet)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining(McpEndpoints.ENDPOINT_PROPERTY);
@@ -142,7 +142,7 @@ class McpStartupGuardTest {
     @Test
     void rejectsZeroOrNegativeMaxConnectionAge() {
         for (Duration age : List.of(Duration.ZERO, Duration.ofDays(-1))) {
-            assertThatThrownBy(guard(new McpProperties(true, "http://localhost:8080", REDIRECT_URIS, age),
+            assertThatThrownBy(guard(new McpProperties(true, "http://localhost:8080", REDIRECT_URIS, age, null),
                     new MockEnvironment(), "dev")::afterPropertiesSet)
                     .as("%s", age)
                     .isInstanceOf(IllegalStateException.class)
@@ -151,8 +151,44 @@ class McpStartupGuardTest {
     }
 
     @Test
+    void acceptsTheStatelessTransportProtocol() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty(McpEndpoints.PROTOCOL_PROPERTY, "STATELESS");
+
+        assertThatCode(guard(new McpProperties(true, "http://localhost:8080", REDIRECT_URIS, null, null), environment,
+                "dev")::afterPropertiesSet).doesNotThrowAnyException();
+    }
+
+    @Test
+    void rejectsATransportProtocolOtherThanStateless() {
+        for (String protocol : List.of("SSE", "STREAMABLE", "stateful")) {
+            MockEnvironment environment = new MockEnvironment()
+                    .withProperty(McpEndpoints.PROTOCOL_PROPERTY, protocol);
+
+            assertThatThrownBy(guard(new McpProperties(true, "http://localhost:8080", REDIRECT_URIS, null, null),
+                    environment, "dev")::afterPropertiesSet)
+                    .as("%s", protocol)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining(McpEndpoints.PROTOCOL_PROPERTY);
+        }
+    }
+
+    @Test
+    void rejectsConfiguredSessionTransportEndpoints() {
+        for (String property : McpEndpoints.SESSION_TRANSPORT_PROPERTIES) {
+            MockEnvironment environment = new MockEnvironment().withProperty(property, "/sse");
+
+            assertThatThrownBy(guard(new McpProperties(true, "http://localhost:8080", REDIRECT_URIS, null, null),
+                    environment, "dev")::afterPropertiesSet)
+                    .as("%s", property)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining(property);
+        }
+    }
+
+    @Test
     void maxConnectionAgeDefaultsToFourteenDays() {
-        assertThat(new McpProperties(true, "https://x", List.of(), null).maxConnectionAge())
+        assertThat(new McpProperties(true, "https://x", List.of(), null, null).maxConnectionAge())
                 .isEqualTo(Duration.ofHours(336));
     }
 }

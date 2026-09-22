@@ -14,10 +14,13 @@ import java.util.List;
  * @param redirectUris     redirect URIs the MCP client is allowed to use
  * @param maxConnectionAge absolute lifetime of an MCP connection, counted from its first authorization; a
  *                         sliding refresh chain cannot outlive it
+ * @param cookieSameSite   {@code SameSite} attribute of the pending-authorization cookie; when blank it follows
+ *                         {@code server.servlet.session.cookie.same-site}, because the cookie has to travel with
+ *                         the same requests the session cookie does
  */
 @ConfigurationProperties(prefix = "app.mcp")
 public record McpProperties(boolean enabled, String backendUrl, List<String> redirectUris,
-                            Duration maxConnectionAge) {
+                            Duration maxConnectionAge, String cookieSameSite) {
 
     /** 14 days, as specified; kept in sync with the value in {@code application.yml}. */
     public static final Duration DEFAULT_MAX_CONNECTION_AGE = Duration.ofDays(14);

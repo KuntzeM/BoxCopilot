@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.HttpMethod;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -90,7 +91,13 @@ public class OAuth2SecurityConfig {
                 .requestMatchers("/api/public/**", "/api/v1/public/**").permitAll()
                 .requestMatchers("/api/v1/public/items/**").permitAll()
                 .requestMatchers("/api/v1/me", "/api/v1/csrf").permitAll()
-                .requestMatchers("/api/auth/login", "/api/v1/auth/magic-login").permitAll()
+                .requestMatchers("/api/auth/login").permitAll()
+                // Only the POST redeems a magic link; a GET would put the token into URLs, logs and referrers
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/magic-login").permitAll()
+                // Resumes an interrupted MCP authorization. Public so that an expired session yields a redirect to
+                // the frontend instead of a 401 in a top-level navigation; the handler requires authentication
+                // itself. The literal keeps this configuration free of any dependency on the mcp package.
+                .requestMatchers(HttpMethod.GET, "/api/v1/mcp/continue").permitAll()
                 .requestMatchers("/login/**", "/oauth2/authorization/**", "/error").permitAll()
                 // All other API endpoints require authentication
                 .requestMatchers("/api/**").authenticated()

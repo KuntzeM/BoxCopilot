@@ -51,6 +51,26 @@ class McpStartupGuard implements InitializingBean {
             throw new IllegalStateException("app.mcp.max-connection-age must be a positive duration");
         }
         requirePinnedTransportEndpoint();
+        requireStatelessTransport();
+    }
+
+    /**
+     * Only the stateless transport keeps every MCP request a self-contained, bearer-authenticated call. The SSE and
+     * streamable protocols keep a server-side session and publish further endpoints, which the resource server
+     * chain does not cover, so anything but {@code STATELESS} is a startup error.
+     */
+    private void requireStatelessTransport() {
+        String protocol = environment.getProperty(McpEndpoints.PROTOCOL_PROPERTY, McpEndpoints.STATELESS_PROTOCOL);
+        if (!McpEndpoints.STATELESS_PROTOCOL.equals(protocol)) {
+            throw new IllegalStateException(McpEndpoints.PROTOCOL_PROPERTY + " must be '"
+                    + McpEndpoints.STATELESS_PROTOCOL + "'; a session transport is not protected by the MCP chain");
+        }
+        for (String property : McpEndpoints.SESSION_TRANSPORT_PROPERTIES) {
+            if (environment.containsProperty(property)) {
+                throw new IllegalStateException(
+                        property + " must not be configured; it only applies to the session transport");
+            }
+        }
     }
 
     /**
