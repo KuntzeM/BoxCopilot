@@ -25,6 +25,13 @@ import org.springframework.security.oauth2.core.AuthorizationGrantType;
 record McpPublicClientRequests(String grantType, boolean codeVerifier, String refreshToken, String token,
                                boolean revocation) {
 
+    /**
+     * Name under which the converter records whether the request reached the revocation endpoint, so that the
+     * provider reads that fact instead of assuming it. The converter strips any incoming parameter of this name
+     * before setting it, so a client cannot supply it.
+     */
+    static final String REVOCATION_MARKER = "boxpilot.revocation_request";
+
     boolean isAuthenticatedByClientId() {
         if (this.codeVerifier) {
             return false;

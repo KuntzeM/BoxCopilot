@@ -96,7 +96,14 @@ class McpAuthorizationServerConfig {
      */
     @Bean
     AuthorizationServerSettings authorizationServerSettings(McpProperties properties) {
-        return AuthorizationServerSettings.builder().issuer(properties.backendUrl()).build();
+        // The endpoint paths are pinned to the same constants the securityMatcher and the filters use, so the
+        // two can never drift apart and leave an endpoint outside the matcher or a filter without its endpoint.
+        return AuthorizationServerSettings.builder()
+                .issuer(properties.backendUrl())
+                .authorizationEndpoint(McpAuthorizationServerEndpoints.AUTHORIZE)
+                .tokenEndpoint(McpAuthorizationServerEndpoints.TOKEN)
+                .tokenRevocationEndpoint(McpAuthorizationServerEndpoints.REVOKE)
+                .build();
     }
 
     @Bean
@@ -110,13 +117,15 @@ class McpAuthorizationServerConfig {
                                                           RegisteredClientRepository registeredClientRepository,
                                                           McpSessionUserResolver userResolver, McpUserGate userGate,
                                                           McpPendingCookies pendingCookies,
+                                                          AuthorizationServerSettings settings,
                                                           ObjectProvider<SecurityContextRepository> contextRepository,
                                                           @Value("${frontend.url}") String frontendUrl)
             throws Exception {
-        RequestMatcher authorizeMatcher = matcher(McpAuthorizationServerEndpoints.AUTHORIZE);
-        RequestMatcher consentSubmission =
-                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST,
-                        McpAuthorizationServerEndpoints.AUTHORIZE);
+        RequestMatcher authorizeMatcher = matcher(settings.getAuthorizationEndpoint());
+        RequestMatcher consentSubmission = PathPatternRequestMatcher.withDefaults()
+                .matcher(HttpMethod.POST, settings.getAuthorizationEndpoint());
+        RequestMatcher revocationEndpoint = PathPatternRequestMatcher.withDefaults()
+                .matcher(HttpMethod.POST, settings.getTokenRevocationEndpoint());
         CsrfTokenRequestHandler csrfRequestHandler = new XorCsrfTokenRequestAttributeHandler();
         SecurityContextRepository securityContextRepository =
                 contextRepository.getIfAvailable(HttpSessionSecurityContextRepository::new);
@@ -134,13 +143,18 @@ class McpAuthorizationServerConfig {
                                 .authorizationServerMetadataCustomizer(builder -> builder.claims(
                                         McpAuthorizationServerConfig::restrictMetadataToWhatIsServed)))
                         .authorizationEndpoint(endpoint -> endpoint
-                                .consentPage(McpAuthorizationServerEndpoints.CONSENT)
+                                // An ABSOLUTE consent URL on the configured backend URL. A relative one would
+                                // make Spring Authorization Server build the redirect from the request's scheme,
+                                // server name and port, which ForwardedHeaderFilter rewrites from
+                                // X-Forwarded-Host/Proto - a forged header would then send the browser, the
+                                // confidential per-user client id and the consent state to another origin.
+                                .consentPage(properties.backendUrl() + McpAuthorizationServerEndpoints.CONSENT)
                                 .authorizationRequestConverter(
                                         new McpDefaultScopeConverter(McpOAuth2Attributes.SCOPE_READ))
-                                .authenticationProviders(providers -> useBoxPilotValidator(providers, userGate)))
+                                .authenticationProviders(McpAuthorizationServerConfig::useBoxPilotValidator))
                         .clientAuthentication(client -> client
-                                .authenticationConverter(new McpPublicClientAuthenticationConverter(
-                                        McpAuthorizationServerEndpoints.REVOKE))
+                                .authenticationConverter(
+                                        new McpPublicClientAuthenticationConverter(revocationEndpoint))
                                 .authenticationProvider(
                                         new McpPublicClientAuthenticationProvider(registeredClientRepository))))
                 .authorizeHttpRequests(requests -> requests
@@ -200,12 +214,12 @@ class McpAuthorizationServerConfig {
      * on a loopback redirect URI; the scope validator is the stock one; and the client-binding validator adds the
      * per-user check and re-imposes the {@code openid} restriction that comes with the default validator.
      */
-    private static void useBoxPilotValidator(List<AuthenticationProvider> providers, McpUserGate userGate) {
+    private static void useBoxPilotValidator(List<AuthenticationProvider> providers) {
         for (AuthenticationProvider provider : providers) {
             if (provider instanceof OAuth2AuthorizationCodeRequestAuthenticationProvider codeRequestProvider) {
                 codeRequestProvider.setAuthenticationValidator(new McpRedirectUriValidator()
                         .andThen(OAuth2AuthorizationCodeRequestAuthenticationValidator.DEFAULT_SCOPE_VALIDATOR)
-                        .andThen(new McpClientBindingValidator(userGate)));
+                        .andThen(new McpClientBindingValidator()));
             }
         }
     }

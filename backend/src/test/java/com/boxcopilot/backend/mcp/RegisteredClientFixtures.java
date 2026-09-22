@@ -9,6 +9,7 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
@@ -23,6 +24,11 @@ import java.util.UUID;
  * what the application registers.
  */
 public final class RegisteredClientFixtures {
+
+    /** Well above the 128 bits the specification requires for a client id. */
+    private static final int CLIENT_ID_BYTES = 32;
+
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private RegisteredClientFixtures() {
     }
@@ -41,10 +47,15 @@ public final class RegisteredClientFixtures {
         return builder;
     }
 
-    /** At least 128 bits from {@code SecureRandom}, Base64url encoded, as the specification demands. */
+    /**
+     * A client id as the specification demands it: 256 bits straight from {@code SecureRandom}, Base64url
+     * encoded. Story S9 registers clients the same way; deriving the id from a {@code UUID} would look similar
+     * but carry only 122 bits.
+     */
     public static String randomClientId() {
-        return Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(UUID.randomUUID().toString().getBytes(StandardCharsets.UTF_8));
+        byte[] randomBytes = new byte[CLIENT_ID_BYTES];
+        SECURE_RANDOM.nextBytes(randomBytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
     }
 
     /** @return the S256 code challenge belonging to a PKCE code verifier */

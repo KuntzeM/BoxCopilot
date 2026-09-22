@@ -59,12 +59,13 @@ final class McpPublicClientAuthenticationProvider implements AuthenticationProvi
     }
 
     private static boolean isClientIdOnlyRequest(Map<String, Object> parameters) {
-        // A revocation request is the one that brings a token without a grant type; the converter has already
-        // established that it really went to the revocation endpoint.
+        // Whether this was a revocation request is read from the marker the converter set from the matched
+        // endpoint, not assumed: a token produced by any other converter carries no marker and is passed on.
+        boolean revocation = Boolean.TRUE.equals(parameters.get(McpPublicClientRequests.REVOCATION_MARKER));
         return new McpPublicClientRequests(asString(parameters.get(OAuth2ParameterNames.GRANT_TYPE)),
                 parameters.containsKey(PkceParameterNames.CODE_VERIFIER),
                 asString(parameters.get(OAuth2ParameterNames.REFRESH_TOKEN)),
-                asString(parameters.get(OAuth2ParameterNames.TOKEN)), true).isAuthenticatedByClientId();
+                asString(parameters.get(OAuth2ParameterNames.TOKEN)), revocation).isAuthenticatedByClientId();
     }
 
     private static String asString(Object value) {

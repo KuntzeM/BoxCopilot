@@ -153,6 +153,54 @@ class McpAuthorizationServerIntegrationTest extends McpIntegrationTestBase {
                 .contains("Ablehnen");
     }
 
+    /**
+     * The consent redirect must stay on the configured backend URL. A relative consent page would make Spring
+     * Authorization Server assemble the Location from the request's scheme, server name and port, all of which
+     * ForwardedHeaderFilter rewrites from the forwarded headers - which would send the browser, the confidential
+     * per-user client id and the consent state to whatever host the header names.
+     */
+    @Test
+    void theConsentRedirectIgnoresForwardedHeaders() throws Exception {
+        User user = createUser(true, true);
+        RegisteredClient client = createClient(user.getId());
+
+        MvcResult result = mockMvc.perform(get(authorizeUri(client.getClientId(), CLAUDE_REDIRECT_URI,
+                "state-forwarded", McpOAuth2Attributes.SCOPE_READ, CODE_VERIFIER, "S256"))
+                .session(sessionFor(user))
+                .header("X-Forwarded-Host", "evil.example.com")
+                .header("X-Forwarded-Proto", "https")
+                .header("X-Forwarded-Port", "443")).andReturn();
+
+        assertThat(location(result))
+                .startsWith("http://localhost" + McpAuthorizationServerEndpoints.CONSENT)
+                .doesNotContain("evil.example.com");
+    }
+
+    /** The user gate sits in the normalization filter, which covers the consent POST as well as the authorize. */
+    @Test
+    void aUserWhoLosesAccessWhileTheConsentPageIsOpenCannotSubmitIt() throws Exception {
+        User user = createUser(true, true);
+        RegisteredClient client = createClient(user.getId());
+        MockHttpSession session = sessionFor(user);
+        MvcResult authorize = startAuthorization(client, session);
+        MvcResult consent = consentPage(authorize, session);
+
+        user.setMcpAllowed(false);
+        userRepository.save(user);
+
+        MvcResult submitted = mockMvc.perform(post(McpAuthorizationServerEndpoints.AUTHORIZE)
+                        .session(session)
+                        .cookie(csrfCookie(consent))
+                        .param(OAuth2ParameterNames.CLIENT_ID, client.getClientId())
+                        .param(OAuth2ParameterNames.STATE, consentState(authorize))
+                        .param(OAuth2ParameterNames.SCOPE, McpOAuth2Attributes.SCOPE_READ)
+                        .param("_csrf", csrfToken(consent)))
+                .andReturn();
+
+        assertThat(submitted.getResponse().getStatus()).isEqualTo(403);
+        assertThat(submitted.getResponse().getHeader(HttpHeaders.LOCATION)).isNull();
+    }
+
     @Test
     void theConsentPageIsShownAgainAfterAPreviousApproval() throws Exception {
         User user = createUser(true, true);
@@ -331,6 +379,29 @@ class McpAuthorizationServerIntegrationTest extends McpIntegrationTestBase {
         assertThat(location(result)).startsWith("http://localhost" + McpAuthorizationServerEndpoints.CONSENT);
     }
 
+    /**
+     * A client with a single registered redirect URI may leave {@code redirect_uri} out - unless the request
+     * asks for OpenID Connect, which requires it outright. That rule came with the displaced default validator
+     * and is kept here, even though {@code openid} is never a registered scope today.
+     */
+    @Test
+    void omittingTheRedirectUriIsOnlyAllowedWithoutOpenIdConnect() throws Exception {
+        User user = createUser(true, true);
+        RegisteredClient client = RegisteredClientFixtures
+                .publicClient(user.getId(), List.of(CLAUDE_REDIRECT_URI)).build();
+        registeredClientRepository.save(client);
+        MockHttpSession session = sessionFor(user);
+
+        MvcResult accepted = mockMvc.perform(get(authorizeUri(client.getClientId(), null, "state-no-redirect",
+                McpOAuth2Attributes.SCOPE_READ, CODE_VERIFIER, "S256")).session(session)).andReturn();
+        MvcResult rejected = mockMvc.perform(get(authorizeUri(client.getClientId(), null, "state-openid",
+                "openid", CODE_VERIFIER, "S256")).session(session)).andReturn();
+
+        assertThat(location(accepted)).startsWith("http://localhost" + McpAuthorizationServerEndpoints.CONSENT);
+        assertThat(rejected.getResponse().getStatus()).isEqualTo(400);
+        assertThat(rejected.getResponse().getHeader(HttpHeaders.LOCATION)).isNull();
+    }
+
     @Test
     void anAuthorizeRequestWithoutAScopeFallsBackToTheSingleScope() throws Exception {
         User user = createUser(true, true);
@@ -487,6 +558,32 @@ class McpAuthorizationServerIntegrationTest extends McpIntegrationTestBase {
                         .contentType(MediaType.APPLICATION_JSON).content(toolsListRequest()))
                 .andReturn();
         assertThat(afterwards.getResponse().getStatus()).isEqualTo(401);
+    }
+
+    /**
+     * The provider reads whether a request reached the revocation endpoint from the marker the converter sets
+     * out of the matched endpoint. A client that sends that parameter itself cannot turn a token request into a
+     * revocation, because the converter strips it before recording what the server observed.
+     */
+    @Test
+    void theRevocationMarkerCannotBeSuppliedByTheClient() throws Exception {
+        User user = createUser(true, true);
+        RegisteredClient client = createClient(user.getId());
+        JsonNode tokens = redeem(authorizeWithConsent(client, sessionFor(user)), client);
+        String accessToken = tokens.get("access_token").asText();
+
+        MvcResult forged = mockMvc.perform(form(McpAuthorizationServerEndpoints.TOKEN, Map.of(
+                OAuth2ParameterNames.TOKEN, accessToken,
+                OAuth2ParameterNames.CLIENT_ID, client.getClientId(),
+                "boxpilot.revocation_request", "true"))).andReturn();
+
+        assertThat(forged.getResponse().getStatus() / 100).isNotEqualTo(2);
+        MvcResult stillWorking = mockMvc.perform(post(McpEndpoints.MCP)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .header(HttpHeaders.ACCEPT, ACCEPT)
+                        .contentType(MediaType.APPLICATION_JSON).content(toolsListRequest()))
+                .andReturn();
+        assertThat(stillWorking.getResponse().getStatus()).isEqualTo(200);
     }
 
     @Test
@@ -682,8 +779,10 @@ class McpAuthorizationServerIntegrationTest extends McpIntegrationTestBase {
         StringBuilder url = new StringBuilder(McpAuthorizationServerEndpoints.AUTHORIZE)
                 .append("?response_type=code")
                 .append("&client_id=").append(encode(clientId))
-                .append("&redirect_uri=").append(encode(redirectUri))
                 .append("&state=").append(encode(state));
+        if (redirectUri != null) {
+            url.append("&redirect_uri=").append(encode(redirectUri));
+        }
         if (scope != null) {
             url.append("&scope=").append(encode(scope));
         }

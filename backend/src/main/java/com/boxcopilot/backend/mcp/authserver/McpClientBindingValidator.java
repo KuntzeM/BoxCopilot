@@ -1,7 +1,5 @@
 package com.boxcopilot.backend.mcp.authserver;
 
-import com.boxcopilot.backend.mcp.McpAccessDeniedException;
-import com.boxcopilot.backend.mcp.McpUserGate;
 import com.boxcopilot.backend.mcp.security.McpOAuth2Attributes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,8 +13,7 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import java.util.function.Consumer;
 
 /**
- * Enforces that a client may only ever be authorized by the one user it is bound to, and that this user may
- * currently use MCP at all.
+ * Enforces that a client may only ever be authorized by the one user it is bound to.
  *
  * <p>The check runs <em>only</em> for an already authenticated principal. Spring Authorization Server calls the
  * validator before it looks at whether the resource owner is logged in, so rejecting an anonymous request here
@@ -24,17 +21,15 @@ import java.util.function.Consumer;
  * authentication entry point and is validated again on the replay after the login.
  *
  * <p>The principal name is the internal user id, because {@code McpAuthenticationNormalizationFilter} has already
- * replaced the session authentication for this request.
+ * replaced the session authentication for this request. That filter is also the single authoritative place where
+ * the user is loaded from the database and checked against {@code McpUserGate}: it covers the authorize request
+ * and the consent POST alike, whereas this validator only ever sees the authorize request. Repeating the gate
+ * here would cost a second database round trip per request and would still leave the consent POST relying on the
+ * filter, so the state of the user is deliberately not re-checked in this class.
  */
 final class McpClientBindingValidator implements Consumer<OAuth2AuthorizationCodeRequestAuthenticationContext> {
 
     private static final Logger log = LoggerFactory.getLogger(McpClientBindingValidator.class);
-
-    private final McpUserGate userGate;
-
-    McpClientBindingValidator(McpUserGate userGate) {
-        this.userGate = userGate;
-    }
 
     @Override
     public void accept(OAuth2AuthorizationCodeRequestAuthenticationContext context) {
@@ -49,9 +44,7 @@ final class McpClientBindingValidator implements Consumer<OAuth2AuthorizationCod
         if (!McpSessionUserResolver.isAuthenticated(principal)) {
             return;
         }
-        long userId = parseUserId(principal.getName());
-        requireClientBoundTo(context.getRegisteredClient(), userId);
-        requireActiveUser(userId);
+        requireClientBoundTo(context.getRegisteredClient(), parseUserId(principal.getName()));
     }
 
     private static long parseUserId(String principalName) {
@@ -67,15 +60,6 @@ final class McpClientBindingValidator implements Consumer<OAuth2AuthorizationCod
         Object boundUserId = registeredClient.getClientSettings().getSetting(McpOAuth2Attributes.CLIENT_USER_ID);
         if (!(boundUserId instanceof String bound) || !bound.equals(String.valueOf(userId))) {
             log.debug("MCP authorize denied: userId={} reason=CLIENT_BINDING", userId);
-            throw accessDenied();
-        }
-    }
-
-    private void requireActiveUser(long userId) {
-        try {
-            userGate.requireActiveUser(userId);
-        } catch (McpAccessDeniedException e) {
-            log.debug("MCP authorize denied: userId={} reason=USER_NOT_ACTIVE", userId);
             throw accessDenied();
         }
     }

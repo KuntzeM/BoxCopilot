@@ -2,6 +2,7 @@ package com.boxcopilot.backend.mcp.authserver;
 
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
 import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
+import org.springframework.security.oauth2.core.oidc.OidcScopes;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationContext;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationToken;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
@@ -29,8 +30,11 @@ final class McpRedirectUriValidator implements Consumer<OAuth2AuthorizationCodeR
         String requestedRedirectUri = authentication.getRedirectUri();
 
         if (!StringUtils.hasText(requestedRedirectUri)) {
-            // Omitting redirect_uri is only unambiguous when the client has exactly one registered URI.
-            if (registeredClient.getRedirectUris().size() != 1) {
+            // Omitting redirect_uri is only unambiguous when the client has exactly one registered URI, and
+            // OpenID Connect requires it outright. The second half is unreachable today, because openid is
+            // never a registered scope, but it is kept so that the rule survives a future change.
+            if (registeredClient.getRedirectUris().size() != 1
+                    || authentication.getScopes().contains(OidcScopes.OPENID)) {
                 throw invalidRedirectUri();
             }
             return;

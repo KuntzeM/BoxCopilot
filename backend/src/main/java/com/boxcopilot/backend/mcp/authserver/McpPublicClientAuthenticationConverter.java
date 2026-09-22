@@ -10,6 +10,7 @@ import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 import org.springframework.security.oauth2.core.endpoint.PkceParameterNames;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2ClientAuthenticationToken;
 import org.springframework.security.web.authentication.AuthenticationConverter;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -21,9 +22,13 @@ import java.util.Map;
  */
 final class McpPublicClientAuthenticationConverter implements AuthenticationConverter {
 
-    private final String revocationEndpoint;
+    private final RequestMatcher revocationEndpoint;
 
-    McpPublicClientAuthenticationConverter(String revocationEndpoint) {
+    /**
+     * @param revocationEndpoint matcher for the revocation endpoint; a matcher rather than a path comparison, so
+     *                           that a servlet context path cannot silently break the decision
+     */
+    McpPublicClientAuthenticationConverter(RequestMatcher revocationEndpoint) {
         this.revocationEndpoint = revocationEndpoint;
     }
 
@@ -32,12 +37,13 @@ final class McpPublicClientAuthenticationConverter implements AuthenticationConv
         if (!HttpMethod.POST.matches(request.getMethod())) {
             return null;
         }
+        boolean revocation = this.revocationEndpoint.matches(request);
         McpPublicClientRequests decision = new McpPublicClientRequests(
                 request.getParameter(OAuth2ParameterNames.GRANT_TYPE),
                 request.getParameter(PkceParameterNames.CODE_VERIFIER) != null,
                 request.getParameter(OAuth2ParameterNames.REFRESH_TOKEN),
                 request.getParameter(OAuth2ParameterNames.TOKEN),
-                this.revocationEndpoint.equals(request.getRequestURI()));
+                revocation);
         if (!decision.isAuthenticatedByClientId()) {
             return null;
         }
@@ -50,16 +56,23 @@ final class McpPublicClientAuthenticationConverter implements AuthenticationConv
             throw new OAuth2AuthenticationException(OAuth2ErrorCodes.INVALID_REQUEST);
         }
         return new OAuth2ClientAuthenticationToken(clientIds[0], ClientAuthenticationMethod.NONE, null,
-                additionalParameters(request));
+                additionalParameters(request, revocation));
     }
 
-    private static Map<String, Object> additionalParameters(HttpServletRequest request) {
+    /**
+     * The form parameters minus the client id, plus the endpoint marker the provider re-reads. Any incoming
+     * parameter of the marker's name is dropped first, so the marker always states what the server observed and
+     * never what a client sent.
+     */
+    private static Map<String, Object> additionalParameters(HttpServletRequest request, boolean revocation) {
         Map<String, Object> parameters = new HashMap<>();
         request.getParameterMap().forEach((name, values) -> {
-            if (!OAuth2ParameterNames.CLIENT_ID.equals(name)) {
+            if (!OAuth2ParameterNames.CLIENT_ID.equals(name)
+                    && !McpPublicClientRequests.REVOCATION_MARKER.equals(name)) {
                 parameters.put(name, values.length == 1 ? values[0] : values);
             }
         });
+        parameters.put(McpPublicClientRequests.REVOCATION_MARKER, revocation);
         return parameters;
     }
 }
