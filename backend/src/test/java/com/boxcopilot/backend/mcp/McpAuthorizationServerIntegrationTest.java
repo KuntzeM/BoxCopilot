@@ -6,7 +6,12 @@ import com.boxcopilot.backend.mcp.security.McpOAuth2Attributes;
 import com.boxcopilot.backend.mcp.web.McpSecureHtmlResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nimbusds.jose.jwk.source.JWKSource;
 import jakarta.servlet.http.Cookie;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+
+import java.security.Principal;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -93,7 +98,24 @@ class McpAuthorizationServerIntegrationTest extends McpIntegrationTestBase {
         String principalName = jdbcTemplate.queryForObject(
                 "SELECT principal_name FROM oauth2_authorization LIMIT 1", String.class);
         assertThat(principalName).isEqualTo(String.valueOf(user.getId()));
-        assertThat(attributes).contains(McpOAuth2Attributes.STARTED_AT);
+        assertThat(attributes).contains(McpOAuth2Attributes.STARTED_AT)
+                .contains("UsernamePasswordAuthenticationToken");
+        // What was written also reads back through the Jackson allowlist of the JDBC store
+        Authentication restored = storedAuthorization().getAttribute(Principal.class.getName());
+        assertThat(restored.getName()).isEqualTo(String.valueOf(user.getId()));
+        assertThat(restored.getAuthorities()).isEmpty();
+        assertThat(restored.getPrincipal())
+                .isInstanceOf(org.springframework.security.core.userdetails.User.class);
+    }
+
+    /**
+     * Spike item 6: with opaque reference tokens the authorization server starts and runs without any signing
+     * key, so no unused in-memory key pair is generated and the JWKS endpoint has nothing to publish.
+     */
+    @Test
+    void theAuthorizationServerRunsWithoutAnySigningKey() {
+        assertThat(applicationContext.getBeansOfType(JWKSource.class)).isEmpty();
+        assertThat(applicationContext.getBeansOfType(JwtEncoder.class)).isEmpty();
     }
 
     @Test
@@ -346,6 +368,23 @@ class McpAuthorizationServerIntegrationTest extends McpIntegrationTestBase {
         assertThat(result.getResponse().getStatus()).isEqualTo(400);
         assertThat(result.getResponse().getHeader(HttpHeaders.LOCATION)).isNull();
         assertThat(result.getResponse().getContentAsString()).doesNotContain("code=");
+    }
+
+    /**
+     * The validator runs before Spring Authorization Server looks at the login, so it must let an anonymous
+     * request pass; otherwise no one could ever reach the login page. The binding is checked on the replay.
+     */
+    @Test
+    void anAnonymousAuthorizeOfAnotherUsersClientReachesTheEntryPointInsteadOfBeingDenied() throws Exception {
+        User owner = createUser(true, true);
+        RegisteredClient client = createClient(owner.getId());
+
+        MvcResult result = mockMvc.perform(get(authorizeUri(client.getClientId(), CLAUDE_REDIRECT_URI,
+                "state-anonymous", McpOAuth2Attributes.SCOPE_READ, CODE_VERIFIER, "S256"))).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(302);
+        assertThat(location(result)).isEqualTo("http://localhost:3000/");
+        assertThat(result.getResponse().getCookie("mcp_authz")).isNotNull();
     }
 
     @Test
