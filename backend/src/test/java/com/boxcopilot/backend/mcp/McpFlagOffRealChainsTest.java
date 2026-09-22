@@ -1,6 +1,13 @@
 package com.boxcopilot.backend.mcp;
 
+import com.boxcopilot.backend.mcp.authserver.McpSessionUserResolver;
 import com.boxcopilot.backend.mcp.security.McpAccessPolicy;
+import com.boxcopilot.backend.mcp.web.McpPendingCookies;
+import com.boxcopilot.backend.service.McpPendingProbe;
+import jakarta.servlet.http.Cookie;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
+import org.springframework.security.web.SecurityFilterChain;
 import com.boxcopilot.backend.mcp.security.McpAuthorizationService;
 import com.boxcopilot.backend.mcp.security.McpOpaqueTokenIntrospector;
 import com.nimbusds.jose.jwk.source.JWKSource;
@@ -45,7 +52,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 class McpFlagOffRealChainsTest {
 
     private static final String[] MCP_PATHS = {"/mcp", "/.well-known/oauth-protected-resource/mcp",
-            "/.well-known/oauth-authorization-server", "/oauth2/authorize", "/oauth2/token", "/oauth2/jwks"};
+            "/.well-known/oauth-authorization-server", "/oauth2/authorize", "/oauth2/token", "/oauth2/consent",
+            "/oauth2/revoke", "/oauth2/jwks", "/api/v1/mcp/continue"};
 
     @Autowired
     private ApplicationContext context;
@@ -74,6 +82,20 @@ class McpFlagOffRealChainsTest {
         assertThat(context.getBeansOfType(AuthorizationServerSettings.class)).isEmpty();
         assertThat(context.getBeansOfType(JWKSource.class)).isEmpty();
         assertThat(context.containsBean("webMvcStatelessServerRouterFunction")).isFalse();
+        assertThat(context.getBeansOfType(OAuth2AuthorizationConsentService.class)).isEmpty();
+        assertThat(context.getBeansOfType(McpSessionUserResolver.class)).isEmpty();
+        assertThat(context.getBeansOfType(McpPendingCookies.class)).isEmpty();
+        // Only the application chain is left
+        assertThat(context.getBeansOfType(SecurityFilterChain.class)).hasSize(1);
+    }
+
+    /** The neutral port falls back to "nothing pending", even when a leftover cookie is sent. */
+    @Test
+    void thePendingProbeFallsBackToNothingPending() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setCookies(new Cookie("mcp_authz", "c3RhdGU9MQ"));
+
+        assertThat(context.getBean(McpPendingProbe.class).isPending(request)).isFalse();
     }
 
     @Test

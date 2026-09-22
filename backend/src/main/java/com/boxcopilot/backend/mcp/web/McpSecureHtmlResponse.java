@@ -32,7 +32,10 @@ public final class McpSecureHtmlResponse {
         response.getWriter().write(html);
     }
 
-    /** Escapes every character that could leave an HTML text node or an attribute value. */
+    /**
+     * Escapes every character that could leave an HTML text node or a quoted attribute value. Both quote
+     * characters are included, so the result is safe in single- and double-quoted attributes alike.
+     */
     public static String escape(String value) {
         if (value == null) {
             return "";
@@ -46,7 +49,6 @@ public final class McpSecureHtmlResponse {
                 case '>' -> escaped.append("&gt;");
                 case '"' -> escaped.append("&quot;");
                 case '\'' -> escaped.append("&#39;");
-                case '/' -> escaped.append("&#47;");
                 default -> escaped.append(character);
             }
         }

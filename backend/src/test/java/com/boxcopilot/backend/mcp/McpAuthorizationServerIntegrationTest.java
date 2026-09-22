@@ -697,7 +697,7 @@ class McpAuthorizationServerIntegrationTest extends McpIntegrationTestBase {
     private static String csrfToken(MvcResult consent) throws Exception {
         Matcher matcher = CSRF_INPUT.matcher(consent.getResponse().getContentAsString());
         assertThat(matcher.find()).as("consent page carries a CSRF token").isTrue();
-        return matcher.group(1).replace("&#47;", "/").replace("&#39;", "'").replace("&quot;", "\"")
+        return matcher.group(1).replace("&#39;", "'").replace("&quot;", "\"")
                 .replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&");
     }
 

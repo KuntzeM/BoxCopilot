@@ -3,6 +3,7 @@ package com.boxcopilot.backend.controller;
 import com.boxcopilot.backend.domain.User;
 import com.boxcopilot.backend.dto.UserPrincipalDTO;
 import com.boxcopilot.backend.service.CustomUserDetailsService;
+import com.boxcopilot.backend.service.McpPendingProbe;
 import com.boxcopilot.backend.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,9 +26,11 @@ public class AuthController {
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
     
     private final UserRepository userRepository;
-    
-    public AuthController(UserRepository userRepository) {
+    private final McpPendingProbe mcpPendingProbe;
+
+    public AuthController(UserRepository userRepository, McpPendingProbe mcpPendingProbe) {
         this.userRepository = userRepository;
+        this.mcpPendingProbe = mcpPendingProbe;
     }
 
     /**
@@ -118,6 +121,9 @@ public class AuthController {
             log.warn("Unknown principal type: {}", principal.getClass().getName());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+
+        // Authenticated callers learn whether an MCP authorization is waiting; anonymous ones never do.
+        dto.setMcpPending(mcpPendingProbe.isPending(request));
 
         return ResponseEntity.ok(dto);
     }
