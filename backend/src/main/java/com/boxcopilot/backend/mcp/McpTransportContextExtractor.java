@@ -1,17 +1,21 @@
 package com.boxcopilot.backend.mcp;
 
+import com.boxcopilot.backend.mcp.abuse.McpClientAddress;
 import io.modelcontextprotocol.common.McpTransportContext;
 import org.springframework.security.oauth2.core.OAuth2AuthenticatedPrincipal;
 import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthentication;
 import org.springframework.web.servlet.function.ServerRequest;
 
 import java.security.Principal;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
 /**
- * Copies the user id of the authenticated principal into the {@link McpTransportContext}. It runs in the
- * request thread, so the principal is still available.
+ * Copies the user id of the authenticated principal and the client address into the {@link McpTransportContext}.
+ * It runs in the request thread, so the principal and the request are still available; the tools themselves see
+ * neither. The address is what the audit log records, and it is the one the container resolved, never a header
+ * the caller supplied.
  *
  * <p>Only a bearer token issued by this application counts: the principal has to be a
  * {@link BearerTokenAuthentication} carrying an {@link OAuth2AuthenticatedPrincipal}, which is what
@@ -24,11 +28,13 @@ class McpTransportContextExtractor
 
     @Override
     public McpTransportContext extract(ServerRequest request) {
-        return request.principal()
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put(McpTransportContextKeys.CLIENT_ADDRESS, McpClientAddress.of(request.servletRequest()));
+        request.principal()
                 .flatMap(McpTransportContextExtractor::bearerTokenSubject)
                 .flatMap(McpTransportContextExtractor::parseUserId)
-                .map(userId -> McpTransportContext.create(Map.of(McpTransportContextKeys.USER_ID, userId)))
-                .orElse(McpTransportContext.EMPTY);
+                .ifPresent(userId -> values.put(McpTransportContextKeys.USER_ID, userId));
+        return McpTransportContext.create(values);
     }
 
     private static Optional<String> bearerTokenSubject(Principal principal) {

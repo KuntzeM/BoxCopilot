@@ -1,12 +1,9 @@
 package com.boxcopilot.backend.mcp.abuse;
 
+import com.boxcopilot.backend.mcp.MutableTestClock;
 import org.junit.jupiter.api.Test;
 
-import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -22,32 +19,7 @@ class McpRateLimiterTest {
 
     private static final Duration MINUTE = Duration.ofMinutes(1);
 
-    /** A clock the test moves by hand, so a window can elapse without anything sleeping. */
-    private static final class TestClock extends Clock {
-
-        private Instant now = Instant.parse("2026-09-22T10:00:00Z");
-
-        @Override
-        public ZoneId getZone() {
-            return ZoneOffset.UTC;
-        }
-
-        @Override
-        public Clock withZone(ZoneId zone) {
-            return this;
-        }
-
-        @Override
-        public Instant instant() {
-            return now;
-        }
-
-        void advance(Duration amount) {
-            now = now.plus(amount);
-        }
-    }
-
-    private final TestClock clock = new TestClock();
+    private final MutableTestClock clock = new MutableTestClock();
 
     @Test
     void allowsExactlyTheConfiguredNumberOfCallsWithinOneWindow() {

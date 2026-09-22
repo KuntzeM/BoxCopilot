@@ -41,7 +41,7 @@ class BoxPilotMcpToolsTest {
     private final McpReadService readService = mock(McpReadService.class);
     private final McpUserGate userGate = mock(McpUserGate.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final BoxPilotMcpTools tools = new BoxPilotMcpTools(readService, userGate, objectMapper);
+    private final BoxPilotMcpTools tools = McpToolsFixtures.tools(readService, userGate, objectMapper);
 
     private static String text(CallToolResult result, int index) {
         return ((TextContent) result.content().get(index)).text();

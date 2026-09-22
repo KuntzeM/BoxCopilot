@@ -24,8 +24,15 @@ class McpTransportContextExtractorTest {
     private final McpTransportContextExtractor extractor = new McpTransportContextExtractor();
 
     private static ServerRequest requestWith(Principal principal) {
+        return requestWith(principal, null);
+    }
+
+    private static ServerRequest requestWith(Principal principal, String remoteAddress) {
         MockHttpServletRequest servletRequest = new MockHttpServletRequest("POST", McpEndpoints.MCP);
         servletRequest.setUserPrincipal(principal);
+        if (remoteAddress != null) {
+            servletRequest.setRemoteAddr(remoteAddress);
+        }
         return ServerRequest.create(servletRequest, List.of());
     }
 
@@ -43,6 +50,15 @@ class McpTransportContextExtractorTest {
         McpTransportContext context = extractor.extract(requestWith(bearerToken("42")));
 
         assertThat(context.get(McpTransportContextKeys.USER_ID)).isEqualTo(42L);
+    }
+
+    /** The audit log needs the address whether or not the call turns out to be authorized. */
+    @Test
+    void putsTheResolvedClientAddressIntoTheContextEvenWithoutAUser() {
+        assertThat(extractor.extract(requestWith(bearerToken("42"), "203.0.113.7"))
+                .get(McpTransportContextKeys.CLIENT_ADDRESS)).isEqualTo("203.0.113.7");
+        assertThat(extractor.extract(requestWith(null, "203.0.113.8"))
+                .get(McpTransportContextKeys.CLIENT_ADDRESS)).isEqualTo("203.0.113.8");
     }
 
     @Test
