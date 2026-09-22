@@ -57,13 +57,27 @@ app:
 logging:
   level:
     org.springframework: INFO
+    # Debug logging of the security packages would put principals, authorizations and token handling into the
+    # log file; both stay pinned at INFO in production.
+    org.springframework.security: INFO
     com.boxcopilot.backend: INFO
+    com.boxcopilot.backend.mcp: INFO
   file:
     path: /app/logs
 
 # Ensure proper behavior behind reverse proxy and cross-site cookies
 server:
-  forward-headers-strategy: framework
+  # 'native' lets Tomcat's RemoteIpValve resolve the client address, and it honours X-Forwarded-For only for a
+  # request that really arrives from one of the internal proxies below. 'framework' trusted every caller, which
+  # made the forwarded address - and with it the IP rate limits and the audit log - freely forgeable.
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      # Traefik receives a Docker-assigned address on the compose network, so the trusted set is the private
+      # address space rather than one fixed IP. Where the proxy address is known, narrow it with
+      # TRUSTED_PROXY_CIDR (a Java regular expression, not a CIDR list). The pattern deliberately avoids
+      # {n,m} quantifiers: a closing brace would end the property placeholder.
+      internal-proxies: "${TRUSTED_PROXY_CIDR:10\\.\\d\\d?\\d?\\.\\d\\d?\\d?\\.\\d\\d?\\d?|192\\.168\\.\\d\\d?\\d?\\.\\d\\d?\\d?|172\\.(1[6-9]|2\\d|3[01])\\.\\d\\d?\\d?\\.\\d\\d?\\d?|127\\.\\d\\d?\\d?\\.\\d\\d?\\d?\\.\\d\\d?\\d?|0:0:0:0:0:0:0:1|::1}"
   servlet:
     session:
       cookie:
