@@ -184,8 +184,11 @@ class McpAuthorizationServerConfig {
                 .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(
                         entryPoint(authorizeMatcher, pendingCookies, frontendUrl)))
                 .addFilterAfter(new McpConsentCsrfFilter(consentSubmission, csrfRequestHandler), CsrfFilter.class)
+                // Anchored behind the consent filter, not behind CsrfFilter again: two filters added after the
+                // same anchor share one order value, and their relative order would then depend on the order
+                // the lines happen to stand in. Naming the consent filter pins it.
                 .addFilterAfter(new McpAuthenticationNormalizationFilter(authorizeMatcher, userResolver, userGate),
-                        CsrfFilter.class)
+                        McpConsentCsrfFilter.class)
                 // In front of everything else in this chain: the flood this guards against is meant to be
                 // stopped before it reaches the session, the client store and the authorization store, and it
                 // applies whether or not the caller is authenticated.
@@ -196,9 +199,11 @@ class McpAuthorizationServerConfig {
     }
 
     /**
-     * Both filters are anchored behind {@code CsrfFilter}: the consent filter needs the deferred CSRF token that
+     * Both filters run behind {@code CsrfFilter}: the consent filter needs the deferred CSRF token that
      * {@code CsrfFilter} puts on the request, and both have to run long before the authorization endpoint filter,
-     * which Spring Authorization Server places just ahead of the pre-authentication filters.
+     * which Spring Authorization Server places just ahead of the pre-authentication filters. The normalization
+     * filter is anchored behind the consent filter rather than behind {@code CsrfFilter} as well, so that their
+     * relative order is stated instead of inherited from the order of the two registration lines.
      */
     private static RequestMatcher matcher(String path) {
         PathPatternRequestMatcher.Builder builder = PathPatternRequestMatcher.withDefaults();
