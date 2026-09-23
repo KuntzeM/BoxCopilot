@@ -22,5 +22,79 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "claudeforge-docker-specialist-plugins-agents-docker-specialist@cpd-claudeforge-docker-specialist-plugins-agents-docker-specialist": true,
+    "anthropics-mcp-tunnels-plugins-mcp-tunnels@cpd-anthropics-mcp-tunnels-plugins-mcp-tunnels": true,
+    "kirich1409-maven-mcp-plugins-maven-mcp-plugin@cpd-kirich1409-maven-mcp-plugins-maven-mcp-plugin": true,
+    "thebushidocollective-maven-plugins-tools-maven@cpd-thebushidocollective-maven-plugins-tools-maven": true,
+    "motlin-java-plugins-java@cpd-motlin-java-plugins-java": true,
+    "pleaseai-vite-plugins-vite@cpd-pleaseai-vite-plugins-vite": true,
+    "pleaseai-vitest-plugins-vitest@cpd-pleaseai-vitest-plugins-vitest": true,
+    "henkisdabro-react-best-practices-plugins-react-best-practices@cpd-henkisdabro-react-best-practices-plugins-react-best-practices": true,
+    "thebushidocollective-react-plugins-frameworks-react@cpd-thebushidocollective-react-plugins-frameworks-react": true,
+    "jeremylongshore-memory-leak-detector-plugins-performance-memory-leak-detector-3@cpd-jeremylongshore-memory-leak-detector-plugins-performance-memory-leak-detector-3": true
+  },
+  "extraKnownMarketplaces": {
+    "cpd-claudeforge-docker-specialist-plugins-agents-docker-specialist": {
+      "source": {
+        "source": "url",
+        "url": "https://claudepluginhub.com/api/plugins/claudeforge-docker-specialist-plugins-agents-docker-specialist/marketplace.json"
+      }
+    },
+    "cpd-anthropics-mcp-tunnels-plugins-mcp-tunnels": {
+      "source": {
+        "source": "url",
+        "url": "https://claudepluginhub.com/api/plugins/anthropics-mcp-tunnels-plugins-mcp-tunnels/marketplace.json"
+      }
+    },
+    "cpd-kirich1409-maven-mcp-plugins-maven-mcp-plugin": {
+      "source": {
+        "source": "url",
+        "url": "https://claudepluginhub.com/api/plugins/kirich1409-maven-mcp-plugins-maven-mcp-plugin/marketplace.json"
+      }
+    },
+    "cpd-thebushidocollective-maven-plugins-tools-maven": {
+      "source": {
+        "source": "url",
+        "url": "https://claudepluginhub.com/api/plugins/thebushidocollective-maven-plugins-tools-maven/marketplace.json"
+      }
+    },
+    "cpd-motlin-java-plugins-java": {
+      "source": {
+        "source": "url",
+        "url": "https://claudepluginhub.com/api/plugins/motlin-java-plugins-java/marketplace.json"
+      }
+    },
+    "cpd-pleaseai-vite-plugins-vite": {
+      "source": {
+        "source": "url",
+        "url": "https://claudepluginhub.com/api/plugins/pleaseai-vite-plugins-vite/marketplace.json"
+      }
+    },
+    "cpd-pleaseai-vitest-plugins-vitest": {
+      "source": {
+        "source": "url",
+        "url": "https://claudepluginhub.com/api/plugins/pleaseai-vitest-plugins-vitest/marketplace.json"
+      }
+    },
+    "cpd-henkisdabro-react-best-practices-plugins-react-best-practices": {
+      "source": {
+        "source": "url",
+        "url": "https://claudepluginhub.com/api/plugins/henkisdabro-react-best-practices-plugins-react-best-practices/marketplace.json"
+      }
+    },
+    "cpd-thebushidocollective-react-plugins-frameworks-react": {
+      "source": {
+        "source": "url",
+        "url": "https://claudepluginhub.com/api/plugins/thebushidocollective-react-plugins-frameworks-react/marketplace.json"
+      }
+    },
+    "cpd-jeremylongshore-memory-leak-detector-plugins-performance-memory-leak-detector-3": {
+      "source": {
+        "source": "url",
+        "url": "https://claudepluginhub.com/api/plugins/jeremylongshore-memory-leak-detector-plugins-performance-memory-leak-detector-3/marketplace.json"
+      }
+    }
   }
 }
