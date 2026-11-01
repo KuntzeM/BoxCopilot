@@ -5,13 +5,13 @@ import com.boxcopilot.backend.mcp.abuse.McpRateLimits;
 import com.boxcopilot.backend.mcp.observability.McpAuditLogger;
 import com.boxcopilot.backend.mcp.observability.McpToolMetrics;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
-import org.springframework.boot.autoconfigure.http.HttpMessageConvertersAutoConfiguration;
-import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
-import org.springframework.boot.security.autoconfigure.servlet.SecurityAutoConfiguration;
+import org.springframework.boot.http.converter.autoconfigure.HttpMessageConvertersAutoConfiguration;
+import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration;
 import org.springframework.boot.webmvc.autoconfigure.DispatcherServletAutoConfiguration;
 import org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -66,7 +66,7 @@ class McpProtocolTest {
             HttpMessageConvertersAutoConfiguration.class,
             JacksonAutoConfiguration.class,
             SecurityAutoConfiguration.class,
-            org.springframework.ai.mcp.server.common.autoconfigure.McpServerObjectMapperAutoConfiguration.class,
+            org.springframework.ai.mcp.server.common.autoconfigure.McpServerJsonMapperAutoConfiguration.class,
             org.springframework.ai.mcp.server.common.autoconfigure.McpServerAutoConfiguration.class,
             org.springframework.ai.mcp.server.common.autoconfigure.McpServerStatelessAutoConfiguration.class,
             org.springframework.ai.mcp.server.common.autoconfigure.ToolCallbackConverterAutoConfiguration.class,
@@ -74,9 +74,9 @@ class McpProtocolTest {
             org.springframework.ai.mcp.server.common.autoconfigure.annotations.McpServerAnnotationScannerAutoConfiguration.class,
             org.springframework.ai.mcp.server.common.autoconfigure.annotations.McpServerSpecificationFactoryAutoConfiguration.class,
             org.springframework.ai.mcp.server.common.autoconfigure.annotations.StatelessServerSpecificationFactoryAutoConfiguration.class,
-            org.springframework.ai.mcp.server.autoconfigure.McpServerStatelessWebMvcAutoConfiguration.class,
-            org.springframework.ai.mcp.server.autoconfigure.McpServerStreamableHttpWebMvcAutoConfiguration.class,
-            org.springframework.ai.mcp.server.autoconfigure.McpServerSseWebMvcAutoConfiguration.class})
+            org.springframework.ai.mcp.server.webmvc.autoconfigure.McpServerStatelessWebMvcAutoConfiguration.class,
+            org.springframework.ai.mcp.server.webmvc.autoconfigure.McpServerStreamableHttpWebMvcAutoConfiguration.class,
+            org.springframework.ai.mcp.server.webmvc.autoconfigure.McpServerSseWebMvcAutoConfiguration.class})
     @Import({McpConfiguration.class, McpTransportConfiguration.class, McpStartupGuard.class,
             McpRateLimits.class, McpRateLimitAudit.class, McpAuditLogger.class, McpToolMetrics.class,
             BoxPilotMcpTools.class})
@@ -95,7 +95,7 @@ class McpProtocolTest {
     @Autowired
     private MockMvc mockMvc;
     @Autowired
-    private ObjectMapper objectMapper;
+    private JsonMapper objectMapper;
     @MockitoBean
     private McpReadService readService;
     @MockitoBean
@@ -156,7 +156,7 @@ class McpProtocolTest {
 
         JsonNode tools = response.at("/result/tools");
         assertThat(tools).hasSize(4);
-        List<String> names = tools.findValuesAsText("name");
+        List<String> names = tools.findValuesAsString("name");
         assertThat(names).contains("search_items", "get_item_image", "search_boxes", "get_box_contents");
         for (JsonNode tool : tools) {
             assertThat(tool.at("/annotations/readOnlyHint").asBoolean()).as(tool.get("name").asText()).isTrue();

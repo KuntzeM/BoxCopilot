@@ -1,14 +1,14 @@
 package com.boxcopilot.backend.mcp;
 
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import io.modelcontextprotocol.spec.McpSchema.ImageContent;
 import io.modelcontextprotocol.spec.McpSchema.TextContent;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
-import org.springaicommunity.mcp.annotation.McpTool;
+import org.springframework.ai.mcp.annotation.McpTool;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
@@ -40,7 +40,7 @@ class BoxPilotMcpToolsTest {
 
     private final McpReadService readService = mock(McpReadService.class);
     private final McpUserGate userGate = mock(McpUserGate.class);
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final JsonMapper objectMapper = new JsonMapper();
     private final BoxPilotMcpTools tools = McpToolsFixtures.tools(readService, userGate, objectMapper);
 
     private static String text(CallToolResult result, int index) {

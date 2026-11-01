@@ -4,7 +4,7 @@ import com.boxcopilot.backend.mcp.abuse.McpRateLimits;
 import com.boxcopilot.backend.mcp.observability.McpAuditLogger;
 import com.boxcopilot.backend.mcp.observability.McpToolMetrics;
 import com.boxcopilot.backend.mcp.observability.McpToolResult;
-import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
@@ -48,7 +48,7 @@ class BoxPilotMcpToolsObservabilityTest {
 
     private BoxPilotMcpTools toolsWith(McpProperties.RateLimit rateLimit) {
         McpRateLimits rateLimits = McpToolsFixtures.rateLimits(rateLimit, clock);
-        return McpToolsFixtures.tools(readService, userGate, new ObjectMapper(), rateLimits, auditLogger,
+        return McpToolsFixtures.tools(readService, userGate, new JsonMapper(), rateLimits, auditLogger,
                 registry);
     }
 

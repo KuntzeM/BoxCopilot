@@ -7,7 +7,7 @@ import com.boxcopilot.backend.domain.User;
 import com.boxcopilot.backend.mcp.authserver.McpAuthorizationServerEndpoints;
 import com.boxcopilot.backend.mcp.security.McpOAuth2Attributes;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,7 +45,7 @@ class McpClientProvisioningIntegrationTest extends McpIntegrationTestBase {
     private static final String CODE_CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";
 
     @Autowired
-    private ObjectMapper objectMapper;
+    private JsonMapper objectMapper;
 
     private ListAppender<ILoggingEvent> logAppender;
     private ch.qos.logback.classic.Logger rootLogger;
@@ -334,7 +334,7 @@ class McpClientProvisioningIntegrationTest extends McpIntegrationTestBase {
         assertThat(result.getResponse().getStatus())
                 .as("response: %s", result.getResponse().getContentAsString()).isEqualTo(200);
         JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
-        assertThat(body.fieldNames()).toIterable().containsExactly("clientId");
+        assertThat(body.propertyNames()).containsExactly("clientId");
         return body.get("clientId").asText();
     }
 

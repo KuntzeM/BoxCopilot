@@ -30,7 +30,7 @@ import org.springframework.security.oauth2.server.authorization.OAuth2Authorizat
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationValidator;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
-import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
+import org.springframework.security.config.annotation.web.configurers.oauth2.server.authorization.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.token.DelegatingOAuth2TokenGenerator;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2AccessTokenGenerator;
@@ -142,7 +142,7 @@ class McpAuthorizationServerConfig {
                 .securityMatcher(McpAuthorizationServerEndpoints.AUTHORIZE, McpAuthorizationServerEndpoints.CONSENT,
                         McpAuthorizationServerEndpoints.TOKEN, McpAuthorizationServerEndpoints.REVOKE,
                         McpAuthorizationServerEndpoints.METADATA)
-                .with(OAuth2AuthorizationServerConfigurer.authorizationServer(), server -> server
+                .with(new OAuth2AuthorizationServerConfigurer(), server -> server
                         // Opaque reference tokens need no signing key; the refresh generator is ours so that a
                         // public client gets a rotating refresh token at all.
                         .tokenGenerator(new DelegatingOAuth2TokenGenerator(

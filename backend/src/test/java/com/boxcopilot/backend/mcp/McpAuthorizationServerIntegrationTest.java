@@ -5,7 +5,7 @@ import com.boxcopilot.backend.mcp.authserver.McpAuthorizationServerEndpoints;
 import com.boxcopilot.backend.mcp.security.McpOAuth2Attributes;
 import com.boxcopilot.backend.mcp.web.McpSecureHtmlResponse;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import jakarta.servlet.http.Cookie;
 import org.springframework.security.core.Authentication;
@@ -48,7 +48,7 @@ class McpAuthorizationServerIntegrationTest extends McpIntegrationTestBase {
             Pattern.compile("name=\"_csrf\" value=\"([^\"]+)\"");
 
     @Autowired
-    private ObjectMapper objectMapper;
+    private JsonMapper objectMapper;
 
     // ---------------------------------------------------------------- happy path
 

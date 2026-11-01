@@ -9,7 +9,7 @@ import com.boxcopilot.backend.repository.BoxRepository;
 import com.boxcopilot.backend.repository.ItemRepository;
 import com.boxcopilot.backend.service.ImageStorageService;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -70,7 +70,7 @@ class McpEndToEndFlowTest extends McpIntegrationTestBase {
     private static final String MARKER = "s12flow";
 
     @Autowired
-    private ObjectMapper objectMapper;
+    private JsonMapper objectMapper;
     @Autowired
     private BoxRepository boxRepository;
     @Autowired
@@ -129,26 +129,26 @@ class McpEndToEndFlowTest extends McpIntegrationTestBase {
         // 8 - the catalogue: four read-only tools
         JsonNode tools = rpc(accessToken, toolsListRequest()).at("/result/tools");
         assertThat(tools).hasSize(4);
-        assertThat(tools.findValuesAsText("name"))
+        assertThat(tools.findValuesAsString("name"))
                 .containsExactlyInAnyOrder("search_items", "get_item_image", "search_boxes", "get_box_contents");
         tools.forEach(tool -> assertThat(tool.at("/annotations/readOnlyHint").asBoolean())
                 .as("%s is announced as read-only", tool.get("name").asText()).isTrue());
 
         // 9 - every tool, against the seeded inventory
         JsonNode items = toolPayload(accessToken, "search_items", Map.of("query", MARKER, "limit", 10));
-        assertThat(items.at("/items").findValuesAsText("name"))
+        assertThat(items.at("/items").findValuesAsString("name"))
                 .contains(lamp.getName(), blanket.getName()).hasSize(3);
         assertThat(items.at("/items/0").has("boxUuid")).isFalse();
         assertThat(items.toString()).doesNotContain("imageToken", "imageUrl");
 
         JsonNode boxes = toolPayload(accessToken, "search_boxes", Map.of("query", MARKER, "limit", 10));
-        assertThat(boxes.at("/boxes").findValuesAsText("boxNumber"))
+        assertThat(boxes.at("/boxes").findValuesAsString("boxNumber"))
                 .contains(String.valueOf(CELLAR_BOX_NUMBER), String.valueOf(ATTIC_BOX_NUMBER));
 
         JsonNode contents = toolPayload(accessToken, "get_box_contents",
                 Map.of("boxNumber", CELLAR_BOX_NUMBER));
         assertThat(contents.at("/box/boxNumber").asInt()).isEqualTo(CELLAR_BOX_NUMBER);
-        assertThat(contents.at("/items").findValuesAsText("name"))
+        assertThat(contents.at("/items").findValuesAsString("name"))
                 .containsExactlyInAnyOrder(lamp.getName(), blanket.getName());
 
         JsonNode imageCall = toolCall(accessToken, "get_item_image",

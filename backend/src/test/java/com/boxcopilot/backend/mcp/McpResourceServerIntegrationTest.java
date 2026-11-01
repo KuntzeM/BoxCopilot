@@ -3,7 +3,7 @@ package com.boxcopilot.backend.mcp;
 import com.boxcopilot.backend.domain.User;
 import com.boxcopilot.backend.mcp.security.McpOAuth2Attributes;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -34,7 +34,7 @@ class McpResourceServerIntegrationTest extends McpIntegrationTestBase {
                     + "scope=\"mcp:read\"";
 
     @Autowired
-    private ObjectMapper objectMapper;
+    private JsonMapper objectMapper;
 
     private MvcResult mcp(String bearerToken, String body) throws Exception {
         var request = post("/mcp").contentType(MediaType.APPLICATION_JSON).header("Accept", ACCEPT).content(body);
@@ -67,7 +67,7 @@ class McpResourceServerIntegrationTest extends McpIntegrationTestBase {
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
         JsonNode tools = objectMapper.readTree(result.getResponse().getContentAsString()).at("/result/tools");
         assertThat(tools).hasSize(4);
-        assertThat(tools.findValuesAsText("name"))
+        assertThat(tools.findValuesAsString("name"))
                 .contains("search_items", "get_item_image", "search_boxes", "get_box_contents");
     }
 

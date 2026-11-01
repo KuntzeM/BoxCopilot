@@ -1,8 +1,8 @@
 package com.boxcopilot.backend.mcp.security;
 
-import tools.jackson.core.JsonProcessingException;
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -59,7 +59,7 @@ public class McpAuthorizationService implements OAuth2AuthorizationService, McpA
             FROM oauth2_authorization""";
 
     /** Reads one plain scalar field out of the stored attributes; no typed value is deserialised here. */
-    private static final ObjectMapper ATTRIBUTE_READER = new ObjectMapper();
+    private static final JsonMapper ATTRIBUTE_READER = JsonMapper.builder().build();
 
     private static final Logger log = LoggerFactory.getLogger(McpAuthorizationService.class);
 
@@ -162,7 +162,7 @@ public class McpAuthorizationService implements OAuth2AuthorizationService, McpA
                 return null;
             }
             return Instant.ofEpochSecond(Long.parseLong(startedAt.asText()));
-        } catch (JsonProcessingException | NumberFormatException | ArithmeticException e) {
+        } catch (JacksonException | NumberFormatException | ArithmeticException e) {
             log.warn("MCP cleanup cannot read {}: {}", McpOAuth2Attributes.STARTED_AT,
                     e.getClass().getSimpleName());
             return null;

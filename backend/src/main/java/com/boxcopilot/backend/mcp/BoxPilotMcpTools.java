@@ -5,17 +5,17 @@ import com.boxcopilot.backend.mcp.abuse.McpRateLimits;
 import com.boxcopilot.backend.mcp.observability.McpAuditLogger;
 import com.boxcopilot.backend.mcp.observability.McpToolMetrics;
 import com.boxcopilot.backend.mcp.observability.McpToolResult;
-import tools.jackson.core.JsonProcessingException;
-import tools.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.json.JsonMapper;
 import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import io.modelcontextprotocol.spec.McpSchema.ImageContent;
 import io.modelcontextprotocol.spec.McpSchema.TextContent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springaicommunity.mcp.annotation.McpTool;
-import org.springaicommunity.mcp.annotation.McpTool.McpAnnotations;
-import org.springaicommunity.mcp.annotation.McpToolParam;
+import org.springframework.ai.mcp.annotation.McpTool;
+import org.springframework.ai.mcp.annotation.McpTool.McpAnnotations;
+import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -60,12 +60,12 @@ public class BoxPilotMcpTools {
 
     private final McpReadService readService;
     private final McpUserGate userGate;
-    private final ObjectMapper objectMapper;
+    private final JsonMapper objectMapper;
     private final McpRateLimits rateLimits;
     private final McpAuditLogger auditLogger;
     private final McpToolMetrics metrics;
 
-    public BoxPilotMcpTools(McpReadService readService, McpUserGate userGate, ObjectMapper objectMapper,
+    public BoxPilotMcpTools(McpReadService readService, McpUserGate userGate, JsonMapper objectMapper,
                             McpRateLimits rateLimits, McpAuditLogger auditLogger, McpToolMetrics metrics) {
         this.readService = readService;
         this.userGate = userGate;
@@ -245,7 +245,7 @@ public class BoxPilotMcpTools {
     private String toJson(Object body) {
         try {
             return objectMapper.writeValueAsString(body);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("Cannot serialise MCP tool result", e);
         }
     }

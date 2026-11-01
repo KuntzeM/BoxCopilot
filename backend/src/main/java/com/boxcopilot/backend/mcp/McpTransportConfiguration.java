@@ -1,8 +1,8 @@
 package com.boxcopilot.backend.mcp;
 
-import tools.jackson.databind.ObjectMapper;
-import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
-import io.modelcontextprotocol.server.transport.WebMvcStatelessServerTransport;
+import tools.jackson.databind.json.JsonMapper;
+import io.modelcontextprotocol.json.jackson3.JacksonMcpJsonMapper;
+import org.springframework.ai.mcp.server.webmvc.transport.WebMvcStatelessServerTransport;
 import org.springframework.ai.mcp.server.common.autoconfigure.properties.McpServerStreamableHttpProperties;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -20,10 +20,10 @@ class McpTransportConfiguration {
 
     @Bean
     WebMvcStatelessServerTransport webMvcStatelessServerTransport(
-            @Qualifier("mcpServerObjectMapper") ObjectMapper objectMapper,
+            @Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper,
             McpServerStreamableHttpProperties streamableHttp) {
         return WebMvcStatelessServerTransport.builder()
-                .jsonMapper(new JacksonMcpJsonMapper(objectMapper))
+                .jsonMapper(new JacksonMcpJsonMapper(jsonMapper))
                 .messageEndpoint(streamableHttp.getMcpEndpoint())
                 .contextExtractor(new McpTransportContextExtractor())
                 .build();
