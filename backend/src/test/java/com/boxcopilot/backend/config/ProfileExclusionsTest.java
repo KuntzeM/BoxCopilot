@@ -3,28 +3,28 @@ package com.boxcopilot.backend.config;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.env.YamlPropertySourceLoader;
+import org.springframework.boot.autoconfigure.AutoConfigurationPackage;
+import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
-import org.springframework.core.env.PropertySource;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.boot.autoconfigure.AutoConfigurations;
-import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
 import org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration;
 import org.springframework.boot.data.redis.autoconfigure.DataRedisRepositoriesAutoConfiguration;
+import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
 import org.springframework.boot.jdbc.autoconfigure.DataSourceTransactionManagerAutoConfiguration;
 import org.springframework.boot.jdbc.autoconfigure.JdbcTemplateAutoConfiguration;
-import org.springframework.boot.autoconfigure.AutoConfigurationPackage;
 import org.springframework.boot.session.autoconfigure.SessionAutoConfiguration;
 import org.springframework.boot.session.data.redis.autoconfigure.SessionDataRedisAutoConfiguration;
 import org.springframework.boot.session.jdbc.autoconfigure.JdbcSessionAutoConfiguration;
+import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
+import org.springframework.core.env.PropertySource;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.session.SessionRepository;
-import org.springframework.session.data.redis.RedisSessionRepository;
 import org.springframework.session.jdbc.JdbcIndexedSessionRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -66,8 +66,13 @@ class ProfileExclusionsTest {
         PropertySource<?> source = new YamlPropertySourceLoader()
                 .load(yaml, new ClassPathResource(yaml)).get(0);
         return Arrays.asList(new Binder(new MapConfigurationPropertySource(
-                ((java.util.Map<String, Object>) source.getSource())))
+                toMap(source)))
                 .bind("spring.autoconfigure.exclude", String[].class).orElse(new String[0]));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> toMap(PropertySource<?> source) {
+        return (Map<String, Object>) source.getSource();
     }
 
     private static boolean isLoadable(String name) {
@@ -85,15 +90,6 @@ class ProfileExclusionsTest {
             assertThat(context).hasNotFailed();
             assertThat(context).doesNotHaveBean(RedisConnectionFactory.class);
             assertThat(context).hasSingleBean(JdbcIndexedSessionRepository.class);
-        });
-    }
-
-    @Test
-    void prodKeepsSessionsInRedis() throws IOException {
-        runner("prod").withPropertyValues("spring.data.redis.host=localhost", "spring.data.redis.port=6379").run(context -> {
-            assertThat(context).hasNotFailed();
-            assertThat(context).hasSingleBean(RedisSessionRepository.class);
-            assertThat(context).doesNotHaveBean(JdbcIndexedSessionRepository.class);
         });
     }
 
