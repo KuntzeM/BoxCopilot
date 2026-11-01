@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   postgres:
-    image: postgres:15
+    image: postgres:15.19
     container_name: boxcopilot-postgres
     env_file: .env
     environment:
@@ -49,8 +47,9 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: 6379
+      # read by application-prod.yml (spring.data.redis.host/port); the single source for the Redis address
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       CLIENT_ID: ${CLIENT_ID}
       CLIENT_SECRET: ${CLIENT_SECRET}
@@ -77,6 +76,13 @@ services:
       - "traefik.docker.network=traefik-proxy"
 
 
+    healthcheck:
+      # TCP probe only (bash is in the image, curl is not); start_period covers Flyway + startup.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
     depends_on:
       postgres:
         condition: service_healthy
@@ -108,12 +114,8 @@ services:
       - "traefik.docker.network=traefik-proxy"
 
     depends_on:
-      - backend
-
-volumes:
-  pgdata:
-  backend-logs:
-  boxcopilot-images:
+      backend:
+        condition: service_healthy
 
 networks:
   boxcopilot-network:

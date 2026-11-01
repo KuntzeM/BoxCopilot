@@ -177,6 +177,14 @@ TRAEFIK_BACKEND_HOST=boxes-api.example.com
 docker-compose up -d
 ```
 
+**Upgrading to the Spring Boot 4 image:** the backend container now runs as the non-root user `boxpilot`
+(uid/gid 10001). The bind-mounted host directories must be writable by it, otherwise logging and image uploads fail:
+```bash
+sudo chown -R 10001:10001 logs images
+```
+(Docker Desktop on Windows/macOS needs no change.) The backend also has a TCP healthcheck (`start_period` 60s) and
+the frontend waits for it to be healthy.
+
 ### Nextcloud OIDC Setup
 
 Register OAuth2/OIDC client in Nextcloud:
