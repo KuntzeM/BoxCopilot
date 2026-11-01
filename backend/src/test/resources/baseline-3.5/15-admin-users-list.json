@@ -1,0 +1,40 @@
+{
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/v1/admin/users"
+  },
+  "response": {
+    "body": [
+      {
+        "authProvider": "LOCAL",
+        "createdAt": "<timestamp>",
+        "enabled": true,
+        "failedLoginAttempts": 0,
+        "hasPassword": true,
+        "id": 1,
+        "lastLogin": "<timestamp>",
+        "lastMagicLinkCreatedAt": null,
+        "lastMagicLinkExpiresAt": null,
+        "lastMagicLinkUsed": null,
+        "lockedUntil": null,
+        "mcpAllowed": false,
+        "name": "Administrator",
+        "role": "ADMIN",
+        "username": "admin"
+      }
+    ],
+    "headers": {
+      "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+      "content-type": "application/json",
+      "expires": "0",
+      "pragma": "no-cache",
+      "vary": "Origin, Access-Control-Request-Method, Access-Control-Request-Headers",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-xss-protection": "0"
+    },
+    "set-cookie-attributes": [],
+    "status": 200
+  }
+}

@@ -28,8 +28,6 @@ import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.test.web.servlet.MvcResult;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -50,9 +48,8 @@ class McpResourceServerIntegrationTest extends McpIntegrationTestBase {
             "Bearer resource_metadata=\"http://localhost/.well-known/oauth-protected-resource/mcp\", "
                     + "scope=\"mcp:read\"";
 
-    /** The {@code tools/list} capture of the Spring Boot 3.5 build (Task 0), relative to the module directory. */
-    private static final Path TOOLS_LIST_BASELINE =
-            Path.of("..", "docs", "superpowers", "plans", "artifacts", "baseline-3.5", "85-mcp-tools-list.json");
+    /** The {@code tools/list} capture of the Spring Boot 3.5 build (Task 0), loaded from the test classpath. */
+    private static final String TOOLS_LIST_BASELINE = "baseline-3.5/85-mcp-tools-list.json";
 
     private static final String SEARCH_CALL = """
             {"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"search_items",
@@ -122,7 +119,7 @@ class McpResourceServerIntegrationTest extends McpIntegrationTestBase {
         Map<String, JsonNode> actual = byName(
                 objectMapper.readTree(result.getResponse().getContentAsString()).at("/result/tools"));
         Map<String, JsonNode> baseline = byName(
-                objectMapper.readTree(Files.readString(TOOLS_LIST_BASELINE)).at("/response/body/result/tools"));
+                objectMapper.readTree(new String(new org.springframework.core.io.ClassPathResource(TOOLS_LIST_BASELINE).getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)).at("/response/body/result/tools"));
         assertThat(baseline.keySet())
                 .containsExactlyInAnyOrder("get_box_contents", "get_item_image", "search_boxes", "search_items");
         assertThat(actual.keySet()).containsExactlyInAnyOrderElementsOf(baseline.keySet());
@@ -416,7 +413,9 @@ class McpResourceServerIntegrationTest extends McpIntegrationTestBase {
         String body = result.getResponse().getContentAsString();
         assertThat(objectMapper.readTree(body).at("/result/isError").asBoolean()).isTrue();
         assertThat(body).doesNotContain("com.fasterxml", "org.springframework", "com.boxcopilot",
-                "Exception", "at java.", "InvalidFormat");
+                "Exception", "at java.", "InvalidFormat", "tools.jackson");
+        // "java.lang" is deliberately not denied yet: a wrong-typed argument still returns the library's raw message
+        // ("Cannot deserialize value of type `java.lang.Integer`"), see README "Known issues". Add it once that is fixed.
     }
 
     private void saveTokensOfEveryType(RegisteredClient client, long userId, String accessTokenValue) {

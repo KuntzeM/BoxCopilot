@@ -15,8 +15,6 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 import tools.jackson.databind.json.JsonMapper;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -29,7 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * The JSON the API produces must equal the Spring Boot 3.5 baseline captured in
- * {@code docs/superpowers/plans/artifacts/baseline-3.5}. Timestamps and UUIDs are normalised to the
+ * {@code docs/superpowers/plans/artifacts/baseline-3.5}, copied to {@code src/test/resources/baseline-3.5}. Timestamps and UUIDs are normalised to the
  * baseline placeholders; compared as trees, so property order is not part of the contract.
  */
 @SpringBootTest
@@ -37,7 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 class JsonContractTest {
 
-    private static final Path BASELINE = Path.of("..", "docs", "superpowers", "plans", "artifacts", "baseline-3.5");
+    private static final String BASELINE = "baseline-3.5/";
     private static final Instant INSTANT = Instant.parse("2026-01-02T03:04:05.678901Z");
     private static final LocalDateTime LDT = LocalDateTime.of(2026, 1, 2, 3, 4, 5, 678_000_000);
 
@@ -47,7 +45,7 @@ class JsonContractTest {
     private MockMvc mockMvc;
 
     private JsonNode baseline(String file) throws Exception {
-        return json.readTree(Files.readString(BASELINE.resolve(file))).get("response").get("body");
+        return json.readTree(new String(new org.springframework.core.io.ClassPathResource(BASELINE + file).getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)).get("response").get("body");
     }
 
     /** Serialises with the application mapper, then maps ISO timestamps to the baseline placeholder. */

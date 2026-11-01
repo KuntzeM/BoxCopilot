@@ -18,8 +18,6 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -56,7 +54,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("prod")
 class RedisSessionCompatibilityTest {
 
-    private static final Path FIXTURE = Path.of("../docs/superpowers/plans/artifacts/baseline-3.5/redis-session-fixture.txt");
+    private static final String FIXTURE = "baseline-3.5/redis-session-fixture.txt";
 
     @Container
     static final GenericContainer<?> REDIS = new GenericContainer<>("redis:7.4.11-alpine").withExposedPorts(6379);
@@ -89,7 +87,7 @@ class RedisSessionCompatibilityTest {
 
     /** Loads the 3.5 capture (KEY line, then FIELD name + base64 value per field) into Redis. */
     private void loadThe35Session(boolean renewTimestamps) throws Exception {
-        List<String> lines = Files.readAllLines(FIXTURE);
+        List<String> lines = new String(new org.springframework.core.io.ClassPathResource(FIXTURE).getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).lines().toList();
         String key = null;
         String field = null;
         Map<byte[], byte[]> hash = new LinkedHashMap<>();
