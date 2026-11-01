@@ -9,7 +9,7 @@
     "headers": {
       "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
       "expires": "0",
-      "location": "http://localhost:41000/callback?code=KxMKhUQfDYaKqEas3sM8GZtnhC-B1mqdt0QQpNhpivgFroMSYI5CPioBSXPlkF60MiYsZFZ7EPgH1M3ghSUz2oPDLA61A9AeaK-z-pas_MbJXH7J0jNWteZBSMpJ_gmj&state=baseline-state",
+      "location": "http://localhost:41000/callback?code=<code>&state=<state>",
       "pragma": "no-cache",
       "x-content-type-options": "nosniff",
       "x-frame-options": "DENY",

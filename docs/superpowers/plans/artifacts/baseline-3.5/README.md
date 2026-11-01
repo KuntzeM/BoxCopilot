@@ -7,6 +7,19 @@ Nothing here is a live credential: every password, token and key was created for
 containers. Files `NN-*.json` are scrubbed anyway (tokens, codes, cookies, UUIDs, timestamps, base64 payloads,
 `?t=` cache-busters are replaced by placeholders; numeric ids are kept because the database starts empty).
 
+Redaction rules applied by `snapshot.py` to every `NN-*.json`: values of the keys token, csrfToken, imageToken,
+access_token, refresh_token, id_token, code, client_secret, password, tokenValue, clientId, client_id, url, state
+become `<redacted>`; query-string values of state, code, code_challenge, code_verifier, nonce, client_secret,
+access_token, refresh_token (in `path` and `location`) become `<state>`, `<code>`, ...; runtime secrets (session,
+CSRF, tokens, codes, verifier) are replaced by `<secret>`; UUIDs, timestamps, `?t=` and long base64 are normalised.
+
+**Deliberately unredacted fixtures** (`legacy-authorization-row.sql`, `redis-session-fixture.txt`): they hold real
+serialized/stored values from the throwaway run: the Redis session id, the full (not truncated) JDK-serialized
+security context including the bcrypt hash (`$2a$10$...`) of the throwaway admin password, the registered
+`client_id`, and the stored authorization/token values and codes. All of them belong to disposable containers that
+no longer exist and never protected anything real. Treat them as opaque test data; do not use them as credentials
+and do not edit them by hand.
+
 ## Contents
 
 | File | What |
@@ -17,7 +30,7 @@ containers. Files `NN-*.json` are scrubbed anyway (tokens, codes, cookies, UUIDs
 | `redis-session-fixture.txt` | one `spring:session:sessions:*` hash from a Redis 7.4.11 after a form login (JDK-serialized fields; escaped, base64 and `DUMP` forms) |
 | `snapshot.py`, `redis_session_dump.py` | the scripts that produced the above |
 
-Outside the repo (git-ignored, never committed), `C:\Users\mathi\Coding\BoxPilot-baseline\`:
+Outside the repo (git-ignored, never committed), `<outside-repo>/BoxPilot-baseline/`:
 `boxpilot-3.5.dump` (`pg_dump -Fc`), `boxpilot-3.5.sql` (plain, `--no-owner`), `pgdata/` (copy of the stopped
 Postgres 15 data directory, taken with `docker cp`; restore with `chown -R 999:999`), `images/` (image store of
 the snapshot run). The dump holds 2 users, 2 boxes, 2 items, 1 live `oauth2_authorization`, 13 Flyway history rows

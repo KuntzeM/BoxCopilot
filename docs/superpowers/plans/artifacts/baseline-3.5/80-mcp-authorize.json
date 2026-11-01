@@ -2,14 +2,14 @@
   "request": {
     "body": null,
     "method": "GET",
-    "path": "/oauth2/authorize?response_type=code&client_id=<secret>&state=baseline-state&redirect_uri=http%3A%2F%2Flocalhost%3A41000%2Fcallback&scope=mcp%3Aread&code_challenge=tzjUKUDUsYSMvv4qctcxWY3CSGqYgjaggTZ2Y90oamk&code_challenge_method=S256"
+    "path": "/oauth2/authorize?response_type=code&client_id=<secret>&state=<state>&redirect_uri=http%3A%2F%2Flocalhost%3A41000%2Fcallback&scope=mcp%3Aread&code_challenge=<code_challenge>&code_challenge_method=S256"
   },
   "response": {
     "body": "",
     "headers": {
       "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
       "expires": "0",
-      "location": "http://localhost:8080/oauth2/consent?scope=mcp:read&client_id=<secret>&state=l3oqmeLEoVVCep7F6rCO39ATroHqOHd3aEbTWpMMIgg%3D",
+      "location": "http://localhost:8080/oauth2/consent?scope=mcp:read&client_id=<secret>&state=<state>",
       "pragma": "no-cache",
       "x-content-type-options": "nosniff",
       "x-frame-options": "DENY",

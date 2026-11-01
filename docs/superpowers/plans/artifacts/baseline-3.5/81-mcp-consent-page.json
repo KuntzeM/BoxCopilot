@@ -2,7 +2,7 @@
   "request": {
     "body": null,
     "method": "GET",
-    "path": "/oauth2/consent?state=l3oqmeLEoVVCep7F6rCO39ATroHqOHd3aEbTWpMMIgg%3D"
+    "path": "/oauth2/consent?state=<state>"
   },
   "response": {
     "body": {

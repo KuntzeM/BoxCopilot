@@ -34,6 +34,8 @@ def scrub_text(s):
     s = UUID.sub("<uuid>", s)
     s = re.sub(r"(/public/items/)[^/\"]+(/image)", r"\1<token>\2", s)
     s = re.sub(r"\?t=\d+", "?t=<ts>", s)
+    s = re.sub(r"([?&])(state|code|code_challenge|code_verifier|nonce|client_secret|access_token|refresh_token)=[^&\"\s]*",
+               lambda m: f"{m.group(1)}{m.group(2)}=<{m.group(2)}>", s)
     return s
 
 
