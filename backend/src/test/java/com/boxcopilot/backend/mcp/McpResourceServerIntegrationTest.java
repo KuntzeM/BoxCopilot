@@ -1,10 +1,21 @@
 package com.boxcopilot.backend.mcp;
 
 import com.boxcopilot.backend.domain.User;
+import com.boxcopilot.backend.mcp.abuse.McpFailedTokenRateLimitFilter;
+import com.boxcopilot.backend.mcp.abuse.McpSubjectRateLimitFilter;
+import com.boxcopilot.backend.mcp.observability.McpToolMetrics;
 import com.boxcopilot.backend.mcp.security.McpOAuth2Attributes;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.oauth2.server.resource.web.OAuth2ProtectedResourceMetadataFilter;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -17,10 +28,16 @@ import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.function.UnaryOperator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -33,15 +50,34 @@ class McpResourceServerIntegrationTest extends McpIntegrationTestBase {
             "Bearer resource_metadata=\"http://localhost/.well-known/oauth-protected-resource/mcp\", "
                     + "scope=\"mcp:read\"";
 
+    /** The {@code tools/list} capture of the Spring Boot 3.5 build (Task 0), relative to the module directory. */
+    private static final Path TOOLS_LIST_BASELINE =
+            Path.of("..", "docs", "superpowers", "plans", "artifacts", "baseline-3.5", "85-mcp-tools-list.json");
+
+    private static final String SEARCH_CALL = """
+            {"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"search_items",
+            "arguments":{"query":"lamp","limit":5}}}""";
+
     @Autowired
     private JsonMapper objectMapper;
+    @Autowired
+    private MeterRegistry meterRegistry;
 
     private MvcResult mcp(String bearerToken, String body) throws Exception {
+        return mcp(bearerToken, body, request -> request);
+    }
+
+    private MvcResult mcp(String bearerToken, String body, UnaryOperator<MockHttpServletRequestBuilder> headers)
+            throws Exception {
         var request = post("/mcp").contentType(MediaType.APPLICATION_JSON).header("Accept", ACCEPT).content(body);
         if (bearerToken != null) {
             request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
         }
-        return mockMvc.perform(request).andReturn();
+        return mockMvc.perform(headers.apply(request)).andReturn();
+    }
+
+    private double toolCalls() {
+        return meterRegistry.find(McpToolMetrics.COUNTER).counters().stream().mapToDouble(Counter::count).sum();
     }
 
     private long countAuthorizations() {
@@ -69,6 +105,110 @@ class McpResourceServerIntegrationTest extends McpIntegrationTestBase {
         assertThat(tools).hasSize(4);
         assertThat(tools.findValuesAsString("name"))
                 .contains("search_items", "get_item_image", "search_boxes", "get_box_contents");
+    }
+
+    /**
+     * The tool surface is the one the Spring Boot 3.5 build exposed: the same four names, and for each the same
+     * input schema (property names, types, formats, descriptions, required), title, description and annotations.
+     */
+    @Test
+    void toolsListMatchesTheSpringBoot35Baseline() throws Exception {
+        User user = createUser(true, true);
+        saveAuthorization(createClient(user.getId()), user.getId(), "access-baseline");
+
+        MvcResult result = mcp("access-baseline", toolsListRequest());
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        Map<String, JsonNode> actual = byName(
+                objectMapper.readTree(result.getResponse().getContentAsString()).at("/result/tools"));
+        Map<String, JsonNode> baseline = byName(
+                objectMapper.readTree(Files.readString(TOOLS_LIST_BASELINE)).at("/response/body/result/tools"));
+        assertThat(baseline.keySet())
+                .containsExactlyInAnyOrder("get_box_contents", "get_item_image", "search_boxes", "search_items");
+        assertThat(actual.keySet()).containsExactlyInAnyOrderElementsOf(baseline.keySet());
+        baseline.forEach((name, expected) -> {
+            JsonNode tool = actual.get(name).deepCopy();
+            // The one difference to 3.5, and a cosmetic one: Spring AI 2 declares the JSON Schema dialect, which
+            // is the MCP default anyway. Everything else, properties and required included, is compared as is.
+            ObjectNode inputSchema = (ObjectNode) tool.get("inputSchema");
+            assertThat(inputSchema.remove("$schema").asString()).as(name + " $schema")
+                    .isEqualTo("https://json-schema.org/draft/2020-12/schema");
+            assertThat(inputSchema).as(name + " inputSchema").isEqualTo(expected.get("inputSchema"));
+            assertThat(tool).as(name).isEqualTo(expected);
+        });
+    }
+
+    private static Map<String, JsonNode> byName(JsonNode tools) {
+        Map<String, JsonNode> byName = new TreeMap<>();
+        tools.forEach(tool -> byName.put(tool.get("name").asString(), tool));
+        assertThat(byName).hasSize(tools.size());
+        return byName;
+    }
+
+    /** DNS rebinding: a page on a rebound name reaches the backend with its own {@code Host}. */
+    @Test
+    void aRequestForAForeignHostIsRejectedBeforeAnyToolRuns() throws Exception {
+        User user = createUser(true, true);
+        saveAuthorization(createClient(user.getId()), user.getId(), "access-foreign-host");
+        double callsBefore = toolCalls();
+
+        MvcResult result = mcp("access-foreign-host", SEARCH_CALL,
+                request -> request.header(HttpHeaders.HOST, "attacker.example"));
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(421);
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("items", "jsonrpc");
+        assertThat(toolCalls()).isEqualTo(callsBefore);
+    }
+
+    @Test
+    void aRequestFromAForeignOriginIsRejectedBeforeAnyToolRuns() throws Exception {
+        User user = createUser(true, true);
+        saveAuthorization(createClient(user.getId()), user.getId(), "access-foreign-origin");
+        double callsBefore = toolCalls();
+
+        MvcResult result = mcp("access-foreign-origin", SEARCH_CALL,
+                request -> request.header(HttpHeaders.ORIGIN, "http://attacker.example"));
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(403);
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("items", "jsonrpc");
+        assertThat(toolCalls()).isEqualTo(callsBefore);
+    }
+
+    @Test
+    void aRequestForTheConfiguredHostAndOriginReachesTheTool() throws Exception {
+        User user = createUser(true, true);
+        saveAuthorization(createClient(user.getId()), user.getId(), "access-own-host");
+        double callsBefore = toolCalls();
+
+        MvcResult result = mcp("access-own-host", SEARCH_CALL, request -> request
+                .header(HttpHeaders.HOST, BACKEND_HOST)
+                .header(HttpHeaders.ORIGIN, "http://" + BACKEND_HOST));
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        assertThat(objectMapper.readTree(result.getResponse().getContentAsString()).at("/result/isError")
+                .asBoolean()).isFalse();
+        assertThat(toolCalls()).isEqualTo(callsBefore + 1);
+    }
+
+    /**
+     * Pins the shape of the MCP resource-server chain, so that a filter Spring Security renames or adds in a
+     * later version fails here instead of silently changing the order the rate limits rely on.
+     */
+    @Test
+    void theResourceServerChainHasTheBearerFilterBetweenTheTwoRateLimitsAndNoFrameworkMetadataFilter() {
+        List<Class<?>> filters = applicationContext.getBean("mcpSecurityFilterChain", SecurityFilterChain.class)
+                .getFilters().stream().<Class<?>>map(Object::getClass).toList();
+
+        assertThat(filters).doesNotContain(OAuth2ProtectedResourceMetadataFilter.class);
+        int failedTokenLimit = filters.indexOf(McpFailedTokenRateLimitFilter.class);
+        int bearer = filters.indexOf(BearerTokenAuthenticationFilter.class);
+        int authorization = filters.indexOf(AuthorizationFilter.class);
+        int subjectLimit = filters.indexOf(McpSubjectRateLimitFilter.class);
+        assertThat(List.of(failedTokenLimit, bearer, authorization, subjectLimit)).doesNotContain(-1);
+        assertThat(bearer).isEqualTo(failedTokenLimit + 1);
+        assertThat(subjectLimit).isEqualTo(authorization + 1);
+        assertThat(filters).containsOnlyOnce(McpFailedTokenRateLimitFilter.class, McpSubjectRateLimitFilter.class,
+                BearerTokenAuthenticationFilter.class);
     }
 
     @Test
