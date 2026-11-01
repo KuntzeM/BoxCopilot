@@ -21,6 +21,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.MockMvcBuilderCustomizer;
+import org.springframework.http.HttpHeaders;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -45,6 +47,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -62,8 +65,25 @@ import java.util.UUID;
 @AutoConfigureMockMvc
 @ActiveProfiles({"dev", "mcp-test"})
 @ContextConfiguration(initializers = PostgresContainerSupport.class)
-@Import(McpIntegrationTestBase.NoRemoteIdentityProvider.class)
+@Import({McpIntegrationTestBase.NoRemoteIdentityProvider.class, McpIntegrationTestBase.HostHeader.class})
 public abstract class McpIntegrationTestBase {
+
+    /** The {@code Host} of {@code app.mcp.backend-url} in {@code application-mcp-test.yml}. */
+    protected static final String BACKEND_HOST = "localhost";
+
+    /**
+     * Every real HTTP/1.1 request carries a {@code Host}; MockMvc sends none unless told, and the MCP transport's
+     * DNS-rebinding check rejects a request without one. So every request names the configured backend host, the
+     * way a client of the public URL does; a test that sets its own {@code Host} overrides it.
+     */
+    @TestConfiguration(proxyBeanMethods = false)
+    static class HostHeader {
+
+        @Bean
+        MockMvcBuilderCustomizer backendHostHeader() {
+            return builder -> builder.defaultRequest(get("/").header(HttpHeaders.HOST, BACKEND_HOST));
+        }
+    }
 
     protected static final String ACCEPT = "application/json, text/event-stream";
 

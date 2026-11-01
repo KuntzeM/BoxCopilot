@@ -6,6 +6,7 @@ import com.boxcopilot.backend.mcp.abuse.McpFailedTokenRateLimitFilter;
 import com.boxcopilot.backend.mcp.abuse.McpRateLimitAudit;
 import com.boxcopilot.backend.mcp.abuse.McpRateLimits;
 import com.boxcopilot.backend.mcp.abuse.McpSubjectRateLimitFilter;
+import jakarta.servlet.Filter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,7 +16,6 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.RequestCacheConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import jakarta.servlet.Filter;
 import org.springframework.security.oauth2.server.resource.web.OAuth2ProtectedResourceMetadataFilter;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.DefaultSecurityFilterChain;

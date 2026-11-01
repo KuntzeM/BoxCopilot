@@ -42,7 +42,8 @@ deletes the client and forces a fresh `mcp-client` provisioning call next time t
 ## Kill-switch
 
 `APP_MCP_ENABLED=false` (the default) turns the entire feature off at startup: no MCP Spring beans are created,
-`spring.ai.mcp.server.enabled` follows the same flag, and `/mcp`, `/oauth2/authorize`, `/oauth2/token` give no 2xx
+`spring.ai.mcp.server.enabled` follows the same flag (and is forced off even when set directly, e.g. by a
+profile or `SPRING_AI_MCP_SERVER_ENABLED`; see `McpStarterSwitch`), and `/mcp`, `/oauth2/authorize`, `/oauth2/token` give no 2xx
 response and no data — anonymous callers get redirected to the frontend (the existing app chain's entry point),
 authenticated callers get 404 because no handler is registered for those paths. Existing rows in
 `oauth2_registered_client` / `oauth2_authorization` are **not** deleted by flipping the flag; they simply become
@@ -178,6 +179,8 @@ repo's `docker-compose.yml` unless noted.
   restriction (see `docker-compose.yml`, `box-backend`/`box-backend-secure` routers), so `/mcp`, `/oauth2/**` and
   `/.well-known/**` are already reachable on the backend host once MCP is enabled — no additional Traefik router
   or path rule is required for this feature.
+- Traefik must keep passing the client's `Host` through (its default, `passHostHeader: true`): `/mcp` only
+  accepts the host of `BACKEND_URL`, and a rewritten `Host` is answered with 421.
 - The frontend's nginx config only proxies `/api/`. It must **not** be extended to proxy `/mcp` or `/oauth2` —
   that routing intentionally stays backend-only (spec §5); do not "fix" this if it looks inconsistent.
 - Traefik needs `forwardedHeaders.trustedIPs` (or the equivalent for the Traefik major version in use) configured
@@ -204,7 +207,7 @@ documented there or has just been added there as part of this story.
 | Variable | Default | Required when | Purpose | In `.env.example` |
 |---|---|---|---|---|
 | `APP_MCP_ENABLED` | `false` | — | Master kill-switch for the whole MCP feature (`app.mcp.enabled`). | Y |
-| `BACKEND_URL` | *(none)* | `APP_MCP_ENABLED=true` | Fixed OAuth issuer / resource identifier (`app.mcp.backend-url`). Startup fails without it (and without `https` in prod) when MCP is on. Never derived from the request or `X-Forwarded-*`. | Y |
+| `BACKEND_URL` | *(none)* | `APP_MCP_ENABLED=true` | Fixed OAuth issuer / resource identifier (`app.mcp.backend-url`). Startup fails without it (and without `https` in prod) when MCP is on. Never derived from the request or `X-Forwarded-*`. Also the DNS-rebinding allow-list of `/mcp`: the `Host` header must equal its host (with port, if it names one) or the call gets 421, and an `Origin`, if sent, must equal its origin or the call gets 403. | Y |
 | `VITE_API_BASE_URL` | *(none, required)* | always | Base URL the SPA calls the backend on, baked into the frontend bundle at **build** time. **Must name the same origin as `BACKEND_URL`.** The backend sets the `mcp_authz` pending-authorization cookie and the OAuth issuer on `BACKEND_URL`, while the SPA builds the MCP "continue" URL and the connector URL shown in the "Claude-Verbindung" dialog from this value; if the two origins differ, the cookie is set on one origin and the continue-redirect points at the other, and the connect flow silently loops with no error. Nothing checks this at runtime — a Vite build-time variable and a Spring property cannot be cross-validated — so it is an operator invariant, kept visibly aligned in `.env.example`. Changing it requires a frontend rebuild. | Y |
 | `APP_MCP_CLEANUP_CRON` | `0 0 3 * * *` | optional | Cron schedule for the nightly authorization cleanup job. | Y |
 | `APP_MCP_COOKIE_SAME_SITE` | *(blank — follows the session cookie)* | optional | `SameSite` attribute of the short-lived `mcp_authz` pending-authorization cookie (`app.mcp.cookie-same-site`). Blank means it follows `server.servlet.session.cookie.same-site` (`none` in `application-prod.yml`), because the cookie has to travel on exactly the requests the session cookie travels on. Set it to `Lax` where frontend and backend share a site. | Y |

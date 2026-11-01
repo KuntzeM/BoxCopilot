@@ -232,8 +232,8 @@ public class BoxPilotMcpTools {
     private CallToolResult imageResult(McpItemImage image) {
         String encoded = Base64.getEncoder().encodeToString(image.content());
         return CallToolResult.builder()
-                .addContent(new TextContent(toJson(Map.of("name", image.name(), "boxNumber", image.boxNumber()))))
-                .addContent(new ImageContent(null, encoded, JPEG))
+                .addContent(TextContent.builder(toJson(Map.of("name", image.name(), "boxNumber", image.boxNumber()))).build())
+                .addContent(ImageContent.builder(encoded, JPEG).build())
                 .isError(false)
                 .build();
     }

@@ -58,6 +58,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 @ActiveProfiles("mcp-test")
 class McpProtocolTest {
 
+    /**
+     * The starter's auto-configurations for the STATELESS protocol. The SSE one (deprecated for removal in
+     * Spring AI 2, and inactive under STATELESS) is left out; McpFlagOffTest and the McpIntegrationTestBase tests
+     * load the starter's complete list.
+     */
     @Configuration(proxyBeanMethods = false)
     @EnableWebSecurity
     @ImportAutoConfiguration({
@@ -75,8 +80,7 @@ class McpProtocolTest {
             org.springframework.ai.mcp.server.common.autoconfigure.annotations.McpServerSpecificationFactoryAutoConfiguration.class,
             org.springframework.ai.mcp.server.common.autoconfigure.annotations.StatelessServerSpecificationFactoryAutoConfiguration.class,
             org.springframework.ai.mcp.server.webmvc.autoconfigure.McpServerStatelessWebMvcAutoConfiguration.class,
-            org.springframework.ai.mcp.server.webmvc.autoconfigure.McpServerStreamableHttpWebMvcAutoConfiguration.class,
-            org.springframework.ai.mcp.server.webmvc.autoconfigure.McpServerSseWebMvcAutoConfiguration.class})
+            org.springframework.ai.mcp.server.webmvc.autoconfigure.McpServerStreamableHttpWebMvcAutoConfiguration.class})
     @Import({McpConfiguration.class, McpTransportConfiguration.class, McpStartupGuard.class,
             McpRateLimits.class, McpRateLimitAudit.class, McpAuditLogger.class, McpToolMetrics.class,
             BoxPilotMcpTools.class})
@@ -118,6 +122,7 @@ class McpProtocolTest {
     private MvcResult rpc(org.springframework.security.core.Authentication authentication, String body)
             throws Exception {
         var request = post("/mcp")
+                .header("Host", "boxpilot.example.com")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Accept", ACCEPT)
                 .content(body);

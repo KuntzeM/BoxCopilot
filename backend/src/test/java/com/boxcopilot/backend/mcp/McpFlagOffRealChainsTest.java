@@ -1,5 +1,7 @@
 package com.boxcopilot.backend.mcp;
 
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
+import org.springframework.ai.mcp.server.webmvc.transport.WebMvcStatelessServerTransport;
 import com.boxcopilot.backend.domain.AuthProvider;
 import com.boxcopilot.backend.domain.Role;
 import com.boxcopilot.backend.domain.User;
@@ -50,10 +52,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 /**
  * The same real chains the MCP tests use, but with the flag off: no MCP bean, no authorization-server bean, and
- * neither {@code /mcp} nor the metadata endpoint answers anything - anonymous or with a valid session.
+ * neither {@code /mcp} nor the metadata endpoint answers anything - anonymous or with a valid session. The
+ * starter's own switch is set as a developer profile may set it, to prove that {@code app.mcp.enabled} wins.
  */
 @Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(properties = "app.mcp.enabled=false")
+@SpringBootTest(properties = {"app.mcp.enabled=false", "spring.ai.mcp.server.enabled=true"})
 @AutoConfigureMockMvc
 @ActiveProfiles({"dev", "mcp-test"})
 @ContextConfiguration(initializers = PostgresContainerSupport.class)
@@ -93,6 +96,8 @@ class McpFlagOffRealChainsTest {
         assertThat(context.getBeansOfType(AuthorizationServerSettings.class)).isEmpty();
         assertThat(context.getBeansOfType(JWKSource.class)).isEmpty();
         assertThat(context.containsBean("webMvcStatelessServerRouterFunction")).isFalse();
+        assertThat(context.getBeanNamesForType(McpStatelessSyncServer.class)).isEmpty();
+        assertThat(context.getBeanNamesForType(WebMvcStatelessServerTransport.class)).isEmpty();
         assertThat(context.getBeansOfType(OAuth2AuthorizationConsentService.class)).isEmpty();
         assertThat(context.getBeansOfType(McpSessionUserResolver.class)).isEmpty();
         assertThat(context.getBeansOfType(McpPendingCookies.class)).isEmpty();

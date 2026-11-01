@@ -156,7 +156,7 @@ public class McpAuthorizationService implements OAuth2AuthorizationService, McpA
             if (startedAt == null || startedAt.isNull()) {
                 return null;
             }
-            if (!startedAt.isTextual() && !startedAt.isNumber()) {
+            if (!startedAt.isString() && !startedAt.isNumber()) {
                 log.warn("MCP cleanup cannot read {}: unexpected JSON node type {}",
                         McpOAuth2Attributes.STARTED_AT, startedAt.getNodeType());
                 return null;

@@ -5,25 +5,22 @@ import com.boxcopilot.backend.mcp.abuse.McpRateLimits;
 import com.boxcopilot.backend.mcp.observability.McpAuditLogger;
 import com.boxcopilot.backend.mcp.observability.McpToolMetrics;
 import io.modelcontextprotocol.server.McpStatelessSyncServer;
+import io.modelcontextprotocol.server.transport.DefaultServerTransportSecurityValidator;
 import org.springframework.ai.mcp.server.webmvc.transport.WebMvcStatelessServerTransport;
 import org.junit.jupiter.api.Test;
-import org.springframework.ai.mcp.server.webmvc.autoconfigure.McpServerSseWebMvcAutoConfiguration;
-import org.springframework.ai.mcp.server.webmvc.autoconfigure.McpServerStatelessWebMvcAutoConfiguration;
-import org.springframework.ai.mcp.server.webmvc.autoconfigure.McpServerStreamableHttpWebMvcAutoConfiguration;
-import org.springframework.ai.mcp.server.common.autoconfigure.McpServerAutoConfiguration;
-import org.springframework.ai.mcp.server.common.autoconfigure.McpServerJsonMapperAutoConfiguration;
-import org.springframework.ai.mcp.server.common.autoconfigure.McpServerStatelessAutoConfiguration;
-import org.springframework.ai.mcp.server.common.autoconfigure.StatelessToolCallbackConverterAutoConfiguration;
-import org.springframework.ai.mcp.server.common.autoconfigure.ToolCallbackConverterAutoConfiguration;
-import org.springframework.ai.mcp.server.common.autoconfigure.annotations.McpServerAnnotationScannerAutoConfiguration;
-import org.springframework.ai.mcp.server.common.autoconfigure.annotations.McpServerSpecificationFactoryAutoConfiguration;
-import org.springframework.ai.mcp.server.common.autoconfigure.annotations.StatelessServerSpecificationFactoryAutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.context.annotation.ImportCandidates;
 import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.util.ClassUtils;
 import org.springframework.web.servlet.function.RouterFunction;
+
+import java.util.List;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -34,22 +31,26 @@ import static org.mockito.Mockito.mock;
  */
 class McpFlagOffTest {
 
+    private static final String MCP_SERVER_PACKAGE = "org.springframework.ai.mcp.server.";
+
+    /**
+     * Every MCP server auto-configuration the starter registers, read from its {@code AutoConfiguration.imports}
+     * rather than listed here: that includes the SSE one Spring AI 2 deprecated for removal (it still ships and
+     * still has to stay off) and whatever a later version adds.
+     */
+    static final List<String> STARTER_AUTO_CONFIGURATIONS =
+            ImportCandidates.load(AutoConfiguration.class, McpFlagOffTest.class.getClassLoader()).getCandidates()
+                    .stream().filter(name -> name.startsWith(MCP_SERVER_PACKAGE)).toList();
+
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withInitializer(new ConfigDataApplicationContextInitializer())
+            // Registered in META-INF/spring.factories; a context runner does not run environment post-processors
+            .withInitializer(context -> new McpStarterSwitch().postProcessEnvironment(context.getEnvironment(), null))
             .withPropertyValues("spring.profiles.active=mcp-test")
-            .withConfiguration(AutoConfigurations.of(
-                    JacksonAutoConfiguration.class,
-                    McpServerJsonMapperAutoConfiguration.class,
-                    McpServerAutoConfiguration.class,
-                    McpServerStatelessAutoConfiguration.class,
-                    ToolCallbackConverterAutoConfiguration.class,
-                    StatelessToolCallbackConverterAutoConfiguration.class,
-                    McpServerAnnotationScannerAutoConfiguration.class,
-                    McpServerSpecificationFactoryAutoConfiguration.class,
-                    StatelessServerSpecificationFactoryAutoConfiguration.class,
-                    McpServerStatelessWebMvcAutoConfiguration.class,
-                    McpServerStreamableHttpWebMvcAutoConfiguration.class,
-                    McpServerSseWebMvcAutoConfiguration.class))
+            .withConfiguration(AutoConfigurations.of(Stream.concat(
+                    Stream.of(JacksonAutoConfiguration.class),
+                    STARTER_AUTO_CONFIGURATIONS.stream().map(name -> ClassUtils.resolveClassName(name, null)))
+                    .toArray(Class<?>[]::new)))
             .withBean(McpReadService.class, () -> mock(McpReadService.class))
             .withBean(McpUserGate.class, () -> mock(McpUserGate.class))
             .withUserConfiguration(McpConfiguration.class, McpTransportConfiguration.class, McpStartupGuard.class,
@@ -62,6 +63,32 @@ class McpFlagOffTest {
             assertThat(context).hasNotFailed();
             assertNoMcpBeans(context);
         });
+    }
+
+    @Test
+    void theStarterAutoConfigurationsAreTheOnesThisTestExpects() {
+        assertThat(STARTER_AUTO_CONFIGURATIONS).contains(
+                MCP_SERVER_PACKAGE + "common.autoconfigure.McpServerAutoConfiguration",
+                MCP_SERVER_PACKAGE + "common.autoconfigure.McpServerStatelessAutoConfiguration",
+                MCP_SERVER_PACKAGE + "webmvc.autoconfigure.McpServerStatelessWebMvcAutoConfiguration",
+                MCP_SERVER_PACKAGE + "webmvc.autoconfigure.McpServerStreamableHttpWebMvcAutoConfiguration",
+                MCP_SERVER_PACKAGE + "webmvc.autoconfigure.McpServerSseWebMvcAutoConfiguration");
+    }
+
+    /**
+     * The kill switch is {@code app.mcp.enabled}; it has to win even when the starter's own switch is set
+     * directly (as a developer profile or an old {@code SPRING_AI_MCP_SERVER_ENABLED} may do).
+     */
+    @Test
+    void disabledFlagWinsOverTheStarterSwitch() {
+        runner.withPropertyValues(
+                        "app.mcp.enabled=false",
+                        "spring.ai.mcp.server.enabled=true",
+                        "app.mcp.backend-url=https://boxpilot.example.com")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertNoMcpBeans(context);
+                });
     }
 
     @Test
@@ -97,6 +124,12 @@ class McpFlagOffTest {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(McpStatelessSyncServer.class);
                     assertThat(context).hasSingleBean(WebMvcStatelessServerTransport.class);
+                    // Ours, not the starter's (which backs off): it carries our extractor and the host check
+                    WebMvcStatelessServerTransport transport = context.getBean(WebMvcStatelessServerTransport.class);
+                    assertThat(ReflectionTestUtils.getField(transport, "contextExtractor"))
+                            .isInstanceOf(McpTransportContextExtractor.class);
+                    assertThat(ReflectionTestUtils.getField(transport, "securityValidator"))
+                            .isInstanceOf(DefaultServerTransportSecurityValidator.class);
                     assertThat(context).hasBean("webMvcStatelessServerRouterFunction");
                     assertThat(context).hasSingleBean(BoxPilotMcpTools.class);
                     assertThat(context).hasSingleBean(McpProperties.class);
