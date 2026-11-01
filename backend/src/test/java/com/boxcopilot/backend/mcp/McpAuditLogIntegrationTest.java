@@ -157,6 +157,23 @@ class McpAuditLogIntegrationTest extends McpIntegrationTestBase {
         assertThat(counted(BoxPilotMcpTools.GET_ITEM_IMAGE, McpToolResult.RATE_LIMITED)).isPositive();
     }
 
+    /**
+     * Arguments that miss a required parameter still reach the tool, so the call is audited and answered with
+     * the tool's own generic message - not with the SDK's schema-validator text, which bypasses audit and
+     * metrics and is rendered in the JVM's default locale.
+     */
+    @Test
+    void aCallWithInvalidArgumentsIsAuditedAndAnsweredWithTheGenericMessage() throws Exception {
+        User user = createUser(true, true);
+        saveAuthorization(createClient(user.getId()), user.getId(), "audit-invalid");
+
+        MvcResult result = call("audit-invalid", toolCall(BoxPilotMcpTools.SEARCH_ITEMS, "{}"));
+
+        assertThat(result.getResponse().getContentAsString()).contains(BoxPilotMcpTools.INVALID_INPUT_ERROR);
+        assertThat(auditLines()).singleElement().asString().contains("result=error");
+        assertThat(counted(BoxPilotMcpTools.SEARCH_ITEMS, McpToolResult.ERROR)).isPositive();
+    }
+
     /** The three things that must never reach a log file, at any level, on any logger. */
     @Test
     void neitherTheTokenNorTheAuthorizationHeaderNorTheClientIdIsEverLogged() throws Exception {

@@ -2,6 +2,7 @@ package com.boxcopilot.backend.mcp;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.springframework.ai.mcp.customizer.McpStatelessSyncServerCustomizer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -33,6 +34,16 @@ class McpConfiguration {
     @ConditionalOnMissingBean(Clock.class)
     Clock clock() {
         return Clock.systemUTC();
+    }
+
+    /**
+     * MCP SDK 2 validates tool arguments against the input schema before the tool runs and answers a miss with
+     * its own validator text (in the JVM's default locale), so such a call would never be audited or counted.
+     * The tools validate their input themselves; switching the SDK check off keeps every call on that one path.
+     */
+    @Bean
+    McpStatelessSyncServerCustomizer toolsValidateTheirOwnInput() {
+        return spec -> spec.validateToolInputs(false);
     }
 
     /**
