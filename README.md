@@ -177,13 +177,16 @@ TRAEFIK_BACKEND_HOST=boxes-api.example.com
 docker-compose up -d
 ```
 
-**Upgrading to the Spring Boot 4 image:** the backend container now runs as the non-root user `boxpilot`
-(uid/gid 10001). The bind-mounted host directories must be writable by it, otherwise logging and image uploads fail:
-```bash
-sudo chown -R 10001:10001 logs images
-```
-(Docker Desktop on Windows/macOS needs no change.) The backend also has a TCP healthcheck (`start_period` 60s) and
-the frontend waits for it to be healthy.
+**Upgrading to the Spring Boot 4 image:**
+- The backend has a TCP healthcheck (`start_period` 120s) and the frontend waits for it to be healthy.
+- Postgres is now pinned to `postgres:15.19` (Debian 13 / trixie); the previous `postgres:15` was already a moving
+  tag. Before upgrading run `docker exec boxcopilot-postgres cat /etc/os-release`. If the running image is Debian 12
+  (bookworm), either pin `postgres:15.19-bookworm` or `REINDEX` your text indexes after the swap (glibc collation
+  changes).
+- *Optional hardening:* the image ships a non-root user (uid/gid 10001) but runs as root by default so existing
+  root-owned `./logs` and `./images` keep working. To run non-root, before `docker compose up`:
+  `mkdir -p logs images && sudo chown -R 10001:10001 logs images`, then uncomment `user: "10001:10001"` on the
+  `backend` service in `docker-compose.yml`. (Docker Desktop on Windows/macOS has lax bind-mount permissions.)
 
 ### Nextcloud OIDC Setup
 

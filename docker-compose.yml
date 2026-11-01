@@ -38,6 +38,10 @@ services:
     build: backend
     container_name: boxcopilot-backend
     working_dir: /app
+    # Optional hardening: run as the non-root user the image prepares (uid 10001). Needs
+    #   mkdir -p logs images && sudo chown -R 10001:10001 logs images
+    # BEFORE `docker compose up`; see README. Left off by default so existing root-owned bind mounts keep working.
+    # user: "10001:10001"
     env_file: .env
     volumes:
       - ./logs:/app/logs
@@ -81,8 +85,8 @@ services:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
       interval: 15s
       timeout: 5s
-      retries: 5
-      start_period: 60s
+      retries: 10
+      start_period: 120s
     depends_on:
       postgres:
         condition: service_healthy
