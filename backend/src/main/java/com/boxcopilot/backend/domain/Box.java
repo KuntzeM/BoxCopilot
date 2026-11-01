@@ -24,9 +24,9 @@ public class Box {
     @Column
     private String targetRoom;
 
-    // The column is TEXT (V1). On Postgres Hibernate keeps the object id of a large object in it, which production
-    // rows written by Hibernate 6 already do; columnDefinition tells schema validation the real column type
-    // instead of the oid that Hibernate 7 would otherwise expect for a @Lob.
+    // Schema validation expects `oid` for a @Lob String, but the V1 column is `text` and production rows hold the
+    // object ids of large objects as text. columnDefinition tells validation the real column type. This is not a
+    // Hibernate 7 behaviour change.
     @Lob
     @Column(columnDefinition = "text")
     private String description;

@@ -14,6 +14,9 @@ import org.springframework.session.web.http.CookieSerializer;
 import org.springframework.session.data.redis.RedisSessionRepository;
 import org.springframework.session.jdbc.JdbcIndexedSessionRepository;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -66,6 +69,16 @@ class ProdSessionStoreTest {
         assertThat(context.getBeansOfType(SessionRepository.class).values())
                 .hasSize(1).first().isInstanceOf(RedisSessionRepository.class);
         assertThat(context.getBeansOfType(JdbcIndexedSessionRepository.class)).isEmpty();
+    }
+
+    /**
+     * Documents pre-existing behaviour: sessions expire 30 minutes after their last access (the Spring Session
+     * default); {@code spring.session.timeout} in application-prod.yml has no effect with {@code @EnableRedisHttpSession}.
+     */
+    @Test
+    void prodSessionsExpireAfterThirtyMinutesOfInactivity() {
+        assertThat(ReflectionTestUtils.getField(context.getBean(RedisSessionRepository.class),
+                "defaultMaxInactiveInterval")).isEqualTo(Duration.ofMinutes(30));
     }
 
     /** The SPA is cross-site behind the proxy: the session cookie Spring Session writes must stay None + Secure. */
