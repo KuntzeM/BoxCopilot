@@ -113,17 +113,17 @@ class McpEndToEndFlowTest extends McpIntegrationTestBase {
 
         // 6 - the token exchange, with the PKCE verifier
         JsonNode tokens = redeem(code, clientId);
-        String accessToken = tokens.get("access_token").asText();
-        String refreshToken = tokens.get("refresh_token").asText();
-        assertThat(tokens.get("token_type").asText()).isEqualTo("Bearer");
-        assertThat(tokens.get("scope").asText()).isEqualTo(McpOAuth2Attributes.SCOPE_READ);
+        String accessToken = tokens.get("access_token").asString();
+        String refreshToken = tokens.get("refresh_token").asString();
+        assertThat(tokens.get("token_type").asString()).isEqualTo("Bearer");
+        assertThat(tokens.get("scope").asString()).isEqualTo(McpOAuth2Attributes.SCOPE_READ);
         assertThat(accessToken).as("an opaque reference token, not a JWT").doesNotContain(".");
 
         // 7 - the MCP handshake
         JsonNode initialize = rpc(accessToken, """
                 {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18",
                 "capabilities":{},"clientInfo":{"name":"s12-end-to-end","version":"1.0"}}}""");
-        assertThat(initialize.at("/result/serverInfo/name").asText()).isNotBlank();
+        assertThat(initialize.at("/result/serverInfo/name").asString()).isNotBlank();
         assertThat(initialize.at("/result/capabilities/tools").isMissingNode()).isFalse();
 
         // 8 - the catalogue: four read-only tools
@@ -132,7 +132,7 @@ class McpEndToEndFlowTest extends McpIntegrationTestBase {
         assertThat(tools.findValuesAsString("name"))
                 .containsExactlyInAnyOrder("search_items", "get_item_image", "search_boxes", "get_box_contents");
         tools.forEach(tool -> assertThat(tool.at("/annotations/readOnlyHint").asBoolean())
-                .as("%s is announced as read-only", tool.get("name").asText()).isTrue());
+                .as("%s is announced as read-only", tool.get("name").asString()).isTrue());
 
         // 9 - every tool, against the seeded inventory
         JsonNode items = toolPayload(accessToken, "search_items", Map.of("query", MARKER, "limit", 10));
@@ -154,12 +154,12 @@ class McpEndToEndFlowTest extends McpIntegrationTestBase {
         JsonNode imageCall = toolCall(accessToken, "get_item_image",
                 Map.of("itemId", lamp.getId(), "size", "thumbnail"));
         assertThat(imageCall.at("/result/isError").asBoolean()).isFalse();
-        assertThat(objectMapper.readTree(imageCall.at("/result/content/0/text").asText()).at("/name").asText())
+        assertThat(objectMapper.readTree(imageCall.at("/result/content/0/text").asString()).at("/name").asString())
                 .isEqualTo(lamp.getName());
         JsonNode image = imageCall.at("/result/content/1");
-        assertThat(image.at("/type").asText()).isEqualTo("image");
-        assertThat(image.at("/mimeType").asText()).isEqualTo("image/jpeg");
-        assertThat(Base64.getDecoder().decode(image.at("/data").asText()))
+        assertThat(image.at("/type").asString()).isEqualTo("image");
+        assertThat(image.at("/mimeType").asString()).isEqualTo("image/jpeg");
+        assertThat(Base64.getDecoder().decode(image.at("/data").asString()))
                 .as("real JPEG bytes").startsWith((byte) 0xFF, (byte) 0xD8);
 
         // 10 - the refresh rotates both tokens, and the new access token keeps working
@@ -167,8 +167,8 @@ class McpEndToEndFlowTest extends McpIntegrationTestBase {
                 OAuth2ParameterNames.GRANT_TYPE, "refresh_token",
                 OAuth2ParameterNames.REFRESH_TOKEN, refreshToken,
                 OAuth2ParameterNames.CLIENT_ID, clientId)).getResponse().getContentAsString());
-        String rotatedAccessToken = refreshed.get("access_token").asText();
-        String rotatedRefreshToken = refreshed.get("refresh_token").asText();
+        String rotatedAccessToken = refreshed.get("access_token").asString();
+        String rotatedRefreshToken = refreshed.get("refresh_token").asString();
         assertThat(rotatedAccessToken).isNotEqualTo(accessToken);
         assertThat(rotatedRefreshToken).isNotEqualTo(refreshToken);
         assertThat(rpc(rotatedAccessToken, toolsListRequest()).at("/result/tools")).hasSize(4);
@@ -232,7 +232,7 @@ class McpEndToEndFlowTest extends McpIntegrationTestBase {
     private String provisionClient(MockHttpSession session) throws Exception {
         MvcResult result = mockMvc.perform(post(CLIENT_ENDPOINT).session(session).with(csrf())).andReturn();
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
-        return objectMapper.readTree(result.getResponse().getContentAsString()).get("clientId").asText();
+        return objectMapper.readTree(result.getResponse().getContentAsString()).get("clientId").asString();
     }
 
     /** Authorize, consent page and consent POST exactly as a browser walks them; returns the code. */
@@ -306,7 +306,7 @@ class McpEndToEndFlowTest extends McpIntegrationTestBase {
     private JsonNode toolPayload(String accessToken, String tool, Map<String, Object> arguments) throws Exception {
         JsonNode response = toolCall(accessToken, tool, arguments);
         assertThat(response.at("/result/isError").asBoolean()).as("%s failed: %s", tool, response).isFalse();
-        return objectMapper.readTree(response.at("/result/content/0/text").asText());
+        return objectMapper.readTree(response.at("/result/content/0/text").asString());
     }
 
     // ---------------------------------------------------------------- plumbing

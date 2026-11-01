@@ -17,8 +17,9 @@ spring:
     # inside its service transaction, so nothing depends on the open view.
     open-in-view: false
   jackson:
-    serialization:
-      write-dates-as-timestamps: false
+    datatype:
+      datetime:
+        write-dates-as-timestamps: false
   session:
     store-type: none
   ai:

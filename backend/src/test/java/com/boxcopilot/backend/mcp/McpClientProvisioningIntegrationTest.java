@@ -335,7 +335,7 @@ class McpClientProvisioningIntegrationTest extends McpIntegrationTestBase {
                 .as("response: %s", result.getResponse().getContentAsString()).isEqualTo(200);
         JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
         assertThat(body.propertyNames()).containsExactly("clientId");
-        return body.get("clientId").asText();
+        return body.get("clientId").asString();
     }
 
     /** Built as a query string, exactly as Claude would open it in the browser. */

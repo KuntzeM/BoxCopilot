@@ -103,7 +103,7 @@ class McpResourceServerIntegrationTest extends McpIntegrationTestBase {
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
         JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
         assertThat(response.at("/result/isError").asBoolean()).isFalse();
-        JsonNode content = objectMapper.readTree(response.at("/result/content/0/text").asText());
+        JsonNode content = objectMapper.readTree(response.at("/result/content/0/text").asString());
         assertThat(content.has("items")).isTrue();
     }
 
@@ -256,11 +256,11 @@ class McpResourceServerIntegrationTest extends McpIntegrationTestBase {
 
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
         JsonNode metadata = objectMapper.readTree(result.getResponse().getContentAsString());
-        assertThat(metadata.get("resource").asText()).isEqualTo("http://localhost/mcp");
+        assertThat(metadata.get("resource").asString()).isEqualTo("http://localhost/mcp");
         assertThat(metadata.get("authorization_servers")).hasSize(1);
-        assertThat(metadata.get("authorization_servers").get(0).asText()).isEqualTo("http://localhost");
-        assertThat(metadata.get("scopes_supported").get(0).asText()).isEqualTo("mcp:read");
-        assertThat(metadata.get("bearer_methods_supported").get(0).asText()).isEqualTo("header");
+        assertThat(metadata.get("authorization_servers").get(0).asString()).isEqualTo("http://localhost");
+        assertThat(metadata.get("scopes_supported").get(0).asString()).isEqualTo("mcp:read");
+        assertThat(metadata.get("bearer_methods_supported").get(0).asString()).isEqualTo("header");
     }
 
     @Test

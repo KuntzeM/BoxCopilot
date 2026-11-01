@@ -161,7 +161,7 @@ public class McpAuthorizationService implements OAuth2AuthorizationService, McpA
                         McpOAuth2Attributes.STARTED_AT, startedAt.getNodeType());
                 return null;
             }
-            return Instant.ofEpochSecond(Long.parseLong(startedAt.asText()));
+            return Instant.ofEpochSecond(Long.parseLong(startedAt.asString()));
         } catch (JacksonException | NumberFormatException | ArithmeticException e) {
             log.warn("MCP cleanup cannot read {}: {}", McpOAuth2Attributes.STARTED_AT,
                     e.getClass().getSimpleName());

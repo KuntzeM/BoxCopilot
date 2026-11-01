@@ -61,11 +61,11 @@ class McpAuthorizationServerIntegrationTest extends McpIntegrationTestBase {
         String code = authorizeWithConsent(client, session);
         JsonNode tokens = redeem(code, client);
 
-        assertThat(tokens.get("token_type").asText()).isEqualTo("Bearer");
-        assertThat(tokens.get("scope").asText()).isEqualTo(McpOAuth2Attributes.SCOPE_READ);
+        assertThat(tokens.get("token_type").asString()).isEqualTo("Bearer");
+        assertThat(tokens.get("scope").asString()).isEqualTo(McpOAuth2Attributes.SCOPE_READ);
         assertThat(tokens.get("expires_in").asLong()).isLessThanOrEqualTo(Duration.ofMinutes(30).toSeconds());
-        String accessToken = tokens.get("access_token").asText();
-        String refreshToken = tokens.get("refresh_token").asText();
+        String accessToken = tokens.get("access_token").asString();
+        String refreshToken = tokens.get("refresh_token").asString();
         // An opaque reference token, not a JWT
         assertThat(accessToken).doesNotContain(".");
 
@@ -81,8 +81,8 @@ class McpAuthorizationServerIntegrationTest extends McpIntegrationTestBase {
                 OAuth2ParameterNames.GRANT_TYPE, "refresh_token",
                 OAuth2ParameterNames.REFRESH_TOKEN, refreshToken,
                 OAuth2ParameterNames.CLIENT_ID, client.getClientId())).getResponse().getContentAsString());
-        assertThat(refreshed.get("access_token").asText()).isNotEqualTo(accessToken);
-        assertThat(refreshed.get("refresh_token").asText()).isNotEqualTo(refreshToken);
+        assertThat(refreshed.get("access_token").asString()).isNotEqualTo(accessToken);
+        assertThat(refreshed.get("refresh_token").asString()).isNotEqualTo(refreshToken);
     }
 
     @Test
@@ -499,7 +499,7 @@ class McpAuthorizationServerIntegrationTest extends McpIntegrationTestBase {
         user.setLockedUntil(LocalDateTime.now().plusHours(1));
         userRepository.save(user);
 
-        MvcResult result = refresh(tokens.get("refresh_token").asText(), client.getClientId());
+        MvcResult result = refresh(tokens.get("refresh_token").asString(), client.getClientId());
 
         assertThat(result.getResponse().getStatus()).isEqualTo(400);
         assertThat(result.getResponse().getContentAsString()).contains("invalid_grant");
@@ -514,13 +514,13 @@ class McpAuthorizationServerIntegrationTest extends McpIntegrationTestBase {
         JsonNode tokens = redeem(authorizeWithConsent(client, sessionFor(user)), client);
         String startedAt = startedAt();
 
-        String refreshToken = tokens.get("refresh_token").asText();
+        String refreshToken = tokens.get("refresh_token").asString();
         JsonNode refreshed = objectMapper.readTree(
                 refresh(refreshToken, client.getClientId()).getResponse().getContentAsString());
 
         assertThat(startedAt()).isEqualTo(startedAt);
         assertThat(refresh(refreshToken, client.getClientId()).getResponse().getStatus()).isEqualTo(400);
-        assertThat(refresh(refreshed.get("refresh_token").asText(), client.getClientId()).getResponse().getStatus())
+        assertThat(refresh(refreshed.get("refresh_token").asString(), client.getClientId()).getResponse().getStatus())
                 .isEqualTo(200);
     }
 
@@ -532,7 +532,7 @@ class McpAuthorizationServerIntegrationTest extends McpIntegrationTestBase {
 
         ageTheConnectionBeyondTheLimit();
 
-        MvcResult result = refresh(tokens.get("refresh_token").asText(), client.getClientId());
+        MvcResult result = refresh(tokens.get("refresh_token").asString(), client.getClientId());
 
         assertThat(result.getResponse().getStatus()).isEqualTo(400);
         assertThat(result.getResponse().getContentAsString()).contains("invalid_grant");
@@ -545,7 +545,7 @@ class McpAuthorizationServerIntegrationTest extends McpIntegrationTestBase {
         User user = createUser(true, true);
         RegisteredClient client = createClient(user.getId());
         JsonNode tokens = redeem(authorizeWithConsent(client, sessionFor(user)), client);
-        String accessToken = tokens.get("access_token").asText();
+        String accessToken = tokens.get("access_token").asString();
 
         MvcResult revoked = mockMvc.perform(form(McpAuthorizationServerEndpoints.REVOKE, Map.of(
                 OAuth2ParameterNames.TOKEN, accessToken,
@@ -570,7 +570,7 @@ class McpAuthorizationServerIntegrationTest extends McpIntegrationTestBase {
         User user = createUser(true, true);
         RegisteredClient client = createClient(user.getId());
         JsonNode tokens = redeem(authorizeWithConsent(client, sessionFor(user)), client);
-        String accessToken = tokens.get("access_token").asText();
+        String accessToken = tokens.get("access_token").asString();
 
         MvcResult forged = mockMvc.perform(form(McpAuthorizationServerEndpoints.TOKEN, Map.of(
                 OAuth2ParameterNames.TOKEN, accessToken,
@@ -593,7 +593,7 @@ class McpAuthorizationServerIntegrationTest extends McpIntegrationTestBase {
         RegisteredClient ownerClient = createClient(owner.getId());
         RegisteredClient attackerClient = createClient(attacker.getId());
         JsonNode tokens = redeem(authorizeWithConsent(ownerClient, sessionFor(owner)), ownerClient);
-        String accessToken = tokens.get("access_token").asText();
+        String accessToken = tokens.get("access_token").asString();
 
         mockMvc.perform(form(McpAuthorizationServerEndpoints.REVOKE, Map.of(
                 OAuth2ParameterNames.TOKEN, accessToken,
@@ -619,12 +619,12 @@ class McpAuthorizationServerIntegrationTest extends McpIntegrationTestBase {
 
         JsonNode metadata = objectMapper.readTree(result.getResponse().getContentAsString());
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
-        assertThat(metadata.get("issuer").asText()).isEqualTo("http://localhost");
-        assertThat(metadata.get("authorization_endpoint").asText())
+        assertThat(metadata.get("issuer").asString()).isEqualTo("http://localhost");
+        assertThat(metadata.get("authorization_endpoint").asString())
                 .isEqualTo("http://localhost" + McpAuthorizationServerEndpoints.AUTHORIZE);
-        assertThat(metadata.get("token_endpoint").asText())
+        assertThat(metadata.get("token_endpoint").asString())
                 .isEqualTo("http://localhost" + McpAuthorizationServerEndpoints.TOKEN);
-        assertThat(metadata.get("revocation_endpoint").asText())
+        assertThat(metadata.get("revocation_endpoint").asString())
                 .isEqualTo("http://localhost" + McpAuthorizationServerEndpoints.REVOKE);
         assertThat(result.getResponse().getContentAsString()).doesNotContain("evil.example.com");
     }
@@ -800,7 +800,7 @@ class McpAuthorizationServerIntegrationTest extends McpIntegrationTestBase {
     }
 
     private static List<String> values(JsonNode metadata, String claim) {
-        return metadata.get(claim).valueStream().map(JsonNode::asText).toList();
+        return metadata.get(claim).valueStream().map(JsonNode::asString).toList();
     }
 
     /** A rejected authorization must not hand out a code, whether it answers with 400 or redirects the error. */

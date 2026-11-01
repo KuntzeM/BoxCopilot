@@ -69,9 +69,9 @@ class BoxPilotMcpToolsTest {
         assertThat(result.isError()).isFalse();
         JsonNode item = json(result).get("items").get(0);
         assertThat(item.get("itemId").asLong()).isEqualTo(7L);
-        assertThat(item.get("name").asText()).isEqualTo("Desk lamp");
+        assertThat(item.get("name").asString()).isEqualTo("Desk lamp");
         assertThat(item.get("boxNumber").asInt()).isEqualTo(12);
-        assertThat(item.get("rooms").get(1).asText()).isEqualTo("Hall");
+        assertThat(item.get("rooms").get(1).asString()).isEqualTo("Hall");
         assertThat(item.get("hasImage").asBoolean()).isTrue();
         InOrder order = inOrder(userGate, readService);
         order.verify(userGate).requireActiveUser(USER_ID);
@@ -195,7 +195,7 @@ class BoxPilotMcpToolsTest {
         assertThat(result.isError()).isFalse();
         assertThat(result.content()).hasSize(2);
         JsonNode description = json(result);
-        assertThat(description.get("name").asText()).isEqualTo("Desk lamp");
+        assertThat(description.get("name").asString()).isEqualTo("Desk lamp");
         assertThat(description.get("boxNumber").asInt()).isEqualTo(12);
         ImageContent image = (ImageContent) result.content().get(1);
         assertThat(image.mimeType()).isEqualTo("image/jpeg");
@@ -220,7 +220,7 @@ class BoxPilotMcpToolsTest {
 
         assertThat(result.isError()).isFalse();
         assertThat(result.content()).hasSize(1).allMatch(TextContent.class::isInstance);
-        assertThat(json(result).get("message").asText()).isEqualTo(BoxPilotMcpTools.NO_IMAGE_MESSAGE);
+        assertThat(json(result).get("message").asString()).isEqualTo(BoxPilotMcpTools.NO_IMAGE_MESSAGE);
     }
 
     @Test
@@ -245,8 +245,8 @@ class BoxPilotMcpToolsTest {
         assertThat(result.isError()).isFalse();
         JsonNode box = json(result).get("boxes").get(0);
         assertThat(box.get("boxNumber").asInt()).isEqualTo(5);
-        assertThat(box.get("rooms").get(0).asText()).isEqualTo("Attic");
-        assertThat(box.get("flags").get(0).asText()).isEqualTo("fragile");
+        assertThat(box.get("rooms").get(0).asString()).isEqualTo("Attic");
+        assertThat(box.get("flags").get(0).asString()).isEqualTo("fragile");
         assertThat(box.get("itemCount").asLong()).isEqualTo(4L);
     }
 
@@ -287,8 +287,8 @@ class BoxPilotMcpToolsTest {
         assertThat(result.isError()).isFalse();
         JsonNode body = json(result);
         assertThat(body.get("box").get("boxNumber").asInt()).isEqualTo(5);
-        assertThat(body.get("description").asText()).isEqualTo("Winter stuff");
-        assertThat(body.get("items").get(1).get("name").asText()).isEqualTo("Hat");
+        assertThat(body.get("description").asString()).isEqualTo("Winter stuff");
+        assertThat(body.get("items").get(1).get("name").asString()).isEqualTo("Hat");
         assertThat(body.get("items").get(1).get("hasImage").asBoolean()).isTrue();
     }
 
@@ -299,7 +299,7 @@ class BoxPilotMcpToolsTest {
         CallToolResult result = tools.getBoxContents(CONTEXT, 99);
 
         assertThat(result.isError()).isFalse();
-        assertThat(json(result).get("message").asText()).isEqualTo(BoxPilotMcpTools.BOX_NOT_FOUND_MESSAGE);
+        assertThat(json(result).get("message").asString()).isEqualTo(BoxPilotMcpTools.BOX_NOT_FOUND_MESSAGE);
     }
 
     @Test

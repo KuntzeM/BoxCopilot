@@ -145,7 +145,7 @@ class McpProtocolTest {
                 {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18",
                 "capabilities":{},"clientInfo":{"name":"test","version":"1"}}}""");
 
-        assertThat(response.at("/result/serverInfo/name").asText()).isEqualTo("boxpilot");
+        assertThat(response.at("/result/serverInfo/name").asString()).isEqualTo("boxpilot");
         assertThat(response.at("/result/capabilities/tools").isMissingNode()).isFalse();
     }
 
@@ -159,9 +159,9 @@ class McpProtocolTest {
         List<String> names = tools.findValuesAsString("name");
         assertThat(names).contains("search_items", "get_item_image", "search_boxes", "get_box_contents");
         for (JsonNode tool : tools) {
-            assertThat(tool.at("/annotations/readOnlyHint").asBoolean()).as(tool.get("name").asText()).isTrue();
+            assertThat(tool.at("/annotations/readOnlyHint").asBoolean()).as(tool.get("name").asString()).isTrue();
             assertThat(tool.at("/annotations/destructiveHint").asBoolean()).isFalse();
-            assertThat(tool.get("description").asText()).containsIgnoringCase("untrusted");
+            assertThat(tool.get("description").asString()).containsIgnoringCase("untrusted");
         }
     }
 
@@ -173,8 +173,8 @@ class McpProtocolTest {
         JsonNode response = rpcJson("42", call("search_items", "{\"query\":\"lamp\",\"limit\":5}"));
 
         assertThat(response.at("/result/isError").asBoolean()).isFalse();
-        JsonNode body = objectMapper.readTree(response.at("/result/content/0/text").asText());
-        assertThat(body.at("/items/0/name").asText()).isEqualTo("Desk lamp");
+        JsonNode body = objectMapper.readTree(response.at("/result/content/0/text").asString());
+        assertThat(body.at("/items/0/name").asString()).isEqualTo("Desk lamp");
         verify(userGate).requireActiveUser(42L);
         verify(readService).searchItems("lamp", 5);
     }
@@ -188,7 +188,7 @@ class McpProtocolTest {
         JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
 
         assertThat(response.at("/result/isError").asBoolean()).isTrue();
-        assertThat(response.at("/result/content/0/text").asText()).isEqualTo(BoxPilotMcpTools.GENERIC_ERROR);
+        assertThat(response.at("/result/content/0/text").asString()).isEqualTo(BoxPilotMcpTools.GENERIC_ERROR);
         verifyNoInteractions(userGate, readService);
     }
 
@@ -197,7 +197,7 @@ class McpProtocolTest {
         JsonNode response = rpcJson("not-a-number", call("search_items", "{\"query\":\"lamp\"}"));
 
         assertThat(response.at("/result/isError").asBoolean()).isTrue();
-        assertThat(response.at("/result/content/0/text").asText()).isEqualTo(BoxPilotMcpTools.GENERIC_ERROR);
+        assertThat(response.at("/result/content/0/text").asString()).isEqualTo(BoxPilotMcpTools.GENERIC_ERROR);
         verifyNoInteractions(userGate, readService);
     }
 
@@ -208,7 +208,7 @@ class McpProtocolTest {
         JsonNode response = rpcJson("42", call("search_items", "{\"query\":\"lamp\"}"));
 
         assertThat(response.at("/result/isError").asBoolean()).isTrue();
-        assertThat(response.at("/result/content/0/text").asText()).isEqualTo(BoxPilotMcpTools.GENERIC_ERROR);
+        assertThat(response.at("/result/content/0/text").asString()).isEqualTo(BoxPilotMcpTools.GENERIC_ERROR);
         verifyNoInteractions(readService);
     }
 
@@ -221,10 +221,10 @@ class McpProtocolTest {
         JsonNode response = rpcJson("42", call("get_item_image", "{\"itemId\":9}"));
 
         assertThat(response.at("/result/isError").asBoolean()).isFalse();
-        assertThat(response.at("/result/content/0/type").asText()).isEqualTo("text");
-        assertThat(response.at("/result/content/1/type").asText()).isEqualTo("image");
-        assertThat(response.at("/result/content/1/mimeType").asText()).isEqualTo("image/jpeg");
-        assertThat(java.util.Base64.getDecoder().decode(response.at("/result/content/1/data").asText()))
+        assertThat(response.at("/result/content/0/type").asString()).isEqualTo("text");
+        assertThat(response.at("/result/content/1/type").asString()).isEqualTo("image");
+        assertThat(response.at("/result/content/1/mimeType").asString()).isEqualTo("image/jpeg");
+        assertThat(java.util.Base64.getDecoder().decode(response.at("/result/content/1/data").asString()))
                 .isEqualTo(jpeg);
     }
 
