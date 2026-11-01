@@ -15,13 +15,18 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.RequestCacheConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import jakarta.servlet.Filter;
+import org.springframework.security.oauth2.server.resource.web.OAuth2ProtectedResourceMetadataFilter;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
+import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.context.NullSecurityContextRepository;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
+
+import java.util.List;
 
 /**
  * The MCP resource server chain. It sits in front of the application chain and covers only the MCP endpoint
@@ -51,7 +56,7 @@ class McpSecurityConfig {
         McpAuthenticationEntryPoint entryPoint = new McpAuthenticationEntryPoint(challenge);
         McpAccessDeniedHandler accessDeniedHandler = new McpAccessDeniedHandler(challenge);
 
-        return http
+        DefaultSecurityFilterChain chain = http
                 .securityMatcher(McpEndpoints.MCP, McpEndpoints.MCP_PATTERN,
                         McpEndpoints.PROTECTED_RESOURCE_METADATA_PATTERN)
                 .csrf(AbstractHttpConfigurer::disable)
@@ -83,5 +88,25 @@ class McpSecurityConfig {
                 .addFilterAfter(new McpSubjectRateLimitFilter(mcpEndpoint, rateLimits.toolCalls(), rateLimitAudit),
                         AuthorizationFilter.class)
                 .build();
+        return withoutFrameworkMetadataEndpoint(chain);
+    }
+
+    /**
+     * Removes the protected-resource metadata endpoint that Spring Security 7 adds to every resource server.
+     *
+     * <p>{@code OAuth2ResourceServerConfigurer} registers an {@link OAuth2ProtectedResourceMetadataFilter} for
+     * {@code GET /.well-known/oauth-protected-resource/**} unconditionally, with no switch to turn it off, and
+     * places it ahead of the bearer filter. Left in, it would answer the request before
+     * {@link McpProtectedResourceMetadataController}: with a {@code resource} derived from the request URL (and
+     * thereby from {@code X-Forwarded-*}) instead of the configured backend URL, without
+     * {@code authorization_servers} and {@code scopes_supported}, advertising certificate-bound tokens BoxPilot
+     * never issues, and without the bearer filter ever seeing a token presented to it, which takes the metadata
+     * lane out of the failed-token budget. Removing it keeps the document and the chain exactly as they were.
+     */
+    private static SecurityFilterChain withoutFrameworkMetadataEndpoint(DefaultSecurityFilterChain chain) {
+        List<Filter> filters = chain.getFilters().stream()
+                .filter(filter -> !(filter instanceof OAuth2ProtectedResourceMetadataFilter))
+                .toList();
+        return new DefaultSecurityFilterChain(chain.getRequestMatcher(), filters);
     }
 }

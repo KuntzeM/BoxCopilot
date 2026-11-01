@@ -6,7 +6,11 @@ import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.env.Environment;
+import org.springframework.http.HttpHeaders;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.session.SessionRepository;
+import org.springframework.session.web.http.CookieSerializer;
 import org.springframework.session.data.redis.RedisSessionRepository;
 import org.springframework.session.jdbc.JdbcIndexedSessionRepository;
 import org.springframework.test.context.ActiveProfiles;
@@ -20,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Redis that is never connected to because nothing touches a session here). Sessions silently landing in the
  * database instead of Redis in production is exactly what this guards.
  */
-@SpringBootTest(properties = {
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.datasource.url=jdbc:h2:mem:prodsessions;DB_CLOSE_DELAY=-1",
         "spring.datasource.driverClassName=org.h2.Driver",
         "spring.datasource.username=sa",
@@ -62,5 +66,18 @@ class ProdSessionStoreTest {
         assertThat(context.getBeansOfType(SessionRepository.class).values())
                 .hasSize(1).first().isInstanceOf(RedisSessionRepository.class);
         assertThat(context.getBeansOfType(JdbcIndexedSessionRepository.class)).isEmpty();
+    }
+
+    /** The SPA is cross-site behind the proxy: the session cookie Spring Session writes must stay None + Secure. */
+    @Test
+    void prodSessionCookieIsCrossSiteSecureAndHttpOnly() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        context.getBean(CookieSerializer.class)
+                .writeCookieValue(new CookieSerializer.CookieValue(request, response, "session-id"));
+
+        assertThat(response.getHeader(HttpHeaders.SET_COOKIE))
+                .contains("SameSite=None").contains("Secure").contains("HttpOnly");
     }
 }

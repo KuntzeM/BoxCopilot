@@ -30,7 +30,6 @@ import org.springframework.security.oauth2.server.authorization.OAuth2Authorizat
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationValidator;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
-import org.springframework.security.config.annotation.web.configurers.oauth2.server.authorization.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.token.DelegatingOAuth2TokenGenerator;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2AccessTokenGenerator;
@@ -48,8 +47,8 @@ import org.springframework.security.web.csrf.XorCsrfTokenRequestAttributeHandler
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcherEntry;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 
 /**
@@ -142,7 +141,7 @@ class McpAuthorizationServerConfig {
                 .securityMatcher(McpAuthorizationServerEndpoints.AUTHORIZE, McpAuthorizationServerEndpoints.CONSENT,
                         McpAuthorizationServerEndpoints.TOKEN, McpAuthorizationServerEndpoints.REVOKE,
                         McpAuthorizationServerEndpoints.METADATA)
-                .with(new OAuth2AuthorizationServerConfigurer(), server -> server
+                .oauth2AuthorizationServer(server -> server
                         // Opaque reference tokens need no signing key; the refresh generator is ours so that a
                         // public client gets a rotating refresh token at all.
                         .tokenGenerator(new DelegatingOAuth2TokenGenerator(
@@ -216,12 +215,9 @@ class McpAuthorizationServerConfig {
      */
     private static AuthenticationEntryPoint entryPoint(RequestMatcher authorizeMatcher, McpPendingCookies cookies,
                                                        String frontendUrl) {
-        LinkedHashMap<RequestMatcher, AuthenticationEntryPoint> entryPoints = new LinkedHashMap<>();
-        entryPoints.put(authorizeMatcher,
-                new McpPendingAuthorizationEntryPoint(cookies, McpUrls.withoutTrailingSlash(frontendUrl)));
-        DelegatingAuthenticationEntryPoint delegating = new DelegatingAuthenticationEntryPoint(entryPoints);
-        delegating.setDefaultEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED));
-        return delegating;
+        return new DelegatingAuthenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
+                List.of(new RequestMatcherEntry<>(authorizeMatcher,
+                        new McpPendingAuthorizationEntryPoint(cookies, McpUrls.withoutTrailingSlash(frontendUrl)))));
     }
 
     /**
