@@ -40,7 +40,7 @@ class McpTransportConfiguration {
     }
 
     /**
-     * Allows exactly the host (with the port, if the URL names one) and the origin of {@code app.mcp.backend-url}.
+     * Allows exactly the host (with the port, unless it is absent or the scheme's default, which clients omit) and the origin of {@code app.mcp.backend-url}.
      * The proxies in front pass the public {@code Host} through unchanged, so this is what a legitimate client
      * sends; a rebound name or a foreign page is answered with 421 or 403 before any tool runs.
      */
@@ -50,10 +50,13 @@ class McpTransportConfiguration {
             throw new IllegalStateException("app.mcp.enabled=true requires BACKEND_URL (app.mcp.backend-url)"
                     + " to be an absolute URL");
         }
-        String host = uri.getHost().toLowerCase(Locale.ROOT) + (uri.getPort() == -1 ? "" : ":" + uri.getPort());
+        String scheme = uri.getScheme().toLowerCase(Locale.ROOT);
+        int port = uri.getPort();
+        boolean defaultPort = port == -1 || (scheme.equals("https") && port == 443) || (scheme.equals("http") && port == 80);
+        String host = uri.getHost().toLowerCase(Locale.ROOT) + (defaultPort ? "" : ":" + port);
         return DefaultServerTransportSecurityValidator.builder()
                 .allowedHost(host)
-                .allowedOrigin(uri.getScheme().toLowerCase(Locale.ROOT) + "://" + host)
+                .allowedOrigin(scheme + "://" + host)
                 .build();
     }
 }

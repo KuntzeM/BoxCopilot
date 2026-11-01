@@ -60,6 +60,30 @@ class McpTransportConfigurationTest {
     }
 
     @Test
+    void aDefaultPortInTheUrlIsIgnoredForTheAllowList() {
+        for (String url : List.of("https://h:443", "HTTPS://h:443", "http://h:80", "https://h")) {
+            var validator = McpTransportConfiguration.hostAndOriginOf(url);
+            String scheme = url.substring(0, url.indexOf(':')).toLowerCase();
+
+            assertThat(status(validator, "h", scheme + "://h")).as(url).isEqualTo(200);
+            assertThat(status(validator, "h:443", null)).as(url).isEqualTo(421);
+            assertThat(status(validator, "h.attacker.example", null)).as(url).isEqualTo(421);
+            assertThat(status(validator, "xh", null)).as(url).isEqualTo(421);
+        }
+    }
+
+    @Test
+    void aNonDefaultPortIsKeptAndTheOtherSchemesDefaultIsNot() {
+        var validator = McpTransportConfiguration.hostAndOriginOf("https://h:8443");
+        assertThat(status(validator, "h:8443", "https://h:8443")).isEqualTo(200);
+        assertThat(status(validator, "h", null)).isEqualTo(421);
+
+        var httpsOn80 = McpTransportConfiguration.hostAndOriginOf("https://h:80");
+        assertThat(status(httpsOn80, "h:80", "https://h:80")).isEqualTo(200);
+        assertThat(status(httpsOn80, "h", null)).isEqualTo(421);
+    }
+
+    @Test
     void aMissingOrRelativeBackendUrlFailsInsteadOfAllowingEverything() {
         assertThatThrownBy(() -> McpTransportConfiguration.hostAndOriginOf(null))
                 .hasMessageContaining("BACKEND_URL");
