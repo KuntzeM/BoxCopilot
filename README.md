@@ -210,9 +210,9 @@ upgrade was rehearsed against a dump of a 3.5 installation (see `docs/superpower
   `Max-Age=0` (Tomcat 11). Browsers still delete them.
 - The `/mcp` Host/Origin check is derived from `BACKEND_URL`. The `Host` header must equal the host (and port, if
   `BACKEND_URL` names one) of `BACKEND_URL`, otherwise the answer is 421. An `Origin` header, if present, must equal
-  the origin of `BACKEND_URL`, otherwise 403; clients that send no `Origin` pass. Do not put the default port in
-  `BACKEND_URL` (write `https://api.example.com`, not `https://api.example.com:443`): clients send `Host` without
-  it and would be locked out. Traefik must pass the original `Host` through.
+  the origin of `BACKEND_URL`, otherwise 403; clients that send no `Origin` pass. A default port in
+  `BACKEND_URL` (`:443` for https, `:80` for http) is ignored for this check, since clients send `Host` without
+  it; a non-default port must appear in `Host`. Traefik must pass the original `Host` through.
 - `APP_MCP_ENABLED` is the only MCP master switch. `SPRING_AI_MCP_SERVER_ENABLED=true` on its own no longer
   enables anything while `APP_MCP_ENABLED` is not `true`.
 - `spring.session.timeout: 122400s` in `application-prod.yml` has no effect. `@EnableRedisHttpSession` in
