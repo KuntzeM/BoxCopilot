@@ -203,13 +203,13 @@ export default function ItemImageUpload({
             }}
             onClick={() => setImagePreviewOpen(true)}
           />
-          <Typography variant="caption" display="block" color="text.secondary">
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
             Zum Vergrößern klicken
           </Typography>
         </Box>
       )}
 
-      <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ alignItems: 'center' }}>
+      <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
         <Tooltip title="Foto aufnehmen">
           <Box sx={{ flex: 1 }}>
             <IconButton

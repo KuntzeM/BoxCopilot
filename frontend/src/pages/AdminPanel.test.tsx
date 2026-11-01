@@ -36,7 +36,7 @@ async function openEditDialogFor(user: User) {
     </LanguageProvider>,
   );
   fireEvent.click(await screen.findByTitle('Edit User'));
-  return screen.findByRole('checkbox', { name: 'MCP' });
+  return screen.findByRole('switch', { name: 'MCP' });
 }
 
 describe('AdminPanel MCP switch', () => {

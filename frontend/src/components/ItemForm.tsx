@@ -780,7 +780,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                 right: 0, 
                 p: 2,
               }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
                   <IconButton onClick={() => { stopCamera(); setCameraMode('none'); }} sx={{ color: 'white' }}>
                     <Close />
                   </IconButton>
@@ -805,7 +805,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                   width: '80%',
                   maxWidth: 300,
                 }}>
-                  <Stack direction="row" spacing={1} alignItems="center">
+                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                     <ZoomIn sx={{ color: 'white' }} />
                     <Slider
                       value={zoom}
@@ -835,7 +835,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                 right: 0, 
                 p: 3,
               }}>
-                <Stack direction="row" justifyContent="space-around" alignItems="center">
+                <Stack direction="row" sx={{ justifyContent: 'space-around', alignItems: 'center' }}>
                   <IconButton onClick={switchCamera} sx={{ color: 'white' }}>
                     <Cameraswitch sx={{ fontSize: 32 }} />
                   </IconButton>
@@ -882,7 +882,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                 p: 3,
                 background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)',
               }}>
-                <Stack direction="row" justifyContent="space-around" alignItems="center">
+                <Stack direction="row" sx={{ justifyContent: 'space-around', alignItems: 'center' }}>
                   <IconButton
                     onClick={retakePhoto}
                     sx={{ 

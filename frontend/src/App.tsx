@@ -224,8 +224,8 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
         anchor="right"
         open={mobileMenuOpen}
         onClose={handleCloseMobileMenu}
-        PaperProps={{
-          sx: { width: 280 },
+        slotProps={{
+          paper: { sx: { width: 280 } },
         }}
       >
         <Box sx={{ pt: 2 }}>
@@ -233,7 +233,7 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
             {/* User Info */}
             <ListItem sx={{ pb: 2 }}>
               <Box>
-                <Typography variant="subtitle1" fontWeight={600}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                   {user?.name || user?.username}
                 </Typography>
                 {user?.name && user?.username && (

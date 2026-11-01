@@ -10,16 +10,20 @@
   <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
-    <version>3.5.0</version>
+    <version>3.5.16</version>
     <relativePath/> <!-- lookup parent from repository -->
   </parent>
 
   <properties>
     <java.version>21</java.version>
-    <!-- 1.21.0 (Boot BOM) cannot talk to Docker Engine 29 (minimum API 1.44) -->
-    <testcontainers.version>1.21.4</testcontainers.version>
+    <!-- Security pins ahead of the Boot 3.5.16 BOM (GHSA fixes); drop each once the BOM catches up -->
+    <jackson-bom.version>2.21.7</jackson-bom.version>
+    <tomcat.version>10.1.59</tomcat.version>
+    <log4j2.version>2.25.5</log4j2.version>
+    <netty.version>4.1.137.Final</netty.version>
+    <postgresql.version>42.7.14</postgresql.version>
     <spring-ai.version>1.1.8</spring-ai.version>
-    <archunit.version>1.4.0</archunit.version>
+    <archunit.version>1.5.1</archunit.version>
   </properties>
 
   <dependencyManagement>
@@ -79,7 +83,6 @@
     <dependency>
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>
-      <version>42.7.2</version>
       <scope>runtime</scope>
     </dependency>
     <dependency>
@@ -127,18 +130,16 @@
     <dependency>
       <groupId>org.flywaydb</groupId>
       <artifactId>flyway-core</artifactId>
-      <version>10.17.0</version>
     </dependency>
     <dependency>
       <groupId>org.flywaydb</groupId>
       <artifactId>flyway-database-postgresql</artifactId>
-      <version>10.17.0</version>
     </dependency>
     <!-- Image processing -->
     <dependency>
       <groupId>net.coobird</groupId>
       <artifactId>thumbnailator</artifactId>
-      <version>0.4.20</version>
+      <version>0.4.21</version>
     </dependency>
   </dependencies>
 

@@ -100,7 +100,7 @@ export default function ItemMoveDialog({
       <Dialog open={open && !confirmOpen} onClose={onClose} maxWidth="sm" fullWidth>
         <DialogTitle>
           Ziel-Box auswählen
-          <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
+          <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>
             {itemIds.length} Item{itemIds.length !== 1 ? 's' : ''} verschieben
           </Typography>
         </DialogTitle>

@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, createElement } from 'react';
+import { useState, useEffect, useMemo, createElement, type ReactElement } from 'react';
+import type { DocumentProps } from '@react-pdf/renderer';
 import { useNavigate } from 'react-router-dom';
 import { Box as BoxModel, CreateBoxPayload, Item } from '../types/models';
 import { fetchBoxes, createBox, deleteBox } from '../services/boxService';
@@ -338,7 +339,7 @@ export const useBoxListLogic = () => {
       // Generate PDF blob with dynamic timeout (base 30s + 2s per box)
       const timeoutDuration = BASE_TIMEOUT_MS + (selectedBoxes.length * PER_BOX_TIMEOUT_MS);
       const pdfBlobPromise = pdf(
-        createElement(LabelPDFDocument, { boxes: selectedBoxes, qrCodes, translations })
+        createElement(LabelPDFDocument, { boxes: selectedBoxes, qrCodes, translations }) as unknown as ReactElement<DocumentProps>
       ).toBlob();
       
       const timeoutPromise = new Promise<Blob>((_, reject) => {

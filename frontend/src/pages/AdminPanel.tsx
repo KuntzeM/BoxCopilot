@@ -346,7 +346,7 @@ export default function AdminPanel() {
           </Box>
 
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Stack direction="row" spacing={1} flexWrap="wrap">
+            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
               <Chip
                 label={user.role === Role.ADMIN ? t('admin.admin') : t('admin.user')}
                 color={user.role === Role.ADMIN ? 'primary' : 'default'}
@@ -818,7 +818,7 @@ export default function AdminPanel() {
         <DialogTitle>{t('admin.deleteUser')}</DialogTitle>
         <DialogContent>
           <Typography>
-            {t('admin.deleteConfirm', { username: selectedUser?.username })}
+            {t('admin.deleteConfirm', { username: selectedUser?.username || '' })}
           </Typography>
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
@@ -976,8 +976,8 @@ export default function AdminPanel() {
                 fullWidth
                 label={t('admin.magicLinkUrl')}
                 value={magicLinkData.url}
-                InputProps={{
-                  readOnly: true,
+                slotProps={{
+                  input: { readOnly: true },
                 }}
                 margin="normal"
                 multiline

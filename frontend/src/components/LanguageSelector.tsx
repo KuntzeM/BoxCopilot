@@ -48,7 +48,7 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({ variant = 'icon', l
           aria-haspopup="true"
           aria-expanded={open ? 'true' : undefined}
           size="medium"
-          sx={[{ ml: 1 }, buttonSx]}
+          sx={[{ ml: 1 }, ...(Array.isArray(buttonSx) ? buttonSx : [buttonSx])]}
         >
           <span style={{ fontSize: '1.25rem' }}>{flagEmoji}</span>
         </IconButton>
@@ -62,7 +62,7 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({ variant = 'icon', l
           aria-controls={open ? 'language-menu' : undefined}
           aria-haspopup="true"
           aria-expanded={open ? 'true' : undefined}
-          sx={[{ justifyContent: 'flex-start', width: '100%', textTransform: 'none' }, buttonSx]}
+          sx={[{ justifyContent: 'flex-start', width: '100%', textTransform: 'none' }, ...(Array.isArray(buttonSx) ? buttonSx : [buttonSx])]}
         >
           {labelText}
         </Button>
@@ -72,8 +72,8 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({ variant = 'icon', l
         anchorEl={anchorEl}
         open={open}
         onClose={handleClose}
-        MenuListProps={{
-          'aria-labelledby': buttonId,
+        slotProps={{
+          list: { 'aria-labelledby': buttonId },
         }}
       >
         <MenuItem onClick={() => handleLanguageChange('de')} selected={language === 'de'}>

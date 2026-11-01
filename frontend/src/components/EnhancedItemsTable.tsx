@@ -149,11 +149,6 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
     setMoveDialogOpen(true);
   };
 
-  const handleManageImage = (itemId: number, currentImageUrl?: string) => {
-    setImageItemId(itemId);
-    setImageDialogOpen(true);
-  };
-
   const handleImageClick = (itemId: number, imageUrl: string) => {
     // Convert thumbnail URL to large image URL
     const largeImageUrl = imageUrl.replace('/image', '/image/large');
@@ -261,7 +256,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
                 <Avatar
                   src={resolveImageUrl(item.imageUrl)}
                   alt={item.name}
-                  loading="lazy"
+                  slotProps={{ img: { loading: 'lazy' } }}
                   sx={{ width: 48, height: 48, cursor: 'pointer' }}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -440,12 +435,12 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
         anchor="bottom"
         open={actionDrawerOpen}
         onClose={handleCloseActionDrawer}
-        PaperProps={{
-          sx: {
+        slotProps={{
+          paper: { sx: {
             borderTopLeftRadius: 16,
             borderTopRightRadius: 16,
             maxHeight: '70vh',
-          },
+          } },
         }}
       >
         <Box sx={{ p: 2 }}>

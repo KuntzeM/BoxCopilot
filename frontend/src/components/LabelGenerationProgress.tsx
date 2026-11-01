@@ -25,7 +25,6 @@ export const LabelGenerationProgress = ({
   return (
     <Dialog
       open={open}
-      disableEscapeKeyDown
       aria-labelledby="label-generation-progress-title"
       maxWidth="sm"
       fullWidth

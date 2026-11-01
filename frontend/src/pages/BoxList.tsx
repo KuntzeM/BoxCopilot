@@ -283,12 +283,12 @@ export default function BoxList() {
       )}
       
       <Box sx={{ p: 2 }}>
-        <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" flexWrap="wrap">
-          <Stack direction="row" spacing={2} alignItems="center" sx={{ flex: 1, minWidth: 200 }}>
+        <Stack direction="row" spacing={2} sx={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flex: 1, minWidth: 200 }}>
             <Checkbox
               checked={selectedIds.includes(box.id)}
               onChange={() => toggleSelect(box.id)}
-              inputProps={{ 'aria-label': t('boxes.selectBox', { number: box.boxNumber }) }}
+              slotProps={{ input: { 'aria-label': t('boxes.selectBox', { number: box.boxNumber }) } }}
             />
             <Box 
               sx={{ 
@@ -316,7 +316,7 @@ export default function BoxList() {
             </Box>
           </Stack>
 
-          <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" justifyContent="flex-end">
+          <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <IconButton
               size="medium"
               title={t('boxes.actions')}
@@ -336,12 +336,11 @@ export default function BoxList() {
         <Stack
           direction="row"
           spacing={1}
-          alignItems="center"
           onClick={() => toggleExpandBox(box)}
-          sx={{ cursor: 'pointer', userSelect: 'none' }}
+          sx={{ alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
         >
           {expandedBoxes.has(box.id) ? <ExpandLess /> : <ExpandMore />}
-          <Typography variant="subtitle1" fontWeight={700}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
             {t('items.itemsCount', { count: getBoxItemCount(box) })}
           </Typography>
         </Stack>
@@ -349,7 +348,7 @@ export default function BoxList() {
         <Collapse in={expandedBoxes.has(box.id)} timeout="auto" unmountOnExit>
           <Stack spacing={1.5} sx={{ mt: 2 }}>
             {isLoadingItemsForBox(box.id) ? (
-              <Stack direction="row" spacing={1} alignItems="center">
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                 <CircularProgress size={18} />
                 <Typography variant="body2" color="text.secondary">
                   {t('common.loading')}
@@ -369,12 +368,12 @@ export default function BoxList() {
                       : undefined,
                   }}
                 >
-                  <Stack direction="row" alignItems="center" spacing={1.5}>
+                  <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
                     {item.imageUrl ? (
                       <Avatar
                         src={resolveImageUrl(item.imageUrl)}
                         alt={item.name}
-                        loading="lazy"
+                        slotProps={{ img: { loading: 'lazy' } }}
                         sx={{ width: 40, height: 40, cursor: 'pointer', flexShrink: 0 }}
                         onClick={() => {
                           if (item.imageUrl) {
@@ -388,7 +387,7 @@ export default function BoxList() {
                       </Avatar>
                     )}
                     <Box sx={{ flex: 1, minWidth: 160 }}>
-                      <Typography variant="body2" fontWeight={500}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
                         {item.name}
                       </Typography>
                     </Box>
@@ -517,9 +516,9 @@ export default function BoxList() {
           </Stack>
         </Paper>
 
-        <Stack direction={isMobile ? 'column' : 'row'} spacing={1.5} justifyContent="space-between" alignItems={isMobile ? 'stretch' : 'center'}>
-          <Typography variant="h5" fontWeight={700}>{t('boxes.boxes')}</Typography>
-          <Stack direction="row" spacing={1} justifyContent={isMobile ? 'flex-start' : 'flex-end'}>
+        <Stack direction={isMobile ? 'column' : 'row'} spacing={1.5} sx={{ justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center' }}>
+          <Typography variant="h5" sx={{ fontWeight: 700 }}>{t('boxes.boxes')}</Typography>
+          <Stack direction="row" spacing={1} sx={{ justifyContent: isMobile ? 'flex-start' : 'flex-end' }}>
             <Button
               variant="outlined"
               startIcon={<EditNote />}
@@ -584,7 +583,7 @@ export default function BoxList() {
               placeholder={t('boxes.placeholderDescription')}
             />
             <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1, border: 1, borderColor: 'divider' }}>
-              <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1.5 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1.5 }}>
                 {t('boxes.transportHints')}
               </Typography>
               <FormControlLabel
@@ -772,12 +771,12 @@ export default function BoxList() {
         anchor="bottom"
         open={drawerOpen}
         onClose={handleCloseDrawer}
-        PaperProps={{
-          sx: {
+        slotProps={{
+          paper: { sx: {
             borderTopLeftRadius: 16,
             borderTopRightRadius: 16,
             maxHeight: '70vh',
-          },
+          } },
         }}
       >
         <Box sx={{ p: 2 }}>

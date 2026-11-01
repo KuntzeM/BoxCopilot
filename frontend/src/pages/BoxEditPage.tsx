@@ -204,9 +204,8 @@ const BoxEditPage: React.FC = () => {
         <Stack
           direction="row"
           spacing={1}
-          alignItems="center"
           onClick={() => setExpandBoxAttributes(!expandBoxAttributes)}
-          sx={{ cursor: 'pointer', userSelect: 'none', mb: expandBoxAttributes ? 2 : 0 }}
+          sx={{ alignItems: 'center', cursor: 'pointer', userSelect: 'none', mb: expandBoxAttributes ? 2 : 0 }}
         >
           {expandBoxAttributes ? <ExpandLess /> : <ExpandMore />}
           <Typography variant="h5">

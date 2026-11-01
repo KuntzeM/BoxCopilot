@@ -127,7 +127,7 @@ function PublicPreviewContent() {
             <Stack spacing={2}>
               {(data.isFragile || data.noStack) && (
                 <Alert severity="warning" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Stack direction="row" spacing={1} flexWrap="wrap">
+                  <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
                     {data.isFragile && (
                       <Chip
                         label={`🔔 ${t('boxes.fragile')}`}
@@ -148,7 +148,7 @@ function PublicPreviewContent() {
               
               {/* Box Info */}
               <Box>
-                <Typography variant="h5" fontWeight={700}>
+                <Typography variant="h5" sx={{ fontWeight: 700 }}>
                   {t('boxes.boxNumber', { number: data.boxNumber })}
                 </Typography>
                 <Typography variant="body1" sx={{ mt: 0.5 }}>
@@ -167,7 +167,7 @@ function PublicPreviewContent() {
               <Divider />
 
               <Box>
-                <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
                   {t('boxes.items')}
                 </Typography>
                 {data.items && data.items.length > 0 ? (
@@ -192,7 +192,7 @@ function PublicPreviewContent() {
                             <Avatar
                               src={resolveImageUrl(item.imageUrl)}
                               alt={item.name}
-                              loading="lazy"
+                              slotProps={{ img: { loading: 'lazy' } }}
                               sx={{ width: 50, height: 50, cursor: 'pointer' }}
                               onClick={() => item.imageUrl && setFullImageUrl(withApiBase(item.imageUrl.replace('/image', '/image/large')))}
                             />
