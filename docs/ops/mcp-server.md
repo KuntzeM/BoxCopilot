@@ -41,9 +41,12 @@ deletes the client and forces a fresh `mcp-client` provisioning call next time t
 
 ## Kill-switch
 
+For the Spring Boot 4 upgrade and rollback notes see the main README, "Upgrading from the Spring Boot 3.5 build".
+
 `APP_MCP_ENABLED=false` (the default) turns the entire feature off at startup: no MCP Spring beans are created,
 `spring.ai.mcp.server.enabled` follows the same flag (and is forced off even when set directly, e.g. by a
-profile or `SPRING_AI_MCP_SERVER_ENABLED`; see `McpStarterSwitch`), and `/mcp`, `/oauth2/authorize`, `/oauth2/token` give no 2xx
+profile or `SPRING_AI_MCP_SERVER_ENABLED`; see `McpStarterSwitch`). `APP_MCP_ENABLED` is the only master switch:
+`SPRING_AI_MCP_SERVER_ENABLED=true` on its own enables nothing, and `/mcp`, `/oauth2/authorize`, `/oauth2/token` give no 2xx
 response and no data — anonymous callers get redirected to the frontend (the existing app chain's entry point),
 authenticated callers get 404 because no handler is registered for those paths. Existing rows in
 `oauth2_registered_client` / `oauth2_authorization` are **not** deleted by flipping the flag; they simply become
@@ -292,6 +295,13 @@ ledger (`.superpowers/sdd/2026-09-21-mcp-server-sprint/progress.md`).
    6. Press "Alle Verbindungen widerrufen" in the BoxPilot dialog and confirm the connector stops working with no
       further BoxPilot-side action.
 
+   **Spring Boot 4 addition, NOT YET RUN:** since the upgrade `/mcp` refuses a `Host` that differs from `BACKEND_URL`
+   (421) and an `Origin` that differs from its origin (403); requests without `Origin` pass. This was verified with
+   scripted clients and the MCP Inspector CLI only. Nobody has yet confirmed with a real claude.ai connector (web and
+   mobile) which `Host` and `Origin` it sends. If Claude.ai sends an `Origin` such as `https://claude.ai`, the
+   connector will be refused with 403 and the check needs a change. While running A and B, watch the backend log and
+   the proxy access log for 403/421 on `/mcp` and note the request's `Host` and `Origin`.
+
    This is the only way to confirm things a real client alone can show: whether Claude sends `scope`/`resource`
    on authorize, the refresh/credential-storage behavior above, and mobile image rendering. See S12's report
    (`.superpowers/sdd/2026-09-21-mcp-server-sprint/S12-report.md`, section 4) for the original write-up.
@@ -303,17 +313,17 @@ ledger (`.superpowers/sdd/2026-09-21-mcp-server-sprint/progress.md`).
    above) before go-live. Flagged again during S12's QA pass as still open.
 3. **ChatGPT (Developer Mode) support** — explicitly out of scope for v1 (spec §1, §7 Phase 0.5); not tested at
    all with this implementation.
-4. **Spring Boot 3.5 support-status decision** — spec §8 flags that Boot 3.5's OSS support window is believed to
-   end during 2026. This sprint did **not** make that call or perform the coordinated Boot 4 / Spring Security 7
-   / Spring AI 2.x upgrade; it must be explicitly decided (upgrade, or documented risk acceptance) before
-   go-live, per the spec's own go-live conditions (§7). Still unresolved as of S12's QA pass.
+4. **Spring Boot 3.5 support-status decision** — *resolved.* Boot 3.5's OSS support ended on 2026-06-30. The
+   backend now runs on Spring Boot 4.1.x (Spring Security 7, Spring AI 2, MCP SDK 2), whose OSS support runs until
+   2027-07-31 (endoflife.date). Upgrade and rollback notes are in the main README, "Upgrading from the Spring Boot
+   3.5 build"; the evidence is in `docs/superpowers/plans/artifacts/verification-boot4.md`.
 5. **Staging `flyway validate`** — `validate-on-migrate` stays `false` in `application-prod.yml`. Before it is
    ever turned on, a `flyway validate` run against a copy of the real production migration history on staging is
    required (spec §4.3); this sprint added the new MCP migrations but did not perform or automate that
    validation run.
 6. **Remaining §4.4 "Phase 4 and own tickets" items**, not bundled into this sprint's stories:
-   - **M3** — session invalidation on role change or user deactivation (sessions currently live for up to 34h and
-     carry a snapshot of the user entity).
+   - **M3** — session invalidation on role change or user deactivation (sessions carry a snapshot of the user entity; the 34h in `application-prod.yml` has no effect, the
+     30-minute idle default of `@EnableRedisHttpSession` applies).
    - **Container hardening** — non-root user, `read_only` root filesystem with explicit volumes, `cap_drop: ALL`
      for the backend/frontend containers.
    - **Unified login error messages** — locked/disabled/wrong-password are still distinguishable in the login

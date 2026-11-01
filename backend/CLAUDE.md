@@ -1,6 +1,6 @@
 # Backend Instructions
 
-BoxCopilot backend is Java 21 with Spring Boot 3.5 and Maven. The application entry point is `src/main/java/com/boxcopilot/backend/BoxCopilotApplication.java`.
+BoxCopilot backend is Java 21 with Spring Boot 4.1 and Maven. The application entry point is `src/main/java/com/boxcopilot/backend/BoxCopilotApplication.java`.
 
 ## Structure
 

@@ -177,7 +177,16 @@ TRAEFIK_BACKEND_HOST=boxes-api.example.com
 docker-compose up -d
 ```
 
-**Upgrading to the Spring Boot 4 image:**
+### Upgrading from the Spring Boot 3.5 build
+
+The backend now runs on Spring Boot 4.1 (Spring Framework 7, Spring Security 7, Hibernate 7, Jackson 3, Spring AI 2).
+Spring Boot 3.5 open-source support ended on 2026-06-30; 4.1.x is supported until 2027-07-31 (endoflife.date). The
+upgrade was rehearsed against a dump of a 3.5 installation (see `docs/superpowers/plans/artifacts/verification-boot4.md`).
+
+**Before you upgrade**
+- Take a database dump, e.g. `docker exec boxcopilot-postgres pg_dump -U <POSTGRES_USER> <POSTGRES_DB> > boxpilot-3.5.sql`.
+  The upgrade adds no Flyway migration (the schema stays at V14) and Flyway reports "up to date", so the dump is only
+  needed if you want to discard data written by 4.1 later.
 - The backend has a TCP healthcheck (`start_period` 120s) and the frontend waits for it to be healthy.
 - Postgres is now pinned to `postgres:15.19` (Debian 13 / trixie); the previous `postgres:15` was already a moving
   tag. Before upgrading run `docker exec boxcopilot-postgres cat /etc/os-release`. If the running image is Debian 12
@@ -187,6 +196,57 @@ docker-compose up -d
   root-owned `./logs` and `./images` keep working. To run non-root, before `docker compose up`:
   `mkdir -p logs images && sudo chown -R 10001:10001 logs images`, then uncomment `user: "10001:10001"` on the
   `backend` service in `docker-compose.yml`. (Docker Desktop on Windows/macOS has lax bind-mount permissions.)
+
+**What carries over unchanged**
+- Users stay logged in: Redis sessions written by 3.5 are still read by 4.1. No forced re-login.
+- MCP access and refresh tokens issued by 3.5 stay valid, and so do unredeemed magic links.
+- `Box.description` is still stored as a PostgreSQL large object (the column holds the OID as text), exactly as before.
+
+**What changes**
+- JSON object keys in REST and MCP response bodies are now in alphabetical order (Jackson 3 default). The order has no
+  meaning and the frontend reads by key, but anything that compares response text byte for byte will see a difference.
+  The MCP `tools/list` schemas also gain a `$schema` entry; tool names are unchanged.
+- Cookies that the server clears (`XSRF-TOKEN`, `JSESSIONID`) carry `Expires=Thu, 01 Jan 1970 ...` but no longer
+  `Max-Age=0` (Tomcat 11). Browsers still delete them.
+- The `/mcp` Host/Origin check is derived from `BACKEND_URL`. The `Host` header must equal the host (and port, if
+  `BACKEND_URL` names one) of `BACKEND_URL`, otherwise the answer is 421. An `Origin` header, if present, must equal
+  the origin of `BACKEND_URL`, otherwise 403; clients that send no `Origin` pass. Do not put the default port in
+  `BACKEND_URL` (write `https://api.example.com`, not `https://api.example.com:443`): clients send `Host` without
+  it and would be locked out. Traefik must pass the original `Host` through.
+- `APP_MCP_ENABLED` is the only MCP master switch. `SPRING_AI_MCP_SERVER_ENABLED=true` on its own no longer
+  enables anything while `APP_MCP_ENABLED` is not `true`.
+- `spring.session.timeout: 122400s` in `application-prod.yml` has no effect. `@EnableRedisHttpSession` in
+  `RedisConfig` sets its own default of 1800 s (30 minutes), and that is what applies. This was already so on 3.5.
+
+#### Rolling back to the 3.5 build
+
+1. Redeploy the previous backend (and frontend) image.
+2. Delete the Redis session keys. Spring Security 7 stores a `FactorGrantedAuthority` in every session; Boot 3.5
+   cannot deserialize it and answers **500 on every request that carries a session cookie written by 4.1**
+   (`ClassNotFoundException ... FactorGrantedAuthority`) until that session expires or is removed. With the compose
+   file's Redis (it sets `REDISCLI_AUTH` from `REDIS_PASSWORD`, so `redis-cli` inside the container authenticates):
+   ```bash
+   docker exec boxcopilot-redis sh -c "redis-cli --scan --pattern 'spring:session:*' | xargs -r redis-cli del"
+   ```
+   Afterwards the stale cookies are treated as anonymous and users log in again.
+3. Data written by 4.1 (descriptions, items, images, MCP authorizations, magic links) is readable by 3.5, so the
+   dump does not need to be restored. Restore it only if you want to discard everything written since the upgrade.
+
+#### Known issues (not caused by the migration)
+
+Found during verification; each also occurs on the 3.5 build, except where noted.
+- `ItemService.uploadImage` deletes the item's existing image before it validates the new upload, so a rejected
+  non-image upload removes the stored image.
+- Several client errors (missing request parameter, missing multipart part, over-size upload, wrong content type)
+  are answered with 500 by the catch-all handler instead of a 4xx.
+- Redeeming a magic link can race the SPA's own `/api/v1/me` call for the `XSRF-TOKEN` cookie, so a valid link can
+  show "invalid" without being consumed; loading the link again normally works. In testing this happened more often
+  on 4.1 (7 of 8 cold loads) than on 3.5 (4 of 8).
+- The public image URL of an item whose image was deleted answers 500 instead of 404.
+- MCP tool calls with arguments of the wrong type (e.g. a string for a number) return the library's raw message and
+  write no audit line. Missing or out-of-range arguments are handled and audited.
+- The frontend base image `nginx:1.30-alpine` showed OS-package CVEs in `docker scout` at test time (8 critical,
+  18 high: curl, brotli, libxml2). Consider rebuilding on a newer base; the backend image showed none.
 
 ### Nextcloud OIDC Setup
 
@@ -325,7 +385,7 @@ Both frontend and backend services include Traefik labels for:
 
 ## Technology Stack
 
-**Backend:** Java 21, Spring Boot 3.5, Spring Security with OAuth2/OIDC, Spring Data JPA, PostgreSQL, Redis, Flyway
+**Backend:** Java 21, Spring Boot 4.1, Spring Security with OAuth2/OIDC, Spring Data JPA, PostgreSQL, Redis, Flyway
 
 **Frontend:** React 18, TypeScript, Vite, Material-UI, Axios, React Router
 
