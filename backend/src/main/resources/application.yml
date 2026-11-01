@@ -20,8 +20,6 @@ spring:
     datatype:
       datetime:
         write-dates-as-timestamps: false
-  session:
-    store-type: none
   ai:
     mcp:
       server:

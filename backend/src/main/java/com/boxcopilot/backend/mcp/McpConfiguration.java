@@ -43,7 +43,7 @@ class McpConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean(MeterRegistry.class)
-    @ConditionalOnMissingClass("org.springframework.boot.actuate.autoconfigure.metrics.MetricsAutoConfiguration")
+    @ConditionalOnMissingClass("org.springframework.boot.micrometer.metrics.autoconfigure.MetricsAutoConfiguration")
     MeterRegistry mcpMeterRegistry() {
         return new SimpleMeterRegistry();
     }

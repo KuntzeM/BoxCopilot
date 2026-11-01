@@ -3,6 +3,11 @@ spring:
   config:
     activate:
       on-profile: prod
+  autoconfigure:
+    # Boot 4 dropped spring.session.store-type: every session store on the classpath is configured, so the one
+    # not wanted must be excluded. Production keeps its sessions in Redis.
+    exclude:
+      - org.springframework.boot.session.jdbc.autoconfigure.JdbcSessionAutoConfiguration
   datasource:
     url: ${SPRING_DATASOURCE_URL}
     username: ${POSTGRES_USER}
@@ -12,7 +17,6 @@ spring:
     hibernate:
       ddl-auto: none
   session:
-    store-type: redis
     timeout: 122400s
   security:
     oauth2:

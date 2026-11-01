@@ -156,12 +156,6 @@
       <groupId>org.flywaydb</groupId>
       <artifactId>flyway-database-postgresql</artifactId>
     </dependency>
-    <!-- TEMPORARY: removed in Task 4 -->
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-properties-migrator</artifactId>
-      <scope>runtime</scope>
-    </dependency>
     <!-- Image processing -->
     <dependency>
       <groupId>net.coobird</groupId>
