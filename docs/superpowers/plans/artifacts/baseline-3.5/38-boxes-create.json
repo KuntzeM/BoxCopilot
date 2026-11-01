@@ -1,0 +1,41 @@
+{
+  "request": {
+    "body": {
+      "currentRoom": "Cellar",
+      "description": "Winter things",
+      "isFragile": true,
+      "targetRoom": "Kitchen"
+    },
+    "method": "POST",
+    "path": "/api/v1/boxes"
+  },
+  "response": {
+    "body": {
+      "boxNumber": 1,
+      "createdAt": "<timestamp>",
+      "currentRoom": "Cellar",
+      "description": "Winter things",
+      "id": 1,
+      "isFragile": true,
+      "isMovedToTarget": false,
+      "itemCount": 0,
+      "items": [],
+      "labelPrinted": false,
+      "noStack": false,
+      "targetRoom": "Kitchen",
+      "uuid": "<uuid>"
+    },
+    "headers": {
+      "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+      "content-type": "application/json",
+      "expires": "0",
+      "pragma": "no-cache",
+      "vary": "Origin, Access-Control-Request-Method, Access-Control-Request-Headers",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-xss-protection": "0"
+    },
+    "set-cookie-attributes": [],
+    "status": 201
+  }
+}

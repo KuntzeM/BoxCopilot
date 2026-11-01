@@ -1,0 +1,32 @@
+{
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/.well-known/oauth-protected-resource/mcp"
+  },
+  "response": {
+    "body": {
+      "authorization_servers": [
+        "http://localhost:8080"
+      ],
+      "bearer_methods_supported": [
+        "header"
+      ],
+      "resource": "http://localhost:8080/mcp",
+      "scopes_supported": [
+        "mcp:read"
+      ]
+    },
+    "headers": {
+      "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+      "content-type": "application/json",
+      "expires": "0",
+      "pragma": "no-cache",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-xss-protection": "0"
+    },
+    "set-cookie-attributes": [],
+    "status": 200
+  }
+}

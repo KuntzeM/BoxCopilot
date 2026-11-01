@@ -1,0 +1,41 @@
+{
+  "request": {
+    "body": {
+      "method": "tools/call",
+      "params": {
+        "arguments": {
+          "boxNumber": 1
+        },
+        "name": "get_box_contents"
+      }
+    },
+    "method": "POST",
+    "path": "/mcp"
+  },
+  "response": {
+    "body": {
+      "id": 1,
+      "jsonrpc": "2.0",
+      "result": {
+        "content": [
+          {
+            "text": "{\"box\":{\"boxNumber\":1,\"rooms\":[\"Cellar\",\"Kitchen\"],\"flags\":[\"fragile\",\"no_stack\",\"label_printed\"],\"itemCount\":1},\"description\":\"Winter things (updated)\",\"items\":[{\"itemId\":1,\"name\":\"Reading lamp\",\"hasImage\":true}]}",
+            "type": "text"
+          }
+        ],
+        "isError": false
+      }
+    },
+    "headers": {
+      "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+      "content-type": "application/json",
+      "expires": "0",
+      "pragma": "no-cache",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-xss-protection": "0"
+    },
+    "set-cookie-attributes": [],
+    "status": 200
+  }
+}

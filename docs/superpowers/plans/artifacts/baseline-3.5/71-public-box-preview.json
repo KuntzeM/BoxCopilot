@@ -1,0 +1,38 @@
+{
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/v1/public/<uuid>"
+  },
+  "response": {
+    "body": {
+      "boxNumber": 1,
+      "currentRoom": "Cellar",
+      "description": "Winter things (updated)",
+      "id": 1,
+      "isFragile": true,
+      "items": [
+        {
+          "id": 1,
+          "imageUrl": "/api/v1/public/items/<token>/image?t=<ts>",
+          "name": "Reading lamp"
+        }
+      ],
+      "noStack": true,
+      "targetRoom": "Kitchen",
+      "uuid": "<uuid>"
+    },
+    "headers": {
+      "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+      "content-type": "application/json",
+      "expires": "0",
+      "pragma": "no-cache",
+      "vary": "Origin, Access-Control-Request-Method, Access-Control-Request-Headers",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-xss-protection": "0"
+    },
+    "set-cookie-attributes": [],
+    "status": 200
+  }
+}

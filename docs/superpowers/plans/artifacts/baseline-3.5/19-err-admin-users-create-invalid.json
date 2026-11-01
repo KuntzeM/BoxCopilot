@@ -1,0 +1,33 @@
+{
+  "request": {
+    "body": {
+      "username": ""
+    },
+    "method": "POST",
+    "path": "/api/v1/admin/users"
+  },
+  "response": {
+    "body": {
+      "fieldErrors": {
+        "name": "Name is required",
+        "role": "Role is required",
+        "username": "Username is required"
+      },
+      "message": "Validation failed",
+      "status": 400,
+      "timestamp": "<timestamp>"
+    },
+    "headers": {
+      "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+      "content-type": "application/json",
+      "expires": "0",
+      "pragma": "no-cache",
+      "vary": "Origin, Access-Control-Request-Method, Access-Control-Request-Headers",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-xss-protection": "0"
+    },
+    "set-cookie-attributes": [],
+    "status": 400
+  }
+}

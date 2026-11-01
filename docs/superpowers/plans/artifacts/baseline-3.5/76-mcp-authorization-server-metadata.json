@@ -1,0 +1,45 @@
+{
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/.well-known/oauth-authorization-server"
+  },
+  "response": {
+    "body": {
+      "authorization_endpoint": "http://localhost:8080/oauth2/authorize",
+      "code_challenge_methods_supported": [
+        "S256"
+      ],
+      "grant_types_supported": [
+        "authorization_code",
+        "refresh_token"
+      ],
+      "issuer": "http://localhost:8080",
+      "response_types_supported": [
+        "code"
+      ],
+      "revocation_endpoint": "http://localhost:8080/oauth2/revoke",
+      "revocation_endpoint_auth_methods_supported": [
+        "none"
+      ],
+      "scopes_supported": [
+        "mcp:read"
+      ],
+      "token_endpoint": "http://localhost:8080/oauth2/token",
+      "token_endpoint_auth_methods_supported": [
+        "none"
+      ]
+    },
+    "headers": {
+      "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+      "content-type": "application/json",
+      "expires": "0",
+      "pragma": "no-cache",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-xss-protection": "0"
+    },
+    "set-cookie-attributes": [],
+    "status": 200
+  }
+}

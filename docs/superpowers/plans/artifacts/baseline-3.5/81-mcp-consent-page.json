@@ -1,0 +1,24 @@
+{
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/oauth2/consent?state=l3oqmeLEoVVCep7F6rCO39ATroHqOHd3aEbTWpMMIgg%3D"
+  },
+  "response": {
+    "body": {
+      "bytes": 1627,
+      "html": true,
+      "text": "<!DOCTYPE html> <html lang=\"de\"> <head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"> <title>Claude-Verbindung bestätigen</title></head> <body> <h1>Claude-Verbindung bestätigen</h1> <p><strong>Claude-Verbindung</strong> möchte auf Ihr BoxPilot-Inventar zugreifen.</p> <p>Angemeldet als: <strong>snapuser</strong></p> <p>Weiterleitung an: <strong>localhost</strong></p> <h2>Berechtigungen</h2> <ul> <li>Lesezugriff auf Ihre Boxen und Gegenstände</li> </ul> <p>Dabei werden Daten aus Ihrem Inventar - Namen, Beschreibungen und Bilder - an den KI-Anbieter übe"
+    },
+    "headers": {
+      "cache-control": "no-store",
+      "content-security-policy": "default-src 'none'; form-action 'self'; frame-ancestors 'none'",
+      "content-type": "text/html;charset=UTF-8",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-xss-protection": "0"
+    },
+    "set-cookie-attributes": [],
+    "status": 200
+  }
+}
