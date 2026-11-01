@@ -187,7 +187,12 @@ upgrade was rehearsed against a dump of a 3.5 installation (see `docs/superpower
 - Take a database dump, e.g. `docker exec boxcopilot-postgres pg_dump -U <POSTGRES_USER> <POSTGRES_DB> > boxpilot-3.5.sql`.
   The upgrade adds no Flyway migration (the schema stays at V14) and Flyway reports "up to date", so the dump is only
   needed if you want to discard data written by 4.1 later.
-- The backend has a TCP healthcheck (`start_period` 120s) and the frontend waits for it to be healthy.
+- The backend has a TCP healthcheck (`start_period` 120s) and the frontend waits for it to be healthy
+  (`depends_on: condition: service_healthy`). If the backend never becomes healthy, `docker compose up -d` reports the
+  failed dependency and the frontend stays down.
+- The backend image sets `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75`, which raises the heap ceiling from the JVM
+  default (25%) to 75% of the memory the container sees. The compose file sets no memory limit, so on a shared host
+  set `mem_limit` (or adjust the percentage).
 - Postgres is now pinned to `postgres:15.19` (Debian 13 / trixie); the previous `postgres:15` was already a moving
   tag. Before upgrading run `docker exec boxcopilot-postgres cat /etc/os-release`. If the running image is Debian 12
   (bookworm), either pin `postgres:15.19-bookworm` or `REINDEX` your text indexes after the swap (glibc collation
@@ -220,16 +225,18 @@ upgrade was rehearsed against a dump of a 3.5 installation (see `docs/superpower
 
 #### Rolling back to the 3.5 build
 
-1. Redeploy the previous backend (and frontend) image.
+1. Stop the 4.1 backend (`docker compose stop backend`), so it cannot write new sessions.
 2. Delete the Redis session keys. Spring Security 7 stores a `FactorGrantedAuthority` in every session; Boot 3.5
    cannot deserialize it and answers **500 on every request that carries a session cookie written by 4.1**
-   (`ClassNotFoundException ... FactorGrantedAuthority`) until that session expires or is removed. With the compose
+   (`ClassNotFoundException ... FactorGrantedAuthority`) until that session expires (at most 30 minutes after its
+   last use) or is removed. With the compose
    file's Redis (it sets `REDISCLI_AUTH` from `REDIS_PASSWORD`, so `redis-cli` inside the container authenticates):
    ```bash
    docker exec boxcopilot-redis sh -c "redis-cli --scan --pattern 'spring:session:*' | xargs -r redis-cli del"
    ```
    Afterwards the stale cookies are treated as anonymous and users log in again.
-3. Data written by 4.1 (descriptions, items, images, MCP authorizations, magic links) is readable by 3.5, so the
+3. Start the previous (3.5) backend and frontend images.
+4. Data written by 4.1 (descriptions, items, images, MCP authorizations, magic links) is readable by 3.5, so the
    dump does not need to be restored. Restore it only if you want to discard everything written since the upgrade.
 
 #### Known issues (not caused by the migration)

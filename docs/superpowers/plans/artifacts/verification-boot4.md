@@ -5,6 +5,12 @@ Windows 11 / Docker Desktop 29.9.2, Temurin 21.0.12.1, Maven 3.9.12, Node 24.22.
 passwords and tokens were throwaway (`bp-throwaway`, `redis-throwaway`, the baseline's admin password); nothing
 here is a credential. Builds and runs happened outside the repository (`<outside-repo>/BoxPilot-build4/`).
 
+Step numbers in this file are the evidence steps, not the plan's. Mapping to Task 11 of the plan: evidence 1 = plan
+Step 1, 3 = plan Step 2, 4 = plan Step 5, 6 = plan Step 6; evidence 2 (API snapshot diff against baseline-3.5) and 5
+(rollback rehearsal) are additions that belong to Tasks 3 and 11 without a plan step of their own. Plan Steps 3
+(browser matrix) and 4 (MCP end to end) are covered by Task 11b below (its "Step 3" and "Step 4"); plan Step 7 is
+the `graphify update .` and commit.
+
 ## Summary
 
 | Step | Result |
@@ -13,7 +19,7 @@ here is a credential. Builds and runs happened outside the repository (`<outside
 | 2 API snapshot diff | 96 files: 92 identical, 4 expected diffs, 0 unexpected after fix `a41fd9c` (before it: 91 differed unexpectedly) |
 | 3 Compose on baseline data | all services healthy, Flyway "up to date" at v14, `flyway_schema_history` byte-identical (md5), 0 ERROR, no Jackson 2 / deprecation warnings, data + image readable |
 | 4 Upgrade 3.5 -> 4.1 | 3.5 session cookie still signed in, magic link redeemable, 3.5 MCP access + refresh token accepted, data and images intact; no 500 |
-| 5 Rollback 4.1 -> 3.5 | data (17 kB unicode LO description), items, users, images, MCP authorization written by 4.1 all readable by 3.5; **Redis sessions written by 4.1 make 3.5 answer 500 on every request carrying that cookie** (ClassNotFoundException `FactorGrantedAuthority`); flushing `spring:session:*` turns them into clean anonymous/401 |
+| 5 Rollback 4.1 -> 3.5 | data (16 800-character unicode LO description), items, users, images, MCP authorization written by 4.1 all readable by 3.5; **Redis sessions written by 4.1 make 3.5 answer 500 on every request carrying that cookie** (ClassNotFoundException `FactorGrantedAuthority`); flushing `spring:session:*` turns them into clean anonymous/401 |
 | 6 CVE rescan | osv.dev: 165 runtime artifacts, 0 advisories (control run on the 3.5 set reproduces the 3 known ones); `npm audit` 0; docker scout: backend image 0 vulnerable packages, frontend `nginx:1.30-alpine` 8C/18H in OS packages (curl, brotli, libxml2), postgres/redis upstream only |
 
 ## Step 1: unit/integration
@@ -136,7 +142,7 @@ Caused by: java.lang.ClassNotFoundException: org.springframework.security.core.a
 Spring Security 7 adds a `FactorGrantedAuthority` (authentication factor) to every login; the JDK-serialized
 security context in Redis cannot be loaded by Security 6. The session filter fails before the security chain can
 treat the request as anonymous, so the user gets 500 on every request until the cookie is dropped or the session
-expires (`spring.session.timeout` 122400 s = 34 h). Requests without the cookie and fresh logins on 3.5 work.
+expires (30 minutes after its last access: `@EnableRedisHttpSession` sets 1800 s; `spring.session.timeout` has no effect with that annotation). Requests without the cookie and fresh logins on 3.5 work.
 
 Mitigation, verified: delete the session keys right after rolling back, e.g.
 `redis-cli --scan --pattern 'spring:session:*' | xargs redis-cli del`. Afterwards the same 4.1 cookie gives

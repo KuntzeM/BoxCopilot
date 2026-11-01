@@ -324,7 +324,7 @@ ledger (`.superpowers/sdd/2026-09-21-mcp-server-sprint/progress.md`).
 6. **Remaining §4.4 "Phase 4 and own tickets" items**, not bundled into this sprint's stories:
    - **M3** — session invalidation on role change or user deactivation (sessions carry a snapshot of the user entity; the 34h in `application-prod.yml` has no effect, the
      30-minute idle default of `@EnableRedisHttpSession` applies).
-   - **Container hardening** — non-root user, `read_only` root filesystem with explicit volumes, `cap_drop: ALL`
+   - **Container hardening** — non-root user (opt-in available, see the main README; not the default), `read_only` root filesystem with explicit volumes, `cap_drop: ALL`
      for the backend/frontend containers.
    - **Unified login error messages** — locked/disabled/wrong-password are still distinguishable in the login
      failure handler (`OAuth2SecurityConfig`), an account-enumeration nicety, not fixed this sprint.
