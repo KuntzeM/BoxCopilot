@@ -188,3 +188,132 @@ Scripts (outside the repo, throwaway): `snapshot.py` (unchanged from baseline-3.
 (parses `dependency:list` output, posts the querybatch, fetches aliases per hit). Environment for step 4/5 as in
 `baseline-3.5/README.md` step 6 plus `APP_MCP_ENABLED=true SPRING_AI_MCP_SERVER_ENABLED=true
 APP_MCP_BACKEND_URL=https://localhost:8080 APP_MCP_REDIRECT_URIS_0=http://localhost:41000/callback`.
+
+# Task 11b: browser end-to-end and MCP end-to-end (steps 3 and 4)
+
+Branch `feature/spring-boot-4` at `14f0fff`; no source change was needed (no defect of the migration found).
+Everything ran on Windows 11 / Docker Desktop with throwaway secrets and a throwaway compose project (`bp-sb4-e2e`,
+own network, own volume, all removed afterwards). Screenshots, traces and scripts stayed outside the repository.
+
+## Setup
+
+- Stack: `docker compose` from the worktree (images built from it: backend 4.1.2, frontend with MUI 9 / React
+  Router 7 / Vite 8 behind `nginx:1.30-alpine`), `postgres:15.19`, `redis:7.4.11-alpine`, profile `prod`
+  (Redis sessions, Flyway), temporary `.env`, an override that renames the containers, puts Postgres on a project
+  volume, logs/images on scratch directories, drops the external `traefik-proxy` network and publishes
+  frontend `127.0.0.1:13000` and backend `127.0.0.1:18080`. `VITE_API_BASE_URL=http://localhost:18080` (the SPA
+  calls the backend cross-origin; cookies `SameSite=Lax`, not `Secure`, because of plain http).
+- Mock Nextcloud: a small Node OIDC provider on the host (discovery, authorize with a login form, code
+  exchange, RS256 id token with a stable JWKS key, userinfo, logout page), issuer `http://host.docker.internal:19999`.
+  BoxPilot's own `/oauth2`, `/login` and `/api` endpoints are the real ones.
+- Browser: Playwright (`playwright-core`) driving Microsoft Edge 156 (Chromium). The Playwright MCP plugin could
+  not start (it looks for Chrome under `AppData\Local\Google`, which is not installed).
+- Baseline for oddities: a 3.5.16 backend/frontend image built from `e9c34e7`, swapped into the same compose
+  project and data (`up -d --no-build` with an image override).
+- Pitfall for anyone repeating this: `docker compose` reads `CLIENT_ID`, `CLIENT_SECRET` and similar names from the
+  process environment before `.env`; unset them or the stack silently uses the host's values.
+
+## Step 3: functional matrix in the browser (4.1.2)
+
+| # | Check | Result | Evidence |
+|---|---|---|---|
+| 1 | Username/password login (wrong password, then right one) and logout | pass | wrong password: `401 {"error":"Invalid credentials"}` and the message in the form; login lands on `/app/boxes`, `/me` = admin; after logout `/app/boxes` shows the login form and `GET /api/v1/boxes` is `401`. Logout answers `302` to `NEXTCLOUD_LOGOUT_URL?redirect_uri=<frontend>` as in the baseline (`95-logout`) |
+| 2 | OIDC login through mock Nextcloud | pass | SPA button -> real `/oauth2/authorization/nextcloud` (PKCE `S256`, state, nonce) -> mock login form -> real callback `/login/oauth2/code/nextcloud` -> `/app/boxes`; `/me`: `authProvider NEXTCLOUD`, `username mockuser`, name from the `name` claim, role USER |
+| 3 | OIDC rejection (user not allowed) | pass | admin disabled the OIDC user in the admin panel; the next OIDC login ends on the login form, `/me` anonymous, log `OIDC login rejected for disabled user`. The form shows no explanation (the failure URL `?error=login_failed` is not rendered) |
+| 4 | Magic link create (admin) | pass | user row -> "Magic-Link generieren" -> link `<frontend>/magic#t=<uuid>`, valid for 24 h |
+| 5 | Magic link redeem | pass | fresh browser context: lands on `/app/boxes`, `/me` = alice / USER |
+| 6 | Magic link reuse rejected | pass | page "Dieser Login-Link ist ungültig oder abgelaufen"; log `token of user 'alice' is used or expired`. Expiry by clock was not run on its own; the service handles used and expired in one path with one generic 401 |
+| 7 | CSRF-protected writes from the SPA | pass | every create/update/delete/upload of the run worked; without a token `POST /api/v1/boxes` answers `403` (as baseline `37-err-csrf-missing-as-user`) |
+| 8 | Admin panel: user list, create/edit user, MCP switch (MUI 9 `Switch`, `role=switch`), magic links | pass | list shows admin/alice/OIDC user with role, status, auth type; the "Aktiviert" and "MCP" switches toggle and persist (re-opened dialog shows the value); the "Einstellungen" tab is the existing "Coming soon" placeholder |
+| 9 | Boxes create / list / bulk flags / delete, box number pool | pass | boxes 1 and 2 (unicode description intact), bulk "Umgezogen" and "Label gedruckt", delete; pool row 3 goes `is_available false -> true` on delete and the next box reuses number 3 |
+| 10 | Items create / edit / delete | pass | `Stehlampe`, `Kerze` renamed `Teelicht`, `Wollmütze ü`, delete with confirmation |
+| 11 | Item image upload, thumbnail, public token URL, replace, delete | pass | PNG upload `POST /items/{id}/image` 200; shown as thumbnail `image/jpeg` 200x150 from `/api/v1/public/items/{token}/image`; `/image/large` 200; bogus token 404 JSON; replace works; delete removes the image |
+| 12 | Move item between boxes | pass | "Verschieben" -> target box -> confirm; item gone from box 2, present in box 1 |
+| 13 | Label PDF | pass | react-pdf builds the PDF in the browser and opens a blob tab: valid `%PDF-1.3`, 1 page, 5 kB, 2 images (QR) and 2 fonts; box marked "Label gedruckt" |
+| 14 | Public share / preview (valid, invalid, revoked) | pass | valid UUID: box and items without login; unknown UUID and `not-a-uuid`: "Box konnte nicht geladen werden" (404); deleted box: same; bogus image token 404; image of a deleted image: see finding B |
+| 15 | Language switch | pass | DE <-> EN via the flag menu, all labels change, survives reload (cookie) |
+| 16 | Error handling (401/403/404) | pass | user opening `/app/admin` is redirected to `/app/boxes`; `GET /api/v1/admin/users` as user `403`; unknown SPA routes redirect to `/app/boxes`; anonymous protected page shows the login form, API `401` |
+| 17 | Responsive (390x844, box list and admin) | pass | no horizontal scroll, burger menu in the app bar, cards stack; two buttons under 36 px height (filter reset, "Erweiterte Filter") |
+
+17 of 17 pass (magic-link expiry by clock not exercised on its own, see 6).
+
+Console / network noise (everything not listed was empty):
+
+| Where | Message | Expected? |
+|---|---|---|
+| login | `401 POST /api/auth/login` | yes, provoked wrong password |
+| `/magic#t=...` with a used or bogus token | `401` or `403` on `POST /api/v1/auth/magic-login` | yes, see finding A |
+| public page, unknown box | `404 GET /api/v1/public/<id>` | yes |
+| logout | `Logout failed: AxiosError: Network Error` (the XHR follows the `302` to the Nextcloud logout URL cross-origin: CORS) | existed before the upgrade; the session is still ended and the user lands on the login form |
+| deleted item image | `500 GET /api/v1/public/items/<token>/image` | finding B, same on 3.5.16 |
+| mock provider | `404` for the mock's favicon | test artefact |
+
+No MUI/React warnings, no failed asset requests, no cookie or `SameSite` warnings, no deprecation messages.
+
+Findings that are not Spring Boot regressions (reproduced on the 3.5.16 image on the same data):
+
+- **A (low-medium, pre-existing): magic-link redeem races the app's own `/me` call.** `redeemMagicLink` fetches
+  `/api/v1/csrf` and sends that token, but the SPA's `GET /api/v1/me` runs in parallel and also sets an
+  `XSRF-TOKEN` cookie; when it answers last it replaces the cookie, the sent token no longer matches and the redeem
+  `POST` is answered `403` before the token is looked at. The user sees "link invalid" for a valid link (the token is
+  not consumed; loading the link again usually works). Eight cold loads of `/magic#t=<bogus>`: 4.1.2 gave 401 (race
+  won) 1x and 403 7x, 3.5.16 gave 401 4x and 403 4x. Idea for a later task: request the CSRF token after `/me`
+  settled, or retry once on 403.
+- **B (low, pre-existing): the public image URL of an item whose image was deleted answers `500 Image not found`**
+  (ERROR log line) instead of 404; identical on 3.5.16 (the baseline README already notes this).
+- **C (cosmetic, pre-existing): the three-dot button on a box card shows the raw i18n key `boxes.actions`** as its
+  tooltip and accessible name (`BoxList.tsx` uses `t('boxes.actions')`; the key exists in another locale section).
+
+## Step 4: MCP end to end (4.1.2, `APP_MCP_ENABLED=true`)
+
+Same stack with `BACKEND_URL=https://localhost:18080` (the `prod` start guard demands https; the traffic itself was
+plain http on `localhost:18080`, so absolute URLs in the metadata and the consent redirect say `https` and were
+rewritten by the test client), redirect URIs through `APP_MCP_REDIRECT_URIS_n` variables,
+`APP_MCP_IMAGE_CALLS_PER_DAY=5`. Driven with the real SPA for provisioning/login/consent and a script for the OAuth
+and JSON-RPC legs.
+
+| Check | Result | Evidence |
+|---|---|---|
+| Discovery documents | pass | `/.well-known/oauth-authorization-server` (issuer, authorize/token/revoke endpoints, `code_challenge_methods_supported:["S256"]`, `token_endpoint_auth_methods_supported:["none"]`, scope `mcp:read`) and `/.well-known/oauth-protected-resource/mcp` (resource `.../mcp`, bearer header) both 200 |
+| Client provisioning from the SPA ("Claude-Verbindung" dialog) | pass | user with MCP allowed sees the button; the dialog shows client id and connector URL (`<VITE_API_BASE_URL>/mcp`), "Neu erzeugen" and "Alle Verbindungen widerrufen" |
+| Authorize + consent + token with PKCE | pass | `/oauth2/authorize` -> consent page ("Angemeldet als: alice", "Weiterleitung an: 127.0.0.1", read-only text) -> approve -> `302` to the loopback redirect with `code` and the original `state` -> `/oauth2/token` with `code_verifier`: 200 access + refresh token, `expires_in` 1799, scope `mcp:read`. Replaying the code: `400 invalid_grant` and the tokens issued from it are invalidated (log `Invalidated authorization token(s)`) |
+| Refresh | pass | new pair issued; the previous access token answers 401 afterwards |
+| `initialize`, `tools/list` | pass | protocol `2025-06-18`; exactly `get_box_contents`, `get_item_image`, `search_boxes`, `search_items`, each `readOnlyHint:true` |
+| `search_items`, `search_boxes`, `get_box_contents` | pass | correct data (item id, box number, rooms, flags, item counts); no uuid, token or url in the payloads |
+| `get_item_image` | pass | text part `{"boxNumber":1,"name":"Teelicht"}` plus an image part `image/jpeg` (valid JPEG, 1150 bytes); item without image or unknown id: "This item has no image." (no enumeration) |
+| Bad arguments: missing `query`, 5000-character `query` | pass | HTTP 200, `isError:true`, `Invalid input. Check the parameters and their allowed ranges.`, audit line `result=error` (the case fixed in `a41fd9c`) |
+| Bad arguments: wrong **type** (`{"boxNumber":"abc"}`, `{"itemId":"zzz"}`) | **finding D** | `isError:true` with the raw library message (4.1: `Conversion from JSON to java.lang.Integer failed ... Cannot deserialize value of type java.lang.Integer ...`; 3.5.16: `Character a is neither a decimal digit number ...`) and **no audit line**. The same class of leak exists on 3.5.16, so it is pre-existing: the documented "generic message + audit line" holds for validation errors, not for argument type-conversion errors. Unknown tool: JSON-RPC `-32602`, identical to baseline `90` |
+| MCP permission switched off in the admin panel | pass | next call `401`, log `MCP access revoked: userId=2`; switching it back on does not revive the old token (client and authorizations were deleted); a new client + consent works again |
+| User disabled | pass | next call `401`, connections revoked; re-enabling does not revive them |
+| Rate limits | pass | image tool: calls 6 and 7 of a 5/day limit answer HTTP 200 `isError:true` "Too many requests. Try again later." with audit `result=rate_limited`; per-subject 60/min: `429 {"error":"too_many_requests"}` with `Retry-After: 60` (calls of the earlier tests in the same minute count); failed bearer lookups: 429 after 30/min (log `MCP rate limit reached limit=failed_token_lookups`) |
+| Audit log | pass | one `McpAuditLogger` line per call: `MCP tool call sub=<id> tool=<name> result=ok\|error\|rate_limited hits=<n> ip=<addr>` (`ip` is the docker gateway: no proxy in front); no token, uuid or argument values in any line |
+| Host / Origin check on `/mcp` | pass | Host equal to the host of `BACKEND_URL`, no `Origin`: 200. Foreign Host (`evil.example`; also bare `localhost` and `127.0.0.1:18080`, because the port is part of the match): `421 Invalid Host header`. Foreign `Origin` (`https://evil.example`, `https://claude.ai`, `null`, the Inspector UI's `http://localhost:6274`, and the right host with another scheme): `403 Invalid Origin header`. `Origin` equal to the origin of `BACKEND_URL`: 200. No token: 401 with `WWW-Authenticate: Bearer resource_metadata=...`; bad token 401; `GET /mcp` 405 |
+| MCP Inspector (`npx @modelcontextprotocol/inspector --cli ... --transport http`) | pass | `tools/list` and `tools/call search_boxes` with the bearer token work. Captured against a stub server: the CLI sends `Host: <target host:port>`, `User-Agent: node` and no `Origin`, so it passes the check. (The Inspector's browser UI talks to its own local proxy; the browser's `Origin` does not reach `/mcp`.) Its interactive OAuth click-through was not driven (headless run) |
+| `APP_MCP_ENABLED=false` | pass | `/mcp` anonymous `403` (POST without CSRF); `GET /oauth2/authorize`, `/oauth2/jwks`, `/oauth2/consent` and both `/.well-known/...` documents `302` to the frontend (the ordinary login redirect); `POST /oauth2/token` and `POST /api/v1/me/mcp-client` `403`; `GET /api/v1/me/mcp-client` `401`; no `Registered tools` / start-guard log line. Status codes identical to 3.5.16 with the flag off |
+| `APP_MCP_ENABLED=false` plus `SPRING_AI_MCP_SERVER_ENABLED=true` | pass | variable present in the container, no tool registration, same statuses as above |
+
+Log scan of the run (`logs/boxcopilot.log`, 3.5 and 4.1 starts mixed): 0 lines matching
+`jackson 2|com.fasterxml|deprecat`; ERROR lines only the two `File storage error: Image not found` (finding B); WARN
+lines are the provoked cases plus the known Spring AI `No resource/prompt/complete methods found` and
+`BeanPostProcessorChecker` lines.
+
+Matrix totals: browser 17 pass / 0 fail; MCP 15 pass / 0 fail with one pre-existing finding (D) beside the pass.
+
+### What could not be tested here
+
+- **The real Claude.ai connector (S12 manual check stays open).** To be confirmed once against a deployment on public
+  https: which `Origin` (if any) and `Host` claude.ai sends to `/mcp`. The new check accepts a request without
+  `Origin` and one whose `Origin` equals the origin of `BACKEND_URL`, and refuses everything else (an `Origin` of
+  `https://claude.ai` is refused with 403); if Claude.ai sent one, the connector would break. Steps (from
+  `docs/ops/mcp-server.md`, "Manual MCP Inspector / Claude Free verification"): backend on public https with
+  `BACKEND_URL` equal to that origin, Traefik passing `Host` through and forwarding `X-Forwarded-*`;
+  `app.mcp.redirect-uris` containing `https://claude.ai/api/mcp/auth_callback` (and the loopback callback for the
+  Inspector, removed again afterwards); a test user with MCP allowed, a box with an item with a photo; then
+  claude.ai -> Settings -> Connectors -> "Add custom connector", name `BoxPilot`, URL `https://<backend>/mcp`, client
+  id from the "Claude-Verbindung" dialog in the advanced settings, no secret; connect (login, consent page), ask for
+  inventory by room and for a photo, repeat in the mobile app, idle past the 30-minute token life and use again
+  (refresh, watch for an unexpected consent prompt), finally "Alle Verbindungen widerrufen". During this, watch the
+  backend log and the proxy access log for a `403` or `421` on `/mcp` and note the request's `Host` and `Origin`.
+- The Inspector's interactive OAuth/browser mode, a real Nextcloud tenant, expiry of an MCP authorization by the
+  `max-connection-age` clock, a magic link expiring by the clock, and https end to end (the metadata URLs are https
+  only because the `prod` guard demands it).
