@@ -24,8 +24,11 @@ public class Box {
     @Column
     private String targetRoom;
 
+    // The column is TEXT (V1). On Postgres Hibernate keeps the object id of a large object in it, which production
+    // rows written by Hibernate 6 already do; columnDefinition tells schema validation the real column type
+    // instead of the oid that Hibernate 7 would otherwise expect for a @Lob.
     @Lob
-    @Column
+    @Column(columnDefinition = "text")
     private String description;
 
     @Column(name = "is_fragile", nullable = false)
