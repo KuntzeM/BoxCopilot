@@ -4,7 +4,7 @@ import com.boxcopilot.backend.mcp.abuse.McpRateLimits;
 import com.boxcopilot.backend.mcp.observability.McpAuditLogger;
 import com.boxcopilot.backend.mcp.observability.McpToolMetrics;
 import com.boxcopilot.backend.mcp.observability.McpToolResult;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;

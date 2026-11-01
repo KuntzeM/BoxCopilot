@@ -3,7 +3,7 @@ package com.boxcopilot.backend.mcp;
 import com.boxcopilot.backend.mcp.abuse.McpRateLimits;
 import com.boxcopilot.backend.mcp.observability.McpAuditLogger;
 import com.boxcopilot.backend.mcp.observability.McpToolMetrics;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.MeterRegistry;
 
 import java.time.Clock;

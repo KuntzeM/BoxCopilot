@@ -3,7 +3,7 @@ package com.boxcopilot.backend.repository;
 import org.springframework.boot.test.util.TestPropertyValues;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Points a Spring test context at a shared Postgres running the real Flyway schema.
@@ -16,7 +16,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
  */
 public class PostgresContainerSupport implements ApplicationContextInitializer<ConfigurableApplicationContext> {
 
-    private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:15");
+    private static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:15");
 
     @Override
     public void initialize(ConfigurableApplicationContext context) {

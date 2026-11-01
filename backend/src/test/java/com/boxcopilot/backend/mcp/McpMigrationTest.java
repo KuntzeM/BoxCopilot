@@ -9,8 +9,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.util.Arrays;
 import java.util.List;
@@ -37,7 +37,7 @@ class McpMigrationTest {
     private static final String OAUTH2_TABLES_VERSION = "14";
 
     /** Its own container: every other Postgres test runs against a database that is already migrated. */
-    private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:15");
+    private static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:15");
 
     private static JdbcTemplate jdbcTemplate;
     private static MigrateResult migrateResult;

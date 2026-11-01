@@ -2,7 +2,7 @@ package com.boxcopilot.backend.repository;
 
 import com.boxcopilot.backend.domain.Box;
 import com.boxcopilot.backend.domain.Item;
-import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
+import org.springframework.boot.data.jpa.test.autoconfigure.TestEntityManager;
 
 import java.util.UUID;
 
