@@ -172,9 +172,9 @@ class McpPendingAuthorizationIntegrationTest extends McpIntegrationTestBase {
 
         MvcResult result = resume(sessionFor(user), McpPendingCookies.encode(this.authorizeQuery));
 
-        // The user resolver only reports who is logged in; the authorize endpoint rejects the state itself
+        // The session of a disabled user is ended before the handler runs, so the authorization is not replayed
         assertThat(result.getResponse().getHeader(HttpHeaders.LOCATION))
-                .startsWith("http://localhost" + McpAuthorizationServerEndpoints.AUTHORIZE);
+                .doesNotStartWith("http://localhost" + McpAuthorizationServerEndpoints.AUTHORIZE);
     }
 
     // ---------------------------------------------------------------- helpers

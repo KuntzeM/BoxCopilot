@@ -83,6 +83,9 @@ class McpAllowedAdminOnlyTest {
     private UserService userService;
 
     @MockitoBean
+    private com.boxcopilot.backend.repository.UserRepository userRepository;
+
+    @MockitoBean
     private MagicLoginTokenService magicLoginTokenService;
 
     private MockMvc mockMvc;

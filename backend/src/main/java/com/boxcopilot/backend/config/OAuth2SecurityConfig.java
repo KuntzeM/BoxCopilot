@@ -1,5 +1,6 @@
 package com.boxcopilot.backend.config;
 
+import com.boxcopilot.backend.repository.UserRepository;
 import com.boxcopilot.backend.service.CustomOidcUserService;
 import com.boxcopilot.backend.service.CustomUserDetailsService;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,6 +19,7 @@ import org.springframework.security.web.authentication.AuthenticationFailureHand
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.web.cors.CorsConfiguration;
@@ -76,10 +78,12 @@ public class OAuth2SecurityConfig {
     SecurityFilterChain securityFilterChain(HttpSecurity http,
                                            AuthenticationSuccessHandler authenticationSuccessHandler,
                                            AuthenticationFailureHandler authenticationFailureHandler,
-                                           SecurityContextRepository securityContextRepository) throws Exception {
-        
+                                           SecurityContextRepository securityContextRepository,
+                                           UserRepository userRepository) throws Exception {
+
         http
             .securityContext(context -> context.securityContextRepository(securityContextRepository))
+            .addFilterAfter(new SessionRevalidationFilter(userRepository), SecurityContextHolderFilter.class)
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())

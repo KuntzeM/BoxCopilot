@@ -62,6 +62,9 @@ class OAuth2SecurityConfigTest {
     @MockitoBean
     private UserService userService;
 
+    @MockitoBean
+    private com.boxcopilot.backend.repository.UserRepository userRepository;
+
     private MockMvc mockMvc;
 
     @BeforeEach

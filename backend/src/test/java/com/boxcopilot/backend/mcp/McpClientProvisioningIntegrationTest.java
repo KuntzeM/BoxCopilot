@@ -225,7 +225,8 @@ class McpClientProvisioningIntegrationTest extends McpIntegrationTestBase {
     void aDisabledUserIsRefused() throws Exception {
         User user = createUser(false, true);
 
-        assertThat(perform(post(CLIENT_ENDPOINT), sessionFor(user)).getResponse().getStatus()).isEqualTo(403);
+        // The session of a disabled user is ended before the controller runs, so the caller is simply unauthenticated
+        assertThat(perform(post(CLIENT_ENDPOINT), sessionFor(user)).getResponse().getStatus()).isEqualTo(401);
     }
 
     /** A temporary lock denies provisioning, but it deletes nothing: the client survives it. */

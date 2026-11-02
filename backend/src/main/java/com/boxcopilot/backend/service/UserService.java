@@ -340,9 +340,18 @@ public class UserService {
      */
     @Transactional
     public void recordFailedLogin(String username) {
-        Optional<User> userOpt = userRepository.findByUsername(username);
+        // The login filter trims the username before authenticating, so count against the same key
+        Optional<User> userOpt = userRepository.findByUsername(username.trim());
         if (userOpt.isPresent()) {
             User user = userOpt.get();
+            // Failures during an active lock must not extend it, or anyone could keep the account locked
+            if (user.isAccountLocked()) {
+                return;
+            }
+            // A lapsed lock starts a fresh window instead of re-locking on the first new failure
+            if (user.getLockedUntil() != null) {
+                user.resetFailedAttempts();
+            }
             user.incrementFailedAttempts();
             userRepository.save(user);
             log.warn("Failed login attempt for user: {} (attempts: {})", username, user.getFailedLoginAttempts());

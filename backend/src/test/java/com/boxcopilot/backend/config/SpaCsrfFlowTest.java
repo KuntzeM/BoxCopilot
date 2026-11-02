@@ -54,6 +54,9 @@ class SpaCsrfFlowTest {
     @MockitoBean
     private UserService userService;
 
+    @MockitoBean
+    private com.boxcopilot.backend.repository.UserRepository userRepository;
+
     /** Hands out the request's CSRF token the way {@code AuthController#getCsrfToken} does. */
     @RestController
     static class CsrfEndpoint {
