@@ -9,6 +9,7 @@ vi.mock('../services/userService', () => ({
   userService: {
     getUsers: vi.fn(),
     updateUser: vi.fn(),
+    setPassword: vi.fn(),
   },
 }));
 
@@ -21,7 +22,6 @@ function buildUser(overrides: Partial<User> = {}): User {
     role: Role.USER,
     enabled: true,
     createdAt: '2026-01-01T10:00:00',
-    failedLoginAttempts: 0,
     hasPassword: true,
     mcpAllowed: false,
     ...overrides,
@@ -102,5 +102,71 @@ describe('AdminPanel MCP switch', () => {
     const payload = vi.mocked(userService.updateUser).mock.calls[0][1];
     expect(payload).toEqual(expect.objectContaining({ name: 'Alice B.', role: Role.ADMIN }));
     expect(payload.mcpAllowed).toBe(true);
+  });
+});
+
+describe('AdminPanel hardening', () => {
+  beforeEach(() => {
+    vi.mocked(userService.getUsers).mockReset();
+    vi.mocked(userService.updateUser).mockReset();
+    vi.mocked(userService.setPassword).mockReset();
+    document.cookie = 'app-language=en';
+  });
+  afterEach(cleanup);
+
+  it('asks for confirmation before changing a role', async () => {
+    const user = buildUser();
+    vi.mocked(userService.getUsers).mockResolvedValue([user]);
+    vi.mocked(userService.updateUser).mockResolvedValue({ ...user, role: Role.ADMIN });
+    render(
+      <LanguageProvider>
+        <AdminPanel />
+      </LanguageProvider>,
+    );
+    fireEvent.click(await screen.findByTitle('Make Admin'));
+    expect(userService.updateUser).not.toHaveBeenCalled();
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(userService.updateUser).toHaveBeenCalledWith(7, { role: Role.ADMIN }));
+  });
+
+  it('has no unlock control and shows no lock state, even if the backend sends one', async () => {
+    const locked = { ...buildUser(), lockedUntil: '2999-01-01T00:00:00', failedLoginAttempts: 5 } as User;
+    vi.mocked(userService.getUsers).mockResolvedValue([locked]);
+    render(
+      <LanguageProvider>
+        <AdminPanel />
+      </LanguageProvider>,
+    );
+    await screen.findByTitle('Edit User');
+    expect(screen.queryByTitle('Unlock')).toBeNull();
+    expect(screen.queryByText('Locked')).toBeNull();
+  });
+
+  it('requires 12 characters for a new password and mentions ended sessions', async () => {
+    vi.mocked(userService.getUsers).mockResolvedValue([buildUser()]);
+    vi.mocked(userService.setPassword).mockResolvedValue();
+    render(
+      <LanguageProvider>
+        <AdminPanel />
+      </LanguageProvider>,
+    );
+    fireEvent.click(await screen.findByTitle('Set Password'));
+    const dialog = within(screen.getByRole('dialog'));
+    fireEvent.change(dialog.getByLabelText(/Password/), { target: { value: 'short' } });
+    expect((dialog.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(dialog.getByText('Password must be at least 12 characters.')).toBeTruthy();
+    fireEvent.change(dialog.getByLabelText(/Password/), { target: { value: 'long-enough-pw1' } });
+    fireEvent.click(dialog.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText(/sessions of this user were ended/)).toBeTruthy();
+  });
+
+  it('shows the backend error message, never the raw axios message', async () => {
+    vi.mocked(userService.getUsers).mockRejectedValue({ message: 'Request failed with status code 500', response: { data: {} } });
+    render(
+      <LanguageProvider>
+        <AdminPanel />
+      </LanguageProvider>,
+    );
+    expect(await screen.findByText('Action failed')).toBeTruthy();
   });
 });

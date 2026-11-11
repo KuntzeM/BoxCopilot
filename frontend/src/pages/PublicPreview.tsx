@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Card, CardContent, CircularProgress, Container, Typography, Alert, Stack, Divider, Chip, AppBar, Toolbar, IconButton, Paper, Dialog, DialogTitle, DialogContent, DialogActions, Button, Avatar } from '@mui/material';
-import { Brightness4, Brightness7, Close, Edit } from '@mui/icons-material';
+import { Box, Card, CardContent, CircularProgress, Container, Typography, Alert, AlertTitle, Stack, Divider, Chip, AppBar, Toolbar, IconButton, Paper, Dialog, DialogTitle, DialogContent, DialogActions, Button, Avatar, ButtonBase } from '@mui/material';
+import { Brightness4, Brightness7, Close, Edit, Inventory2 } from '@mui/icons-material';
 import axios from '../services/axiosConfig';
 import { fetchPublicPreview } from '../services/publicPreviewService';
 import { BoxPreview } from '../types/models';
@@ -18,7 +18,8 @@ function PublicPreviewContent() {
   const { mode, toggleTheme } = useThemeContext();
   const [data, setData] = useState<BoxPreview | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadState, setLoadState] = useState<'ok' | 'notFound' | 'error'>('ok');
+  const [reloadKey, setReloadKey] = useState(0);
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
@@ -56,69 +57,101 @@ function PublicPreviewContent() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     const load = async () => {
-      if (!token) {
-        setError(t('errors.tokenMissing'));
-        setIsLoading(false);
-        return;
-      }
+      setIsLoading(true);
+      setLoadState('ok');
       try {
-        const preview = await fetchPublicPreview(token);
-        setData(preview);
+        const preview = await fetchPublicPreview(token ?? '');
+        if (!cancelled) setData(preview);
       } catch (err) {
-        setError(t('errors.boxLoadFailed'));
+        // Only the status code decides: 404 = unknown/revoked link, anything else = temporary
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        if (!cancelled) setLoadState(status === 404 ? 'notFound' : 'error');
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
 
+    if (!token) {
+      setLoadState('notFound');
+      setIsLoading(false);
+      return;
+    }
     load();
-  }, [token, t]);
+    return () => {
+      cancelled = true;
+    };
+  }, [token, reloadKey]);
+
+  const appBar = (
+    <AppBar position="static" color="default" elevation={1}>
+      <Toolbar sx={{ justifyContent: 'space-between' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Inventory2 color="primary" aria-hidden />
+          <Typography variant="h6" component="span" sx={{ fontWeight: 700 }}>
+            {t('app.title')}
+          </Typography>
+          {isAuthenticated && data && (
+            <Button
+              startIcon={<Edit />}
+              variant="contained"
+              color="primary"
+              onClick={() => navigate(`/app/boxes/${data.id}/edit`)}
+              sx={{ ml: 2 }}
+            >
+              {t('boxes.edit')}
+            </Button>
+          )}
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1, ml: 'auto', alignItems: 'center' }}>
+          <IconButton onClick={toggleTheme} color="inherit" aria-label={t('theme.toggle')} size="medium">
+            {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
+          </IconButton>
+          <LanguageSelector variant="icon" />
+        </Box>
+      </Toolbar>
+    </AppBar>
+  );
 
   if (isLoading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <CircularProgress />
-      </Box>
+      <>
+        {appBar}
+        <Box role="status" sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+          <CircularProgress aria-label={t('common.loading')} />
+        </Box>
+      </>
     );
   }
 
-  if (error || !data) {
+  if (loadState !== 'ok' || !data) {
+    const notFound = loadState === 'notFound';
     return (
-      <Container maxWidth="sm" sx={{ py: 6 }}>
-        <Alert severity="error">{error || t('errors.unknownError')}</Alert>
-      </Container>
+      <>
+        {appBar}
+        <Container maxWidth="sm" sx={{ py: 6 }}>
+          <Alert
+            severity={notFound ? 'warning' : 'error'}
+            action={
+              notFound ? undefined : (
+                <Button color="inherit" size="small" onClick={() => setReloadKey((k) => k + 1)}>
+                  {t('common.retry')}
+                </Button>
+              )
+            }
+          >
+            <AlertTitle>{t(notFound ? 'boxes.publicInvalidTitle' : 'boxes.publicTemporaryTitle')}</AlertTitle>
+            {t(notFound ? 'boxes.publicInvalidMessage' : 'boxes.publicTemporaryMessage')}
+          </Alert>
+        </Container>
+      </>
     );
   }
 
   return (
     <>
-      <AppBar position="static" color="default" elevation={1}>
-        <Toolbar sx={{ justifyContent: 'space-between' }}>
-          {isAuthenticated && (
-            <Button
-              startIcon={<Edit />}
-              variant="contained"
-              color="primary"
-              onClick={() => navigate(`/app/boxes/${data?.id}/edit`)}
-              disabled={!data}
-            >
-              {t('boxes.edit') || 'Bearbeiten'}
-            </Button>
-          )}
-          <Box sx={{ display: 'flex', gap: 1, ml: 'auto', alignItems: 'center' }}>
-            <IconButton
-              onClick={toggleTheme}
-              color="inherit"
-              aria-label={t('theme.toggle')}
-              size="medium"
-            >
-              {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
-            </IconButton>
-            <LanguageSelector variant="icon" />
-          </Box>
-        </Toolbar>
-      </AppBar>
+      {appBar}
       <Container maxWidth="sm" sx={{ py: 4 }}>
         <Card sx={{ boxShadow: 3 }}>
           <CardContent>
@@ -187,13 +220,18 @@ function PublicPreviewContent() {
                       >
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                           {item.imageUrl ? (
-                            <Avatar
-                              src={resolveImageUrl(item.imageUrl)}
-                              alt={item.name}
-                              slotProps={{ img: { loading: 'lazy' } }}
-                              sx={{ width: 50, height: 50, cursor: 'pointer' }}
+                            <ButtonBase
+                              aria-label={t('boxes.showPhoto', { name: item.name })}
                               onClick={() => item.imageUrl && setFullImageUrl(withApiBase(item.imageUrl.replace('/image', '/image/large')))}
-                            />
+                              sx={{ borderRadius: '50%' }}
+                            >
+                              <Avatar
+                                src={resolveImageUrl(item.imageUrl)}
+                                alt=""
+                                slotProps={{ img: { loading: 'lazy' } }}
+                                sx={{ width: 50, height: 50 }}
+                              />
+                            </ButtonBase>
                           ) : (
                             <Avatar sx={{ width: 50, height: 50, bgcolor: 'grey.300' }}>
                               📦

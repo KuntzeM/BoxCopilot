@@ -6,7 +6,7 @@ import { useMagicLogin } from '../hooks/useMagicLogin';
 
 export default function MagicLoginPage() {
   const { t } = useTranslation();
-  const status = useMagicLogin();
+  const { status, retryMinutes } = useMagicLogin();
 
   return (
     <Container maxWidth="sm">
@@ -36,7 +36,9 @@ export default function MagicLoginPage() {
           ) : (
             <Box sx={{ mt: 3 }}>
               <Alert severity="error" sx={{ mb: 3, textAlign: 'left' }}>
-                {t('auth.magicLoginFailed')}
+                {status === 'rateLimited'
+                  ? t('auth.tooManyAttempts', { minutes: String(retryMinutes) })
+                  : t('auth.magicLoginFailed')}
               </Alert>
               <Button component={RouterLink} to="/" variant="contained" size="large" fullWidth>
                 {t('auth.backToLogin')}

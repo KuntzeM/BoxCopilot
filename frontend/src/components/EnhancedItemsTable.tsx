@@ -12,6 +12,7 @@ import {
   Checkbox,
   Typography,
   Avatar,
+  ButtonBase,
   Toolbar,
   Chip,
   Drawer,
@@ -23,9 +24,9 @@ import {
   useTheme,
   Stack,
 } from '@mui/material';
-import { 
-  Delete, 
-  DriveFileMove, 
+import {
+  Delete,
+  DriveFileMove,
   Image as ImageIcon,
   MoreVert,
   Edit,
@@ -57,15 +58,16 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
   const { t } = useTranslation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  
+
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const itemToDelete = items.find((i) => i.id === deleteConfirm);
   const [editData, setEditData] = useState<UpdateItemPayload>({ name: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
-  
+
   // Bottom sheet state for mobile actions
   const [actionDrawerOpen, setActionDrawerOpen] = useState(false);
   const [selectedItemForActions, setSelectedItemForActions] = useState<Item | null>(null);
@@ -253,16 +255,21 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
             {/* Image */}
             <Box sx={{ flexShrink: 0 }}>
               {item.imageUrl ? (
-                <Avatar
-                  src={resolveImageUrl(item.imageUrl)}
-                  alt={item.name}
-                  slotProps={{ img: { loading: 'lazy' } }}
-                  sx={{ width: 48, height: 48, cursor: 'pointer' }}
+                <ButtonBase
+                  aria-label={t('boxes.showPhoto', { name: item.name })}
+                  sx={{ borderRadius: '50%' }}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleImageClick(item.id, item.imageUrl!);
                   }}
-                />
+                >
+                  <Avatar
+                    src={resolveImageUrl(item.imageUrl)}
+                    alt=""
+                    slotProps={{ img: { loading: 'lazy' } }}
+                    sx={{ width: 48, height: 48 }}
+                  />
+                </ButtonBase>
               ) : (
                 <Avatar sx={{ width: 48, height: 48, bgcolor: 'grey.300' }}>
                   📦
@@ -367,10 +374,12 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteConfirm !== null} onClose={() => !isLoading && setDeleteConfirm(null)}>
         <DialogTitle>{t('items.deleteItem')}</DialogTitle>
-        <DialogContent>{t('items.deleteMessage')}</DialogContent>
+        <DialogContent>
+          {itemToDelete ? t('items.deleteMessageNamed', { name: itemToDelete.name }) : t('items.deleteMessage')}
+        </DialogContent>
         <DialogActions sx={{ p: 2 }}>
-          <Button 
-            onClick={() => setDeleteConfirm(null)} 
+          <Button
+            onClick={() => setDeleteConfirm(null)}
             disabled={isLoading}
             fullWidth
             size="large"
@@ -379,10 +388,10 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
           >
             {t('items.cancel')}
           </Button>
-          <Button 
-            onClick={handleDeleteConfirm} 
-            color="error" 
-            variant="contained" 
+          <Button
+            onClick={handleDeleteConfirm}
+            color="error"
+            variant="contained"
             disabled={isLoading}
             fullWidth
             size="large"
@@ -415,9 +424,9 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
             <img
               src={fullImageUrl}
               alt={t('items.fullImageAlt')}
-              style={{ 
-                width: '100%', 
-                height: 'auto', 
+              style={{
+                width: '100%',
+                height: 'auto',
                 display: 'block',
                 maxHeight: '80vh',
                 objectFit: 'contain'

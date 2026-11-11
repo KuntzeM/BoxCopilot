@@ -84,8 +84,7 @@ export interface User {
   enabled: boolean;
   createdAt: string;
   lastLogin?: string;
-  failedLoginAttempts: number;
-  lockedUntil?: string;
+  // Backend UserDTO still sends failedLoginAttempts/lockedUntil, but the account lock is gone: ignored here.
   hasPassword?: boolean;
   mcpAllowed: boolean;
   lastMagicLinkCreatedAt?: string;

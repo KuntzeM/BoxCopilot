@@ -32,3 +32,8 @@ export async function deleteBox(id: number): Promise<void> {
   await axios.delete(`/api/v1/boxes/${id}`);
 }
 
+/** Invalidates the box's public uuid (and thus printed QR labels); returns the box with its new uuid. */
+export async function rotateShare(id: number): Promise<Box> {
+  const response = await axios.post(`/api/v1/boxes/${id}/rotate-share`);
+  return response.data;
+}

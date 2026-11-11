@@ -16,14 +16,16 @@ import {
   Tooltip,
   Slider,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
-import { 
-  Add, 
-  PhotoCamera, 
-  FolderOpen, 
-  Close, 
-  FlashOn, 
-  FlashOff, 
+import {
+  Add,
+  PhotoCamera,
+  FolderOpen,
+  Close,
+  FlashOn,
+  FlashOff,
   FlashAuto,
   CameraAlt,
   CheckCircle,
@@ -33,6 +35,7 @@ import {
 } from '@mui/icons-material';
 import { useTranslation } from '../hooks/useTranslation';
 import * as itemService from '../services/itemService';
+import { extractApiError } from '../services/apiError';
 
 interface ItemFormProps {
   boxId?: number;
@@ -67,7 +70,9 @@ export const ItemForm: React.FC<ItemFormProps> = ({
   hideFab = false,
 }) => {
   const { t } = useTranslation();
-  
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
+
   const [currentBoxId, setCurrentBoxId] = useState<number | undefined>(boxId);
   const [open, setOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -77,7 +82,13 @@ export const ItemForm: React.FC<ItemFormProps> = ({
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+  // Removing the server photo is deferred until save (nothing is deleted while the dialog is open).
+  const [removeServerImage, setRemoveServerImage] = useState(false);
+  // Item is saved but its photo step (upload/delete) failed: shown as a warning with retry.
+  const [photoFailure, setPhotoFailure] = useState<{ itemId: number; next: boolean; created: boolean } | null>(null);
+  const [focusTick, setFocusTick] = useState(0);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
   // Camera states
   const [cameraMode, setCameraMode] = useState<CameraMode>('none');
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -87,7 +98,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [hasFlash, setHasFlash] = useState(false);
-  
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -98,6 +109,11 @@ export const ItemForm: React.FC<ItemFormProps> = ({
       setCurrentBoxId(boxId);
     }
   }, [boxId, currentBoxId]);
+
+  // Refocus the name field (e.g. after "save and next") once the form is enabled again
+  useEffect(() => {
+    if (focusTick > 0 && !submitting) nameInputRef.current?.focus();
+  }, [focusTick, submitting]);
 
   // Cleanup camera stream on unmount or when camera closes
   useEffect(() => {
@@ -113,7 +129,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
     if (stream && videoRef.current) {
       const videoTrack = stream.getVideoTracks()[0];
       const capabilities = videoTrack.getCapabilities() as any;
-      
+
       if (capabilities.zoom) {
         videoTrack.applyConstraints({
           advanced: [{ zoom } as any]
@@ -125,7 +141,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
   // Attach stream to video element when camera mode changes to preview
   useEffect(() => {
     console.log('useEffect triggered:', { cameraMode, streamExists: !!stream, videoRefExists: !!videoRef.current });
-    
+
     if (cameraMode !== 'preview' || !stream) {
       console.log('✗ Conditions not met early return:', {
         'cameraMode === preview': cameraMode === 'preview',
@@ -139,24 +155,24 @@ export const ItemForm: React.FC<ItemFormProps> = ({
     const checkAndAttach = () => {
       attempts++;
       console.log(`Attempt ${attempts}: videoRef.current exists:`, !!videoRef.current);
-      
+
       if (videoRef.current) {
         console.log('✓ Video element found, attaching stream');
         const video = videoRef.current;
         video.srcObject = stream;
         console.log('Stream srcObject set');
-        
+
         // Wait for stream to be ready
         const attachStream = async () => {
           await new Promise(resolve => setTimeout(resolve, 300));
-          
+
           console.log('Video element state:', {
             width: video.videoWidth,
             height: video.videoHeight,
             readyState: video.readyState,
             networkState: video.networkState
           });
-          
+
           console.log('Attempting to play video...');
           try {
             await video.play();
@@ -172,7 +188,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
             }
           }
         };
-        
+
         attachStream();
       } else if (attempts < 10) {
         // Video element not yet in DOM, retry after 50ms
@@ -190,7 +206,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
     if (stream && flashMode !== 'auto') {
       const videoTrack = stream.getVideoTracks()[0];
       const capabilities = videoTrack.getCapabilities() as any;
-      
+
       if (capabilities.torch) {
         videoTrack.applyConstraints({
           advanced: [{ torch: flashMode === 'on' } as any]
@@ -207,9 +223,10 @@ export const ItemForm: React.FC<ItemFormProps> = ({
         setIsEditMode(true);
         setEditItemId(item.id);
         setName(item.name);
-        if (item.imageUrl) {
-          setImagePreview(item.imageUrl);
-        }
+        setImageFile(null);
+        setImagePreview(item.imageUrl ?? null);
+        setRemoveServerImage(false);
+        setPhotoFailure(null);
         setError(null);
       },
     };
@@ -225,6 +242,8 @@ export const ItemForm: React.FC<ItemFormProps> = ({
     setName('');
     setImageFile(null);
     setImagePreview(null);
+    setRemoveServerImage(false);
+    setPhotoFailure(null);
     setError(null);
   };
 
@@ -236,6 +255,8 @@ export const ItemForm: React.FC<ItemFormProps> = ({
     setImagePreview(null);
     setCapturedImage(null);
     setError(null);
+    setRemoveServerImage(false);
+    setPhotoFailure(null);
     setIsEditMode(false);
     setEditItemId(null);
     setCameraMode('none');
@@ -246,7 +267,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
       // Determine which camera to use - explicit parameter takes precedence
       const targetMode = requestedMode !== undefined ? requestedMode : facingMode;
       console.log('[Camera] Starting camera - requested:', requestedMode, ', current state:', facingMode, ', target:', targetMode);
-      
+
       // Use exact constraint for better control on mobile devices
       const constraints: MediaStreamConstraints = {
         video: {
@@ -259,7 +280,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
 
       console.log('[Camera] Requesting with exact facingMode:', targetMode);
       let mediaStream: MediaStream;
-      
+
       try {
         mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
         console.log('[Camera] Success with exact constraint');
@@ -277,15 +298,15 @@ export const ItemForm: React.FC<ItemFormProps> = ({
         mediaStream = await navigator.mediaDevices.getUserMedia(idealConstraints);
         console.log('[Camera] Success with ideal constraint');
       }
-      
+
       // Get actual camera info
       const videoTrack = mediaStream.getVideoTracks()[0];
       const settings = videoTrack.getSettings() as any;
       const capabilities = videoTrack.getCapabilities() as any;
-      
+
       console.log('[Camera] Active camera - facingMode:', settings.facingMode, 'deviceId:', settings.deviceId);
       console.log('[Camera] Capabilities:', capabilities);
-      
+
       // CRITICAL: Use actual facingMode from camera, not what we requested
       // Some devices might give us a different camera than requested
       const actualFacingMode = settings.facingMode || targetMode;
@@ -311,11 +332,11 @@ export const ItemForm: React.FC<ItemFormProps> = ({
       setFacingMode(actualFacingMode);
       setStream(mediaStream);
       setCameraMode('preview');
-      
+
       console.log('[Camera] Camera started successfully - actual facingMode:', actualFacingMode);
     } catch (err) {
       console.error('[Camera] Failed to start camera:', err);
-      setError(t('errors.cameraAccessFailed') || 'Camera access failed');
+      setError(t('errors.cameraAccessFailed'));
       setCameraMode('none');
     }
   };
@@ -336,11 +357,11 @@ export const ItemForm: React.FC<ItemFormProps> = ({
 
   const switchCamera = async () => {
     console.log('[Camera] Switch requested - current facingMode:', facingMode);
-    
+
     // Calculate new mode BEFORE stopping camera
     const newMode = facingMode === 'user' ? 'environment' : 'user';
     console.log('[Camera] Switching to:', newMode);
-    
+
     // Stop current camera
     if (stream) {
       stream.getTracks().forEach(track => {
@@ -352,10 +373,10 @@ export const ItemForm: React.FC<ItemFormProps> = ({
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
-    
+
     // Wait for cleanup
     await new Promise(resolve => setTimeout(resolve, 300));
-    
+
     // Start with explicit new mode - DO NOT update state here, let startCamera handle it
     await startCamera(newMode);
   };
@@ -399,7 +420,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
   const capturePhoto = () => {
     if (!videoRef.current || !canvasRef.current) {
       console.error('Video or canvas ref missing');
-      setError(t('errors.captureImageFailed') || 'Failed to capture image');
+      setError(t('errors.captureImageFailed'));
       return;
     }
 
@@ -409,7 +430,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
     // Check if video has valid dimensions
     if (video.videoWidth === 0 || video.videoHeight === 0) {
       console.error('Video dimensions are 0:', { width: video.videoWidth, height: video.videoHeight });
-      setError(t('errors.captureImageFailed') || 'Camera not ready');
+      setError(t('errors.captureImageFailed'));
       return;
     }
 
@@ -421,7 +442,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) {
       console.error('Could not get canvas context');
-      setError(t('errors.captureImageFailed') || 'Failed to capture image');
+      setError(t('errors.captureImageFailed'));
       return;
     }
 
@@ -431,7 +452,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
     // Convert to blob
     canvas.toBlob((blob) => {
       if (!blob) {
-        setError(t('errors.captureImageFailed') || 'Failed to capture image');
+        setError(t('errors.captureImageFailed'));
         return;
       }
 
@@ -478,12 +499,12 @@ export const ItemForm: React.FC<ItemFormProps> = ({
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
-      setError(t('errors.imageTooLarge') || 'Image too large');
+      setError(t('errors.imageTooLarge'));
       return;
     }
 
     if (!file.type.startsWith('image/')) {
-      setError(t('errors.invalidImageType') || 'Invalid image type');
+      setError(t('errors.invalidImageType'));
       return;
     }
 
@@ -495,18 +516,11 @@ export const ItemForm: React.FC<ItemFormProps> = ({
     reader.readAsDataURL(file);
   };
 
-  const handleRemoveImage = async () => {
-    if (isEditMode && editItemId && imagePreview && !imagePreview.startsWith('data:')) {
-      try {
-        await itemService.deleteItemImage(editItemId);
-        onSuccess?.(t('success.imageDeleted') || 'Image deleted successfully');
-        onUpdateItem?.();
-      } catch (error) {
-        onError?.(t('errors.imageDeleteFailed') || 'Failed to delete image');
-        return;
-      }
+  const handleRemoveImage = () => {
+    // A photo that already lives on the server is only removed when the user saves.
+    if (isEditMode && imagePreview && !imagePreview.startsWith('data:')) {
+      setRemoveServerImage(true);
     }
-    
     setImageFile(null);
     setImagePreview(null);
     setCapturedImage(null);
@@ -515,73 +529,99 @@ export const ItemForm: React.FC<ItemFormProps> = ({
     }
   };
 
-  const handleSubmit = async () => {
+  // Photo step once the item exists: upload a new photo, or delete the removed one.
+  const applyPhoto = async (itemId: number) => {
+    if (imageFile) {
+      await itemService.uploadItemImage(itemId, imageFile);
+    } else if (removeServerImage) {
+      await itemService.deleteItemImage(itemId);
+    }
+  };
+
+  // Item (and photo) done: continue with an empty form (next) or close.
+  const finish = (next: boolean, created: boolean) => {
+    onSuccess?.(created ? t('success.itemCreated') : t('success.itemUpdated'));
+    if (created) onAddItem?.(); else onUpdateItem?.();
+    if (next && created) {
+      setName('');
+      setImageFile(null);
+      setImagePreview(null);
+      setCapturedImage(null);
+      setPhotoFailure(null);
+      setError(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setFocusTick((n) => n + 1);
+    } else {
+      handleClose();
+    }
+  };
+
+  const handleRetryPhoto = async () => {
+    if (!photoFailure) return;
+    setSubmitting(true);
+    try {
+      await applyPhoto(photoFailure.itemId);
+      finish(photoFailure.next, photoFailure.created);
+    } catch {
+      // stays in the warning state; retry again or continue without photo
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSkipPhoto = () => {
+    if (photoFailure) finish(photoFailure.next, photoFailure.created);
+  };
+
+  const submit = async (next: boolean) => {
+    if (submitting || photoFailure) return;
     if (!name.trim()) {
-      setError(t('validation.itemNameRequired') || 'Item name is required');
+      setError(t('validation.itemNameRequired'));
+      return;
+    }
+    const created = !(isEditMode && editItemId);
+    if (created && !currentBoxId) {
+      setError(t('errors.invalidBoxId'));
       return;
     }
 
     setSubmitting(true);
     setError(null);
 
+    let itemId: number;
     try {
-      if (isEditMode && editItemId) {
-        // Edit mode
-        await itemService.updateItem(editItemId, {
-          name: name.trim(),
-        });
-
-        if (imageFile) {
-          try {
-            await itemService.uploadItemImage(editItemId, imageFile);
-          } catch (imageError) {
-            onSuccess?.(t('success.itemUpdatedButImageFailed') || 'Item updated but photo upload failed');
-            setSubmitting(false);
-            handleClose();
-            onUpdateItem?.();
-            return;
-          }
-        }
-
-        onSuccess?.(t('success.itemUpdated') || 'Item updated successfully');
-        handleClose();
-        onUpdateItem?.();
+      if (created) {
+        itemId = (await itemService.createItem({ name: name.trim(), boxId: currentBoxId! })).id;
       } else {
-        // Create mode
-        if (!currentBoxId) {
-          setError('Box ID is required');
-          setSubmitting(false);
-          return;
-        }
-
-        const createdItem = await itemService.createItem({
-          name: name.trim(),
-          boxId: currentBoxId,
-        });
-
-        if (imageFile) {
-          try {
-            await itemService.uploadItemImage(createdItem.id, imageFile);
-          } catch (imageError) {
-            onSuccess?.(t('success.itemCreatedButImageFailed') || 'Item created but photo upload failed');
-            setSubmitting(false);
-            handleClose();
-            onAddItem?.();
-            return;
-          }
-        }
-
-        onSuccess?.(t('success.itemCreated') || 'Item added successfully');
-        handleClose();
-        onAddItem?.();
+        itemId = editItemId!;
+        await itemService.updateItem(itemId, { name: name.trim() });
       }
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : t('errors.itemCreationFailed') || 'Failed to create item';
+      const errorMsg = extractApiError(
+        err,
+        created ? t('errors.itemCreationFailed') : t('errors.itemUpdateFailed'),
+      );
       setError(errorMsg);
       onError?.(errorMsg);
+      setSubmitting(false);
+      return;
+    }
+
+    try {
+      await applyPhoto(itemId);
+      finish(next, created);
+    } catch {
+      // The item itself is saved: refresh the list and warn instead of reporting success.
+      if (created) onAddItem?.(); else onUpdateItem?.();
+      setPhotoFailure({ itemId, next, created });
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    void submit(false);
   };
 
   return (
@@ -590,7 +630,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
       {!hideFab && (
         <Fab
           color="primary"
-          aria-label={t('items.addNew') || 'Add Item'}
+          aria-label={t('items.addNew')}
           onClick={handleOpen}
           disabled={isLoading || submitting || !currentBoxId}
           size="large"
@@ -606,14 +646,16 @@ export const ItemForm: React.FC<ItemFormProps> = ({
       )}
 
       {/* Main Dialog */}
-      <Dialog 
-        open={open && cameraMode === 'none'} 
+      <Dialog
+        open={open && cameraMode === 'none'}
         onClose={handleClose}
-        maxWidth="sm" 
+        maxWidth="sm"
         fullWidth
+        fullScreen={fullScreen}
+        slotProps={{ paper: { component: 'form', onSubmit: handleSubmit } }}
       >
         <DialogTitle>
-          {isEditMode ? t('items.editItem') : t('items.addNew') || 'Add Item'}
+          {isEditMode ? t('items.editItem') : t('items.addNew')}
         </DialogTitle>
 
         <DialogContent sx={{ pt: 2 }}>
@@ -622,16 +664,35 @@ export const ItemForm: React.FC<ItemFormProps> = ({
               {error}
             </Alert>
           )}
+          {photoFailure && (
+            <Alert
+              severity="warning"
+              sx={{ mb: 2 }}
+              action={
+                <>
+                  <Button color="inherit" size="small" onClick={handleRetryPhoto} disabled={submitting}>
+                    {t('common.retry')}
+                  </Button>
+                  <Button color="inherit" size="small" onClick={handleSkipPhoto} disabled={submitting}>
+                    {t('items.skipPhoto')}
+                  </Button>
+                </>
+              }
+            >
+              {t('items.photoFailedWarning')}
+            </Alert>
+          )}
 
           <Stack spacing={2}>
             <TextField
-              label={t('items.itemName') || 'Item Name'}
+              label={t('items.itemName')}
               value={name}
               onChange={(e) => setName(e.target.value)}
               fullWidth
-              placeholder={t('items.itemNamePlaceholder') || 'e.g. Hammer'}
-              disabled={submitting}
+              placeholder={t('items.itemNamePlaceholder')}
+              disabled={submitting || !!photoFailure}
               autoFocus
+              inputRef={nameInputRef}
               variant="outlined"
             />
 
@@ -684,9 +745,9 @@ export const ItemForm: React.FC<ItemFormProps> = ({
               style={{ display: 'none' }}
               disabled={submitting}
             />
-            
+
             <Stack direction="row" spacing={1}>
-              <Tooltip title={t('items.takePhoto') || 'Take Photo'}>
+              <Tooltip title={t('items.takePhoto')}>
                 <Box sx={{ flex: 1 }}>
                   <IconButton
                     color="primary"
@@ -700,7 +761,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                   </IconButton>
                 </Box>
               </Tooltip>
-              <Tooltip title={t('items.selectFromGallery') || 'Select Gallery'}>
+              <Tooltip title={t('items.selectFromGallery')}>
                 <Box sx={{ flex: 1 }}>
                   <IconButton
                     color="primary"
@@ -720,22 +781,31 @@ export const ItemForm: React.FC<ItemFormProps> = ({
 
         <DialogActions sx={{ p: 2, gap: 1 }}>
           <Button onClick={handleClose} disabled={submitting}>
-            {t('common.cancel') || 'Cancel'}
+            {t('common.cancel')}
           </Button>
+          {!isEditMode && (
+            <Button
+              variant="outlined"
+              onClick={() => void submit(true)}
+              disabled={submitting || !!photoFailure || !name.trim()}
+            >
+              {t('items.saveAndNext')}
+            </Button>
+          )}
           <Button
-            onClick={handleSubmit}
+            type="submit"
             variant="contained"
-            disabled={submitting || !name.trim()}
+            disabled={submitting || !!photoFailure || !name.trim()}
           >
             {submitting ? (
               <>
                 <CircularProgress size={20} sx={{ mr: 1 }} />
-                {t('common.saving') || 'Saving...'}
+                {t('common.saving')}
               </>
             ) : isEditMode ? (
-              t('common.save') || 'Save'
+              t('common.save')
             ) : (
-              t('common.add') || 'Add'
+              t('common.add')
             )}
           </Button>
         </DialogActions>
@@ -778,20 +848,20 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                   touchAction: 'manipulation',
                 }}
               />
-              
+
               {/* Top Controls */}
-              <Box sx={{ 
-                position: 'absolute', 
-                top: 0, 
-                left: 0, 
-                right: 0, 
+              <Box sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
                 p: 2,
               }}>
                 <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
                   <IconButton onClick={() => { stopCamera(); setCameraMode('none'); }} aria-label={t('common.close')} sx={{ color: 'white' }}>
                     <Close />
                   </IconButton>
-                  
+
                   {hasFlash && (
                     <IconButton onClick={cycleFlash} aria-label={t('items.flash')} sx={{ color: 'white' }}>
                       {flashMode === 'off' && <FlashOff />}
@@ -804,9 +874,9 @@ export const ItemForm: React.FC<ItemFormProps> = ({
 
               {/* Zoom Control */}
               {zoomRange.max > zoomRange.min && (
-                <Box sx={{ 
-                  position: 'absolute', 
-                  bottom: 200, 
+                <Box sx={{
+                  position: 'absolute',
+                  bottom: 200,
                   left: '50%',
                   transform: 'translateX(-50%)',
                   width: '80%',
@@ -835,23 +905,23 @@ export const ItemForm: React.FC<ItemFormProps> = ({
               )}
 
               {/* Bottom Controls */}
-              <Box sx={{ 
-                position: 'absolute', 
-                bottom: 80, 
-                left: 0, 
-                right: 0, 
+              <Box sx={{
+                position: 'absolute',
+                bottom: 80,
+                left: 0,
+                right: 0,
                 p: 3,
               }}>
                 <Stack direction="row" sx={{ justifyContent: 'space-around', alignItems: 'center' }}>
                   <IconButton onClick={switchCamera} aria-label={t('items.switchCamera')} sx={{ color: 'white' }}>
                     <Cameraswitch sx={{ fontSize: 32 }} />
                   </IconButton>
-                  
-                  <IconButton 
+
+                  <IconButton
                     onClick={capturePhoto}
                     aria-label={t('items.capturePhoto')}
-                    sx={{ 
-                      width: 70, 
+                    sx={{
+                      width: 70,
                       height: 70,
                       border: '4px solid white',
                       bgcolor: 'rgba(255,255,255,0.3)',
@@ -862,7 +932,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                   >
                     <CameraAlt sx={{ fontSize: 36, color: 'white' }} />
                   </IconButton>
-                  
+
                   <Box sx={{ width: 48 }} /> {/* Spacer for alignment */}
                 </Stack>
               </Box>
@@ -881,12 +951,12 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                   objectFit: 'contain',
                 }}
               />
-              
-              <Box sx={{ 
-                position: 'absolute', 
-                bottom: 80, 
-                left: 0, 
-                right: 0, 
+
+              <Box sx={{
+                position: 'absolute',
+                bottom: 80,
+                left: 0,
+                right: 0,
                 p: 3,
                 background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)',
               }}>
@@ -894,7 +964,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                   <IconButton
                     onClick={retakePhoto}
                     aria-label={t('common.retake')}
-                    sx={{ 
+                    sx={{
                       width: 64,
                       height: 64,
                       bgcolor: 'rgba(255,255,255,0.2)',
@@ -907,12 +977,12 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                   >
                     <Replay sx={{ fontSize: 32 }} />
                   </IconButton>
-                  
+
                   <IconButton
                     onClick={acceptPhoto}
                     aria-label={t('common.accept')}
                     color="primary"
-                    sx={{ 
+                    sx={{
                       width: 64,
                       height: 64,
                       bgcolor: 'primary.main',

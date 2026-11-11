@@ -42,12 +42,12 @@ describe('useMagicLogin', () => {
 
     const { result } = renderHook(() => useMagicLogin({ redeem, onSuccess }), { wrapper });
 
-    expect(result.current).toBe('processing');
+    expect(result.current.status).toBe('processing');
     expect(onSuccess).not.toHaveBeenCalled();
 
     resolve();
     await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
-    expect(result.current).toBe('processing');
+    expect(result.current.status).toBe('processing');
   });
 
   it('shows the error state when the redeem call fails', async () => {
@@ -56,9 +56,18 @@ describe('useMagicLogin', () => {
 
     const { result } = renderHook(() => useMagicLogin({ redeem, onSuccess }), { wrapper });
 
-    await waitFor(() => expect(result.current).toBe('error'));
+    await waitFor(() => expect(result.current.status).toBe('error'));
     expect(onSuccess).not.toHaveBeenCalled();
     expect(redeem).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports rateLimited with the retry minutes on HTTP 429', async () => {
+    const redeem = vi.fn().mockRejectedValue({ response: { status: 429, data: { retryAfterSeconds: 120 } } });
+
+    const { result } = renderHook(() => useMagicLogin({ redeem, onSuccess: vi.fn() }), { wrapper });
+
+    await waitFor(() => expect(result.current.status).toBe('rateLimited'));
+    expect(result.current.retryMinutes).toBe(2);
   });
 
   it.each(['/magic', '/magic#', '/magic#t=', '/magic#x=abc'])(
@@ -69,7 +78,7 @@ describe('useMagicLogin', () => {
 
       const { result } = renderHook(() => useMagicLogin({ redeem, onSuccess: vi.fn() }), { wrapper });
 
-      await waitFor(() => expect(result.current).toBe('error'));
+      await waitFor(() => expect(result.current.status).toBe('error'));
       expect(redeem).not.toHaveBeenCalled();
       expect(window.location.hash).toBe('');
     },

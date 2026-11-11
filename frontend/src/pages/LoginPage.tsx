@@ -9,10 +9,14 @@ import {
   Paper,
   Container,
   CircularProgress,
+  IconButton,
+  InputAdornment,
 } from '@mui/material';
-import { Inventory2, Login as LoginIcon } from '@mui/icons-material';
+import { Inventory2, Login as LoginIcon, Visibility, VisibilityOff } from '@mui/icons-material';
 import { useTranslation } from '../hooks/useTranslation';
 import axios from '../services/axiosConfig';
+import { extractRetryAfterSeconds } from '../services/apiError';
+import LanguageSelector from '../components/LanguageSelector';
 
 interface LoginPageProps {
   onLoginSuccess: () => void;
@@ -29,6 +33,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
       : null
   );
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleFormLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,20 +59,29 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
         onLoginSuccess();
       }
     } catch (err: any) {
-      // 401 covers wrong credentials and a temporarily locked account; do not reveal which
-      setError(err.response?.status === 401 ? t('auth.loginFailed') : t('auth.loginUnavailable'));
+      const status = err.response?.status;
+      if (status === 429) {
+        const seconds = extractRetryAfterSeconds(err) ?? 60;
+        setError(t('auth.tooManyAttempts', { minutes: String(Math.max(1, Math.ceil(seconds / 60))) }));
+      } else {
+        setError(status === 401 ? t('auth.loginFailed') : t('auth.loginUnavailable'));
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleNextcloudLogin = () => {
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+    // Empty base URL = same origin (reverse proxy), consistent with the other API helpers
+    const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
     window.location.href = `${apiBaseUrl}/oauth2/authorization/nextcloud`;
   };
 
   return (
     <Container maxWidth="sm">
+      <Box sx={{ position: 'absolute', top: 8, right: 8 }}>
+        <LanguageSelector />
+      </Box>
       <Box
         sx={{
           display: 'flex',
@@ -111,17 +125,36 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
               margin="normal"
               required
               autoComplete="username"
+              autoCapitalize="off"
+              autoCorrect="off"
               autoFocus
             />
             <TextField
               fullWidth
               label={t('auth.password')}
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               margin="normal"
               required
               autoComplete="current-password"
+              autoCapitalize="off"
+              autoCorrect="off"
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        edge="end"
+                        onClick={() => setShowPassword((v) => !v)}
+                        aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
+                      >
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
             />
             <Button
               type="submit"

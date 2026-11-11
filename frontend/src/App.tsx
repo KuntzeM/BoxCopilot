@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
+import { Routes, Route, Navigate, Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
   CssBaseline, 
   Container, 
@@ -31,12 +31,9 @@ import {
 } from '@mui/icons-material';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import axios from './services/axiosConfig';
-import BoxList from './pages/BoxList';
 import PublicPreview from './pages/PublicPreview';
-import BoxEditPage from './pages/BoxEditPage';
 import LoginPage from './pages/LoginPage';
 import MagicLoginPage from './pages/MagicLoginPage';
-import AdminPanel from './pages/AdminPanel';
 import ClaudeConnectionDialog from './components/ClaudeConnectionDialog';
 import { CookieThemeProvider, useThemeContext } from './context/ThemeContext';
 import { LanguageProvider } from './context/LanguageContext';
@@ -44,6 +41,11 @@ import { useTranslation } from './hooks/useTranslation';
 import { useMcpContinue } from './hooks/useMcpContinue';
 import LanguageSelector from './components/LanguageSelector';
 import { Role, UserPrincipal } from './types/models';
+
+// Authenticated-only pages are split out so /public/:token and login stay light.
+const BoxList = lazy(() => import('./pages/BoxList'));
+const BoxEditPage = lazy(() => import('./pages/BoxEditPage'));
+const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 
 function LoadingScreen() {
   return (
@@ -71,9 +73,6 @@ function ProtectedRoute({
   children: React.ReactElement;
   requireAdmin?: boolean;
 }) {
-  const location = useLocation();
-  const navigate = useNavigate();
-
   if (isLoading) {
     return <LoadingScreen />;
   }
@@ -84,9 +83,7 @@ function ProtectedRoute({
 
   // Check admin requirement
   if (requireAdmin && !hasAdminAccess(user)) {
-    // Redirect non-admins away from admin routes
-    navigate('/app/boxes');
-    return null;
+    return <Navigate to="/app/boxes" replace />;
   }
 
   return children;
@@ -141,8 +138,9 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
       <AppBar position="static" elevation={2}>
         <Toolbar>
           <Box
-            onClick={() => navigate('/app/boxes')}
-            sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}
+            component={RouterLink}
+            to="/app/boxes"
+            sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'inherit', textDecoration: 'none' }}
             aria-label={t('app.title')}
           >
             <Inventory2 />
@@ -185,6 +183,11 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
                 {mode === 'light' ? <DarkMode /> : <WbSunny />}
               </IconButton>
               <LanguageSelector variant="icon" />
+              {user && (
+                <Typography variant="body2" sx={{ ml: 1, fontWeight: 600 }}>
+                  {user.name || user.username}
+                </Typography>
+              )}
               {hasAdminAccess(user) && (
                 <Button
                   color="inherit"
@@ -292,8 +295,8 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
         </Box>
       </Drawer>
 
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-        {children}
+      <Container component="main" maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        <Suspense fallback={<CircularProgress aria-label="loading" />}>{children}</Suspense>
       </Container>
 
       {user?.mcpAllowed === true && (

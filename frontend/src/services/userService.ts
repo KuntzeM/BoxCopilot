@@ -60,13 +60,6 @@ export const userService = {
   },
 
   /**
-   * Unlock user account
-   */
-  async unlockUser(id: number): Promise<void> {
-    await axios.put(`/api/v1/admin/users/${id}/unlock`);
-  },
-
-  /**
    * Delete user
    */
   async deleteUser(id: number): Promise<void> {

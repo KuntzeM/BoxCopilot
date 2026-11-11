@@ -4,6 +4,14 @@ import Cookies from 'js-cookie';
 
 type ThemeMode = 'light' | 'dark';
 
+// WCAG AA primaries (ratios computed with the WCAG relative-luminance formula, verified in App.test.tsx):
+// light: white on #b04a14 = 5.47, #b04a14 on #fff = 5.47, on #f5f5f5 = 5.02
+// dark:  #121212 on #e8793a = 6.45, #e8793a on #1e1e1e = 5.74, on #121212 = 6.45
+export const PRIMARY = {
+  light: { main: '#b04a14', dark: '#8f3a0f', light: '#c95f26', contrastText: '#ffffff' },
+  dark: { main: '#e8793a', dark: '#c95f26', light: '#f08a4b', contrastText: '#121212' },
+} as const;
+
 interface ThemeContextType {
   mode: ThemeMode;
   toggleTheme: () => void;
@@ -41,9 +49,7 @@ export const CookieThemeProvider: React.FC<CookieThemeProviderProps> = ({ childr
           ...(mode === 'light'
             ? {
                 // Light mode palette
-                primary: {
-                  main: '#c95f26',
-                },
+                primary: PRIMARY.light,
                 secondary: {
                   main: '#2196F3',
                 },
@@ -58,9 +64,7 @@ export const CookieThemeProvider: React.FC<CookieThemeProviderProps> = ({ childr
               }
             : {
                 // Dark mode palette
-                primary: {
-                  main: '#c95f26',
-                },
+                primary: PRIMARY.dark,
                 secondary: {
                   main: '#42A5F5',
                 },
@@ -78,6 +82,14 @@ export const CookieThemeProvider: React.FC<CookieThemeProviderProps> = ({ childr
           fontFamily: 'Roboto, sans-serif',
         },
         components: {
+          MuiCssBaseline: {
+            styleOverrides: {
+              ':focus-visible': {
+                outline: `3px solid ${mode === 'light' ? PRIMARY.light.main : PRIMARY.dark.main}`,
+                outlineOffset: 2,
+              },
+            },
+          },
           MuiButton: {
             styleOverrides: {
               sizeLarge: {

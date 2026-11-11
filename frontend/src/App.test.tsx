@@ -3,6 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import axios from './services/axiosConfig';
 import App from './App';
+import { PRIMARY } from './context/ThemeContext';
 
 vi.mock('./services/axiosConfig', () => ({
   default: { get: vi.fn(), post: vi.fn(), defaults: { headers: { common: {} as Record<string, string> } } },
@@ -88,5 +89,61 @@ describe('App menu - Claude connection entry', () => {
 
     await screen.findByRole('button', { name: 'Logout' });
     expect(screen.queryByRole('button', { name: 'Claude connection' })).toBeNull();
+  });
+});
+
+function lum(hex: string) {
+  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+const ratio = (a: string, b: string) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+
+describe('theme contrast (WCAG AA)', () => {
+  it('light primary', () => {
+    expect(ratio(PRIMARY.light.contrastText, PRIMARY.light.main)).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(PRIMARY.light.main, '#ffffff')).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(PRIMARY.light.main, '#f5f5f5')).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(PRIMARY.light.contrastText, PRIMARY.light.dark)).toBeGreaterThanOrEqual(4.5);
+  });
+  it('dark primary', () => {
+    expect(ratio(PRIMARY.dark.contrastText, PRIMARY.dark.main)).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(PRIMARY.dark.main, '#1e1e1e')).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(PRIMARY.dark.main, '#121212')).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(PRIMARY.dark.contrastText, PRIMARY.dark.light)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe('App shell', () => {
+  beforeEach(() => {
+    vi.mocked(axios.get).mockReset();
+    axios.defaults.headers.common = {};
+    document.cookie = 'app-language=en';
+  });
+  afterEach(() => cleanup());
+
+  it('renders the logo as a link, a main landmark, and sets lang/title', async () => {
+    mockMe({});
+    render(
+      <MemoryRouter initialEntries={['/app/boxes']}>
+        <App />
+      </MemoryRouter>,
+    );
+    const logo = await screen.findByRole('link', { name: 'BoxCopilot' });
+    expect(logo.getAttribute('href')).toBe('/app/boxes');
+    expect(screen.getByRole('main')).toBeDefined();
+    expect(document.documentElement.lang).toBe('en');
+    expect(document.title).toContain('BoxCopilot');
+  });
+
+  it('redirects a non-admin from /app/admin to the boxes page', async () => {
+    mockMe({ admin: false });
+    render(
+      <MemoryRouter initialEntries={['/app/admin']}>
+        <App />
+      </MemoryRouter>,
+    );
+    await screen.findByRole('button', { name: 'Logout' });
+    expect(screen.queryByText('Administration')).toBeNull();
+    expect(screen.getByRole('link', { name: 'BoxCopilot' })).toBeDefined();
   });
 });

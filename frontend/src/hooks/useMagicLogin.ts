@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { redeemMagicLink } from '../services/authService';
+import { extractRetryAfterSeconds } from '../services/apiError';
 
-export type MagicLoginStatus = 'processing' | 'error';
+export type MagicLoginStatus = 'processing' | 'error' | 'rateLimited';
+
+export interface MagicLoginResult {
+  status: MagicLoginStatus;
+  /** Minutes until another attempt makes sense (only for `rateLimited`). */
+  retryMinutes: number;
+}
 
 interface UseMagicLoginOptions {
   redeem?: (token: string) => Promise<void>;
@@ -23,8 +30,9 @@ function readTokenFromFragment(hash: string): string | null {
 export function useMagicLogin({
   redeem = redeemMagicLink,
   onSuccess = redirectToApp,
-}: UseMagicLoginOptions = {}): MagicLoginStatus {
+}: UseMagicLoginOptions = {}): MagicLoginResult {
   const [status, setStatus] = useState<MagicLoginStatus>('processing');
+  const [retryMinutes, setRetryMinutes] = useState(1);
   const started = useRef(false);
 
   useEffect(() => {
@@ -41,8 +49,15 @@ export function useMagicLogin({
       return;
     }
 
-    redeem(token).then(onSuccess, () => setStatus('error'));
+    redeem(token).then(onSuccess, (err) => {
+      if ((err as { response?: { status?: number } })?.response?.status === 429) {
+        setRetryMinutes(Math.max(1, Math.ceil((extractRetryAfterSeconds(err) ?? 60) / 60)));
+        setStatus('rateLimited');
+      } else {
+        setStatus('error');
+      }
+    });
   }, [redeem, onSuccess]);
 
-  return status;
+  return { status, retryMinutes };
 }

@@ -44,7 +44,6 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Lock as LockIcon,
-  LockOpen as LockOpenIcon,
   AdminPanelSettings as AdminIcon,
   Person as PersonIcon,
   Link as LinkIcon,
@@ -55,6 +54,7 @@ import {
 } from '@mui/icons-material';
 import { useTranslation } from '../hooks/useTranslation';
 import { userService } from '../services/userService';
+import { extractApiError } from '../services/apiError';
 import { User, CreateUserPayload, UpdateUserPayload, Role, AuthProvider } from '../types/models';
 
 interface TabPanelProps {
@@ -78,6 +78,8 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
+const MIN_PASSWORD_LENGTH = 12;
+
 export default function AdminPanel() {
   const { t } = useTranslation();
   const theme = useTheme();
@@ -93,7 +95,7 @@ export default function AdminPanel() {
   // Filters
   const [roleFilter, setRoleFilter] = useState<Role | 'all'>('all');
   const [authTypeFilter, setAuthTypeFilter] = useState<AuthProvider | 'all'>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'locked'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
   // Dialogs
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -103,6 +105,7 @@ export default function AdminPanel() {
   const [expiryConfigDialogOpen, setExpiryConfigDialogOpen] = useState(false);
   const [magicLinkDialogOpen, setMagicLinkDialogOpen] = useState(false);
   const [revokeMagicLinkDialogOpen, setRevokeMagicLinkDialogOpen] = useState(false);
+  const [roleChangeUser, setRoleChangeUser] = useState<User | null>(null);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [userForMagicLink, setUserForMagicLink] = useState<User | null>(null);
   const [selectedExpiry, setSelectedExpiry] = useState<number>(24);
@@ -142,11 +145,10 @@ export default function AdminPanel() {
       if (statusFilter === 'inactive') filters.enabled = false;
 
       const data = await userService.getUsers(filters);
-      // The backend has no lock filter; filter on lockedUntil here
-      setUsers(statusFilter === 'locked' ? data.filter((u) => u.lockedUntil && new Date(u.lockedUntil) > new Date()) : data);
+      setUsers(data);
       setError(null);
     } catch (err: any) {
-      setError(err.message || t('admin.requestFailed'));
+      setError(extractApiError(err, t('admin.requestFailed')));
     } finally {
       setLoading(false);
     }
@@ -164,7 +166,7 @@ export default function AdminPanel() {
       setFormData({});
       loadUsers();
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || t('admin.requestFailed'));
+      setError(extractApiError(err, t('admin.requestFailed')));
     }
   };
 
@@ -178,7 +180,7 @@ export default function AdminPanel() {
       setSelectedUser(null);
       loadUsers();
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || t('admin.requestFailed'));
+      setError(extractApiError(err, t('admin.requestFailed')));
     }
   };
 
@@ -194,7 +196,7 @@ export default function AdminPanel() {
       if (err.response?.status === 400) {
         setError(t('admin.cannotDeleteSelf'));
       } else {
-        setError(err.response?.data?.message || err.message || t('admin.requestFailed'));
+        setError(extractApiError(err, t('admin.requestFailed')));
       }
     }
   };
@@ -203,33 +205,24 @@ export default function AdminPanel() {
     if (!selectedUser) return;
     try {
       await userService.setPassword(selectedUser.id, { password: newPassword });
-      setSuccessMessage(t('admin.passwordSet'));
+      setSuccessMessage(`${t('admin.passwordSet')}. ${t('admin.passwordSetSessionsEnded')}`);
       setPasswordDialogOpen(false);
       setNewPassword('');
       setSelectedUser(null);
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || t('admin.requestFailed'));
-    }
-  };
-
-  const handleUnlockUser = async (user: User) => {
-    try {
-      await userService.unlockUser(user.id);
-      setSuccessMessage(t('admin.userUnlocked'));
-      loadUsers();
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || t('admin.requestFailed'));
+      setError(extractApiError(err, t('admin.requestFailed')));
     }
   };
 
   const handleToggleAdmin = async (user: User) => {
+    setRoleChangeUser(null);
     try {
       const newRole = user.role === Role.ADMIN ? Role.USER : Role.ADMIN;
       await userService.updateUser(user.id, { role: newRole });
       setSuccessMessage(t('admin.userUpdated'));
       loadUsers();
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || t('admin.requestFailed'));
+      setError(extractApiError(err, t('admin.requestFailed')));
     }
   };
 
@@ -252,7 +245,7 @@ export default function AdminPanel() {
       setMagicLinkDialogOpen(true);
       setSuccessMessage(t('admin.magicLinkGenerated'));
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || t('admin.requestFailed'));
+      setError(extractApiError(err, t('admin.requestFailed')));
       // Keep config dialog open on error
     }
   };
@@ -266,7 +259,7 @@ export default function AdminPanel() {
       setMagicLinkData(null);
       setSelectedUser(null);
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || t('admin.requestFailed'));
+      setError(extractApiError(err, t('admin.requestFailed')));
     }
   };
 
@@ -283,7 +276,7 @@ export default function AdminPanel() {
       setRevokeMagicLinkDialogOpen(false);
       setSelectedUser(null);
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || t('admin.requestFailed'));
+      setError(extractApiError(err, t('admin.requestFailed')));
     }
   };
 
@@ -328,17 +321,10 @@ export default function AdminPanel() {
   };
 
   const getStatusChip = (user: User) => {
-    if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
-      return <Chip label={t('admin.locked')} color="error" size="small" />;
-    }
     if (!user.enabled) {
       return <Chip label={t('admin.inactive')} color="warning" size="small" />;
     }
     return <Chip label={t('admin.active')} color="success" size="small" />;
-  };
-
-  const isUserLocked = (user: User) => {
-    return user.lockedUntil && new Date(user.lockedUntil) > new Date();
   };
 
   const handleMenuOpen = (userId: number, event: React.MouseEvent<HTMLElement>) => {
@@ -402,12 +388,6 @@ export default function AdminPanel() {
               <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
               <ListItemText>{t('admin.editUser')}</ListItemText>
             </MenuItem>
-            {isUserLocked(user) && (
-              <MenuItem onClick={() => { handleUnlockUser(user); handleMenuClose(user.id); }}>
-                <ListItemIcon><LockOpenIcon fontSize="small" /></ListItemIcon>
-                <ListItemText>{t('admin.unlock')}</ListItemText>
-              </MenuItem>
-            )}
             {user.authProvider === AuthProvider.LOCAL && (
               <MenuItem onClick={() => { openPasswordDialog(user); handleMenuClose(user.id); }}>
                 <ListItemIcon><LockIcon fontSize="small" /></ListItemIcon>
@@ -470,7 +450,7 @@ export default function AdminPanel() {
               fullWidth={isMobile}
             >
               <FilterIcon sx={{ mr: 1 }} />
-              Filter {showFilters ? 'ausblenden' : 'anzeigen'}
+              {showFilters ? t('admin.hideFilters') : t('admin.showFilters')}
             </Button>
 
             <Collapse in={showFilters}>
@@ -515,7 +495,6 @@ export default function AdminPanel() {
                     <MenuItem value="all">{t('admin.all')}</MenuItem>
                     <MenuItem value="active">{t('admin.active')}</MenuItem>
                     <MenuItem value="inactive">{t('admin.inactive')}</MenuItem>
-                    <MenuItem value="locked">{t('admin.locked')}</MenuItem>
                   </Select>
                 </FormControl>
               </Stack>
@@ -533,8 +512,6 @@ export default function AdminPanel() {
             )}
           </Box>
 
-          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-
           {/* Desktop: Table View */}
           {!isMobile && (
             <TableContainer component={Paper}>
@@ -548,7 +525,6 @@ export default function AdminPanel() {
                   <TableCell>{t('admin.authType')}</TableCell>
                   <TableCell>{t('admin.createdAt')}</TableCell>
                   <TableCell>{t('admin.lastLogin')}</TableCell>
-                  <TableCell>{t('admin.failedAttempts')}</TableCell>
                   <TableCell>{t('admin.magicLink')}</TableCell>
                   <TableCell>{t('admin.actions')}</TableCell>
                 </TableRow>
@@ -563,7 +539,7 @@ export default function AdminPanel() {
                 ) : users.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} align="center">
-                      No users found
+                      {t('admin.noUsers')}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -600,7 +576,6 @@ export default function AdminPanel() {
                       <TableCell>
                         {user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : '-'}
                       </TableCell>
-                      <TableCell>{user.failedLoginAttempts}</TableCell>
                       <TableCell>
                         {user.lastMagicLinkCreatedAt ? (
                           <Chip
@@ -619,11 +594,6 @@ export default function AdminPanel() {
                         <IconButton size="small" onClick={() => openDeleteDialog(user)} title={t('admin.deleteUser')}>
                           <DeleteIcon fontSize="small" />
                         </IconButton>
-                        {isUserLocked(user) && (
-                          <IconButton size="small" onClick={() => handleUnlockUser(user)} title={t('admin.unlock')}>
-                            <LockOpenIcon fontSize="small" />
-                          </IconButton>
-                        )}
                         {user.authProvider === AuthProvider.LOCAL && (
                           <IconButton
                             size="small"
@@ -650,7 +620,7 @@ export default function AdminPanel() {
                         </IconButton>
                         <IconButton
                           size="small"
-                          onClick={() => handleToggleAdmin(user)}
+                          onClick={() => setRoleChangeUser(user)}
                           title={user.role === Role.ADMIN ? t('admin.removeAdmin') : t('admin.makeAdmin')}
                         >
                           <AdminIcon fontSize="small" color={user.role === Role.ADMIN ? 'primary' : 'inherit'} />
@@ -689,7 +659,7 @@ export default function AdminPanel() {
       </Paper>
 
       {/* Create User Dialog */}
-      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth fullScreen={isMobile}>
         <DialogTitle>{t('admin.createUser')}</DialogTitle>
         <DialogContent>
           <TextField
@@ -715,7 +685,12 @@ export default function AdminPanel() {
             type="password"
             value={formData.password || ''}
             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-            helperText={t('admin.passwordless')}
+            error={!!formData.password && formData.password.length < MIN_PASSWORD_LENGTH}
+            helperText={
+              formData.password && formData.password.length < MIN_PASSWORD_LENGTH
+                ? t('admin.passwordTooShort')
+                : t('admin.passwordless')
+            }
           />
           <FormControl fullWidth margin="normal">
             <InputLabel>{t('admin.role')}</InputLabel>
@@ -749,7 +724,8 @@ export default function AdminPanel() {
             {t('admin.cancel')}
           </Button>
           <Button 
-            onClick={() => runOnce(handleCreateUser)} disabled={submitting} 
+            onClick={() => runOnce(handleCreateUser)}
+            disabled={submitting || (!!formData.password && formData.password.length < MIN_PASSWORD_LENGTH)}
             variant="contained"
             fullWidth
             size="large"
@@ -761,7 +737,7 @@ export default function AdminPanel() {
       </Dialog>
 
       {/* Edit User Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth fullScreen={isMobile}>
         <DialogTitle>{t('admin.editUser')}</DialogTitle>
         <DialogContent>
           <TextField
@@ -894,7 +870,7 @@ export default function AdminPanel() {
       </Dialog>
 
       {/* Set Password Dialog */}
-      <Dialog open={passwordDialogOpen} onClose={() => setPasswordDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={passwordDialogOpen} onClose={() => setPasswordDialogOpen(false)} maxWidth="sm" fullWidth fullScreen={isMobile}>
         <DialogTitle>{t('admin.setPassword')}</DialogTitle>
         <DialogContent>
           <TextField
@@ -905,6 +881,8 @@ export default function AdminPanel() {
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             required
+            error={newPassword.length > 0 && newPassword.length < MIN_PASSWORD_LENGTH}
+            helperText={newPassword.length > 0 && newPassword.length < MIN_PASSWORD_LENGTH ? t('admin.passwordTooShort') : undefined}
           />
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
@@ -918,7 +896,8 @@ export default function AdminPanel() {
             {t('admin.cancel')}
           </Button>
           <Button 
-            onClick={() => runOnce(handleSetPassword)} disabled={submitting} 
+            onClick={() => runOnce(handleSetPassword)}
+            disabled={submitting || newPassword.length < MIN_PASSWORD_LENGTH}
             variant="contained"
             fullWidth
             size="large"
@@ -935,6 +914,7 @@ export default function AdminPanel() {
         onClose={() => setExpiryConfigDialogOpen(false)}
         maxWidth="sm" 
         fullWidth
+        fullScreen={isMobile}
       >
         <DialogTitle>{t('admin.configMagicLinkTitle')}</DialogTitle>
         <DialogContent>
@@ -985,6 +965,7 @@ export default function AdminPanel() {
         }} 
         maxWidth="md" 
         fullWidth
+        fullScreen={isMobile}
       >
         <DialogTitle>{t('admin.magicLinkTitle')}</DialogTitle>
         <DialogContent>
@@ -1045,10 +1026,51 @@ export default function AdminPanel() {
       {/* Success Snackbar */}
       <Snackbar
         open={!!successMessage}
-        autoHideDuration={3000}
+        autoHideDuration={6000}
         onClose={() => setSuccessMessage(null)}
         message={successMessage}
+        sx={{ zIndex: theme.zIndex.snackbar + theme.zIndex.modal }}
       />
+
+      {/* Error Snackbar: above dialogs, long enough to read */}
+      <Snackbar
+        open={!!error}
+        autoHideDuration={8000}
+        onClose={(_, reason) => reason !== 'clickaway' && setError(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        sx={{ zIndex: theme.zIndex.snackbar + theme.zIndex.modal }}
+      >
+        <Alert severity="error" onClose={() => setError(null)} sx={{ width: '100%' }}>
+          {error}
+        </Alert>
+      </Snackbar>
+
+      {/* Role Change Confirmation Dialog */}
+      <Dialog open={!!roleChangeUser} onClose={() => setRoleChangeUser(null)}>
+        <DialogTitle>{t('admin.confirmRoleChangeTitle')}</DialogTitle>
+        <DialogContent>
+          <Typography>
+            {t('admin.confirmRoleChange', {
+              username: roleChangeUser?.username || '',
+              role: roleChangeUser?.role === Role.ADMIN ? t('admin.user') : t('admin.admin'),
+            })}
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setRoleChangeUser(null)} fullWidth size="large" variant="outlined" sx={{ minHeight: 56 }}>
+            {t('admin.cancel')}
+          </Button>
+          <Button
+            onClick={() => roleChangeUser && handleToggleAdmin(roleChangeUser)}
+            variant="contained"
+            fullWidth
+            size="large"
+            sx={{ minHeight: 56 }}
+          >
+            {t('admin.save')}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* FAB for Creating User (Mobile) */}
       {isMobile && (

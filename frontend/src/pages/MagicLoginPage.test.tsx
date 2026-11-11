@@ -62,4 +62,15 @@ describe('MagicLoginPage', () => {
     expect(await screen.findByRole('alert')).toBeTruthy();
     expect(redeemMagicLink).toHaveBeenCalledTimes(1);
   });
+
+  it('shows the too-many-attempts message on HTTP 429', async () => {
+    window.history.replaceState(null, '', '/magic#t=abc');
+    vi.mocked(redeemMagicLink).mockRejectedValue({ response: { status: 429, data: { retryAfterSeconds: 600 } } });
+
+    renderPage();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('Too many failed login attempts');
+    expect(alert.textContent).toContain('10 min');
+  });
 });
