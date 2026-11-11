@@ -55,8 +55,7 @@ function LoadingScreen() {
 
 function hasAdminAccess(user: UserPrincipal | null) {
   if (!user) return false;
-  const anyUser = user as any;
-  return user.role === Role.ADMIN || user.isAdmin === true || anyUser.admin === true;
+  return user.role === Role.ADMIN || user.admin === true;
 }
 
 function ProtectedRoute({
@@ -166,7 +165,7 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
             <IconButton
               onClick={() => setMobileMenuOpen(true)}
               color="inherit"
-              aria-label="Menu"
+              aria-label={t('app.menu')}
               size="large"
               sx={{ minWidth: 48, minHeight: 48 }}
             >
@@ -193,7 +192,7 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
                   onClick={() => navigate('/app/admin')}
                   sx={{ ml: 1 }}
                 >
-                  Admin
+                  {t('app.admin')}
                 </Button>
               )}
               {user?.mcpAllowed === true && (
@@ -268,7 +267,7 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
                 <ListItemIcon>
                   <AdminPanelSettings color="primary" />
                 </ListItemIcon>
-                <ListItemText primary="Admin" />
+                <ListItemText primary={t('app.admin')} />
               </ListItemButton>
             )}
 
@@ -308,16 +307,13 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<UserPrincipal | null>(null);
+  const location = useLocation();
 
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const response = await axios.get<UserPrincipal>('/api/v1/me');
-        const normalizedUser: UserPrincipal = {
-          ...response.data,
-          isAdmin:
-            response.data.isAdmin ?? (response.data as any).admin ?? response.data.role === Role.ADMIN,
-        };
+        const normalizedUser = response.data;
         setIsAuthenticated(normalizedUser.authenticated === true);
         setUser(normalizedUser);
         // Capture CSRF token from backend and set it for subsequent unsafe requests
@@ -380,7 +376,8 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route path="*" element={<Navigate to="/app/boxes" replace />} />
+          {/* keep the query string so LoginPage can read ?error=login_failed */}
+          <Route path="*" element={<Navigate to={{ pathname: '/app/boxes', search: location.search }} replace />} />
         </Routes>
       </LanguageProvider>
     </CookieThemeProvider>

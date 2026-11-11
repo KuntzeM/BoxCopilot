@@ -30,7 +30,7 @@ function mockMe(overrides: Record<string, unknown> = {}) {
           username: 'alice',
           name: 'Alice',
           authenticated: true,
-          isAdmin: false,
+          admin: false,
           ...overrides,
         },
       };

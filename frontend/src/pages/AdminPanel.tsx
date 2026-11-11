@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Paper,
@@ -111,11 +111,26 @@ export default function AdminPanel() {
   // Form state
   const [formData, setFormData] = useState<Partial<CreateUserPayload & UpdateUserPayload>>({});
   const [newPassword, setNewPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [magicLinkData, setMagicLinkData] = useState<{ url: string; expiresAt: string } | null>(null);
 
   useEffect(() => {
     loadUsers();
   }, []);
+
+  // Runs a dialog action once at a time so a double click cannot submit twice
+  const runOnce = async (action: () => Promise<void>) => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setSubmitting(true);
+    try {
+      await action();
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
+  };
 
   const loadUsers = async () => {
     try {
@@ -127,10 +142,11 @@ export default function AdminPanel() {
       if (statusFilter === 'inactive') filters.enabled = false;
 
       const data = await userService.getUsers(filters);
-      setUsers(data);
+      // The backend has no lock filter; filter on lockedUntil here
+      setUsers(statusFilter === 'locked' ? data.filter((u) => u.lockedUntil && new Date(u.lockedUntil) > new Date()) : data);
       setError(null);
     } catch (err: any) {
-      setError(err.message || 'Failed to load users');
+      setError(err.message || t('admin.requestFailed'));
     } finally {
       setLoading(false);
     }
@@ -148,7 +164,7 @@ export default function AdminPanel() {
       setFormData({});
       loadUsers();
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Failed to create user');
+      setError(err.response?.data?.message || err.message || t('admin.requestFailed'));
     }
   };
 
@@ -162,7 +178,7 @@ export default function AdminPanel() {
       setSelectedUser(null);
       loadUsers();
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Failed to update user');
+      setError(err.response?.data?.message || err.message || t('admin.requestFailed'));
     }
   };
 
@@ -178,7 +194,7 @@ export default function AdminPanel() {
       if (err.response?.status === 400) {
         setError(t('admin.cannotDeleteSelf'));
       } else {
-        setError(err.response?.data?.message || err.message || 'Failed to delete user');
+        setError(err.response?.data?.message || err.message || t('admin.requestFailed'));
       }
     }
   };
@@ -192,7 +208,7 @@ export default function AdminPanel() {
       setNewPassword('');
       setSelectedUser(null);
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Failed to set password');
+      setError(err.response?.data?.message || err.message || t('admin.requestFailed'));
     }
   };
 
@@ -202,7 +218,7 @@ export default function AdminPanel() {
       setSuccessMessage(t('admin.userUnlocked'));
       loadUsers();
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Failed to unlock user');
+      setError(err.response?.data?.message || err.message || t('admin.requestFailed'));
     }
   };
 
@@ -213,7 +229,7 @@ export default function AdminPanel() {
       setSuccessMessage(t('admin.userUpdated'));
       loadUsers();
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Failed to update role');
+      setError(err.response?.data?.message || err.message || t('admin.requestFailed'));
     }
   };
 
@@ -236,7 +252,7 @@ export default function AdminPanel() {
       setMagicLinkDialogOpen(true);
       setSuccessMessage(t('admin.magicLinkGenerated'));
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Failed to generate magic link');
+      setError(err.response?.data?.message || err.message || t('admin.requestFailed'));
       // Keep config dialog open on error
     }
   };
@@ -250,7 +266,7 @@ export default function AdminPanel() {
       setMagicLinkData(null);
       setSelectedUser(null);
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Failed to delete magic link');
+      setError(err.response?.data?.message || err.message || t('admin.requestFailed'));
     }
   };
 
@@ -267,7 +283,7 @@ export default function AdminPanel() {
       setRevokeMagicLinkDialogOpen(false);
       setSelectedUser(null);
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Failed to delete magic link');
+      setError(err.response?.data?.message || err.message || t('admin.requestFailed'));
     }
   };
 
@@ -370,6 +386,8 @@ export default function AdminPanel() {
             <IconButton
               onClick={(e) => handleMenuOpen(user.id, e)}
               size="small"
+              aria-label={t('admin.actions')}
+              title={t('admin.actions')}
             >
               <MoreVertIcon />
             </IconButton>
@@ -415,11 +433,11 @@ export default function AdminPanel() {
 
           <Box>
             <Typography variant="caption" color="text.secondary">
-              Erstellt: {new Date(user.createdAt).toLocaleDateString()}
+              {t('admin.created')}: {new Date(user.createdAt).toLocaleDateString()}
             </Typography>
             {user.lastLogin && (
               <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
-                Login: {new Date(user.lastLogin).toLocaleDateString()}
+                {t('admin.login')}: {new Date(user.lastLogin).toLocaleDateString()}
               </Typography>
             )}
           </Box>
@@ -531,7 +549,7 @@ export default function AdminPanel() {
                   <TableCell>{t('admin.createdAt')}</TableCell>
                   <TableCell>{t('admin.lastLogin')}</TableCell>
                   <TableCell>{t('admin.failedAttempts')}</TableCell>
-                  <TableCell>Magic Link</TableCell>
+                  <TableCell>{t('admin.magicLink')}</TableCell>
                   <TableCell>{t('admin.actions')}</TableCell>
                 </TableRow>
               </TableHead>
@@ -654,7 +672,7 @@ export default function AdminPanel() {
                   <Typography>{t('app.loading')}</Typography>
                 </Box>
               ) : users.length === 0 ? (
-                <Alert severity="info">No users found</Alert>
+                <Alert severity="info">{t('admin.noUsers')}</Alert>
               ) : (
                 users.map(renderUserCard)
               )}
@@ -665,7 +683,7 @@ export default function AdminPanel() {
         <TabPanel value={tabValue} index={1}>
           {/* Settings Tab - Placeholder */}
           <Typography variant="body1" color="text.secondary">
-            {t('admin.settings')} - Coming soon
+            {t('admin.settings')} - {t('admin.comingSoon')}
           </Typography>
         </TabPanel>
       </Paper>
@@ -731,7 +749,7 @@ export default function AdminPanel() {
             {t('admin.cancel')}
           </Button>
           <Button 
-            onClick={handleCreateUser} 
+            onClick={() => runOnce(handleCreateUser)} disabled={submitting} 
             variant="contained"
             fullWidth
             size="large"
@@ -802,7 +820,7 @@ export default function AdminPanel() {
             {t('admin.cancel')}
           </Button>
           <Button 
-            onClick={handleUpdateUser} 
+            onClick={() => runOnce(handleUpdateUser)} disabled={submitting} 
             variant="contained"
             fullWidth
             size="large"
@@ -832,7 +850,7 @@ export default function AdminPanel() {
             {t('admin.cancel')}
           </Button>
           <Button 
-            onClick={handleDeleteUser} 
+            onClick={() => runOnce(handleDeleteUser)} disabled={submitting} 
             variant="contained" 
             color="error"
             fullWidth
@@ -863,7 +881,7 @@ export default function AdminPanel() {
             {t('admin.cancel')}
           </Button>
           <Button 
-            onClick={handleRevokeMagicLink} 
+            onClick={() => runOnce(handleRevokeMagicLink)} disabled={submitting} 
             variant="contained" 
             color="warning"
             fullWidth
@@ -900,7 +918,7 @@ export default function AdminPanel() {
             {t('admin.cancel')}
           </Button>
           <Button 
-            onClick={handleSetPassword} 
+            onClick={() => runOnce(handleSetPassword)} disabled={submitting} 
             variant="contained"
             fullWidth
             size="large"
@@ -947,7 +965,7 @@ export default function AdminPanel() {
             {t('admin.cancel')}
           </Button>
           <Button 
-            onClick={handleConfirmGeneration} 
+            onClick={() => runOnce(handleConfirmGeneration)} disabled={submitting} 
             variant="contained"
             fullWidth
             size="large"
@@ -991,7 +1009,7 @@ export default function AdminPanel() {
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <Button 
-            onClick={handleDeleteMagicLink} 
+            onClick={() => runOnce(handleDeleteMagicLink)} disabled={submitting} 
             variant="outlined" 
             color="error"
             startIcon={<DeleteIcon />}

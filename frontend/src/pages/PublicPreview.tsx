@@ -41,13 +41,11 @@ function PublicPreviewContent() {
           // Accept all statuses so we can handle 3xx/4xx ourselves
           validateStatus: () => true,
         });
-        console.log('Auth check response:', response.status, response.data);
 
         // Treat only explicit 200 + authenticated true as logged in
         const isOk = response.status === 200 && response.data?.authenticated === true;
         setIsAuthenticated(isOk);
       } catch (error: any) {
-        console.log('Auth check failed:', error.response?.status, error.message);
         setIsAuthenticated(false);
       } finally {
         setIsLoadingAuth(false);
@@ -149,7 +147,7 @@ function PublicPreviewContent() {
               {/* Box Info */}
               <Box>
                 <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                  {t('boxes.boxNumber', { number: data.boxNumber })}
+                  {t('boxes.boxNumber', { number: data.boxNumber ?? '' })}
                 </Typography>
                 <Typography variant="body1" sx={{ mt: 0.5 }}>
                   {t('boxes.current')}: <strong>{data.currentRoom || '-'}</strong>
@@ -217,9 +215,10 @@ function PublicPreviewContent() {
         {/* Full Image Dialog */}
         <Dialog open={fullImageUrl !== null} onClose={() => setFullImageUrl(null)} maxWidth="md" fullWidth>
           <DialogTitle>
-            Bild Vorschau
+            {t('boxes.imagePreview')}
             <IconButton
               onClick={() => setFullImageUrl(null)}
+              aria-label={t('common.close')}
               sx={{ position: 'absolute', right: 8, top: 8 }}
             >
               <Close />
@@ -229,7 +228,7 @@ function PublicPreviewContent() {
             {fullImageUrl && (
               <img
                 src={fullImageUrl}
-                alt="Item large"
+                alt={t('items.fullImageAlt')}
                 style={{ 
                   maxWidth: '100%', 
                   maxHeight: '80vh',
@@ -244,7 +243,7 @@ function PublicPreviewContent() {
             )}
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setFullImageUrl(null)}>Schließen</Button>
+            <Button onClick={() => setFullImageUrl(null)}>{t('common.close')}</Button>
           </DialogActions>
         </Dialog>
       </Container>

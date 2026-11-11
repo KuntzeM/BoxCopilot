@@ -14,5 +14,6 @@ FROM nginx:1.30-alpine
 WORKDIR /usr/share/nginx/html
 COPY --from=builder /app/dist ./
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY security-headers.inc /etc/nginx/conf.d/security-headers.inc
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

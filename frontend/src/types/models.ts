@@ -34,15 +34,13 @@ export interface BoxPreviewItem {
 export interface BoxPreview {
   id: number;
   uuid: string;
-  boxNumber: number;
+  boxNumber: number | null;
   currentRoom?: string;
   targetRoom?: string;
   description?: string;
   items: BoxPreviewItem[];
   isFragile?: boolean;
   noStack?: boolean;
-  isMovedToTarget?: boolean;
-  labelPrinted?: boolean;
 }
 
 export interface CreateBoxPayload {
@@ -136,7 +134,7 @@ export interface UserPrincipal {
   name?: string;
   role?: Role;
   authProvider?: AuthProvider;
-  isAdmin: boolean;
+  admin: boolean;
   csrfToken?: string;
   authenticated: boolean;
   mcpPending?: boolean;

@@ -41,6 +41,7 @@ interface ItemFormProps {
   onError?: (message: string) => void;
   onAddItem?: () => void;
   onUpdateItem?: () => void;
+  hideFab?: boolean;
 }
 
 interface EditItem {
@@ -63,6 +64,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
   onError,
   onAddItem,
   onUpdateItem,
+  hideFab = false,
 }) => {
   const { t } = useTranslation();
   
@@ -585,21 +587,23 @@ export const ItemForm: React.FC<ItemFormProps> = ({
   return (
     <>
       {/* FAB Button - only for create mode */}
-      <Fab
-        color="primary"
-        aria-label={t('items.addNew') || 'Add Item'}
-        onClick={handleOpen}
-        disabled={isLoading || submitting || !currentBoxId}
-        size="large"
-        sx={{
-          position: 'fixed',
-          bottom: 16,
-          right: 16,
-          zIndex: 50,
-        }}
-      >
-        <Add />
-      </Fab>
+      {!hideFab && (
+        <Fab
+          color="primary"
+          aria-label={t('items.addNew') || 'Add Item'}
+          onClick={handleOpen}
+          disabled={isLoading || submitting || !currentBoxId}
+          size="large"
+          sx={{
+            position: 'fixed',
+            bottom: 16,
+            right: 16,
+            zIndex: 50,
+          }}
+        >
+          <Add />
+        </Fab>
+      )}
 
       {/* Main Dialog */}
       <Dialog 
@@ -646,7 +650,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
               >
                 <img
                   src={imagePreview}
-                  alt="Preview"
+                  alt={t('items.previewAlt')}
                   style={{
                     maxWidth: '100%',
                     maxHeight: '250px',
@@ -656,6 +660,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                 {!submitting && (
                   <IconButton
                     onClick={handleRemoveImage}
+                    aria-label={t('items.removePhoto')}
                     sx={{
                       position: 'absolute',
                       top: 8,
@@ -686,6 +691,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                   <IconButton
                     color="primary"
                     onClick={() => startCamera('environment')}
+                    aria-label={t('items.takePhoto')}
                     disabled={submitting}
                     size="large"
                     sx={{ width: '100%', justifyContent: 'center' }}
@@ -699,6 +705,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                   <IconButton
                     color="primary"
                     onClick={() => fileInputRef.current?.click()}
+                    aria-label={t('items.selectFromGallery')}
                     disabled={submitting}
                     size="large"
                     sx={{ width: '100%', justifyContent: 'center' }}
@@ -781,12 +788,12 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                 p: 2,
               }}>
                 <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                  <IconButton onClick={() => { stopCamera(); setCameraMode('none'); }} sx={{ color: 'white' }}>
+                  <IconButton onClick={() => { stopCamera(); setCameraMode('none'); }} aria-label={t('common.close')} sx={{ color: 'white' }}>
                     <Close />
                   </IconButton>
                   
                   {hasFlash && (
-                    <IconButton onClick={cycleFlash} sx={{ color: 'white' }}>
+                    <IconButton onClick={cycleFlash} aria-label={t('items.flash')} sx={{ color: 'white' }}>
                       {flashMode === 'off' && <FlashOff />}
                       {flashMode === 'on' && <FlashOn />}
                       {flashMode === 'auto' && <FlashAuto />}
@@ -836,12 +843,13 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                 p: 3,
               }}>
                 <Stack direction="row" sx={{ justifyContent: 'space-around', alignItems: 'center' }}>
-                  <IconButton onClick={switchCamera} sx={{ color: 'white' }}>
+                  <IconButton onClick={switchCamera} aria-label={t('items.switchCamera')} sx={{ color: 'white' }}>
                     <Cameraswitch sx={{ fontSize: 32 }} />
                   </IconButton>
                   
                   <IconButton 
                     onClick={capturePhoto}
+                    aria-label={t('items.capturePhoto')}
                     sx={{ 
                       width: 70, 
                       height: 70,
@@ -866,7 +874,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
             <>
               <img
                 src={capturedImage}
-                alt="Captured"
+                alt={t('items.capturedAlt')}
                 style={{
                   width: '100%',
                   height: '100%',
@@ -885,6 +893,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                 <Stack direction="row" sx={{ justifyContent: 'space-around', alignItems: 'center' }}>
                   <IconButton
                     onClick={retakePhoto}
+                    aria-label={t('common.retake')}
                     sx={{ 
                       width: 64,
                       height: 64,
@@ -901,6 +910,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
                   
                   <IconButton
                     onClick={acceptPhoto}
+                    aria-label={t('common.accept')}
                     color="primary"
                     sx={{ 
                       width: 64,

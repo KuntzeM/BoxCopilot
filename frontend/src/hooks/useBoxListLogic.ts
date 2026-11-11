@@ -67,6 +67,8 @@ export const useBoxListLogic = () => {
     labelPrinted: false
   });
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [isSubmittingBox, setIsSubmittingBox] = useState(false);
+  const [isDeletingBox, setIsDeletingBox] = useState(false);
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
   const [boxItemsById, setBoxItemsById] = useState<Record<number, Item[]>>({});
   const [loadingBoxItemIds, setLoadingBoxItemIds] = useState<Set<number>>(new Set());
@@ -289,10 +291,11 @@ export const useBoxListLogic = () => {
     window.open(url, '_blank');
   };
 
-  const handlePrintLabels = async () => {
+  // Resolves true only when the PDF was generated and opened
+  const handlePrintLabels = async (): Promise<boolean> => {
     if (selectedBoxes.length === 0) {
       setSnackbar({ open: true, message: t('boxes.noBoxSelected'), severity: 'info' });
-      return;
+      return false;
     }
     
     try {
@@ -380,6 +383,7 @@ export const useBoxListLogic = () => {
         }, 500);
       });
       
+      return true;
     } catch (error) {
       console.error('[PDF] Label generation failed:', error);
       
@@ -392,6 +396,7 @@ export const useBoxListLogic = () => {
         : t('boxes.pdfGenerationFailed');
       
       setSnackbar({ open: true, message: errorMessage, severity: 'error' });
+      return false;
     }
   };
 
@@ -402,6 +407,8 @@ export const useBoxListLogic = () => {
   };
 
   const handleSubmitBox = async () => {
+    if (isSubmittingBox) return;
+    setIsSubmittingBox(true);
     try {
       const newBox = await createBox(boxFormData as CreateBoxPayload);
       setSnackbar({ open: true, message: t('success.boxCreated'), severity: 'success' });
@@ -410,11 +417,14 @@ export const useBoxListLogic = () => {
       navigate(`/app/boxes/${newBox.id}/edit`);
     } catch (error) {
       setSnackbar({ open: true, message: t('errors.boxCreateFailed'), severity: 'error' });
+    } finally {
+      setIsSubmittingBox(false);
     }
   };
 
   const handleDeleteBox = async () => {
-    if (deleteConfirmId === null) return;
+    if (deleteConfirmId === null || isDeletingBox) return;
+    setIsDeletingBox(true);
     try {
       await deleteBox(deleteConfirmId);
       setSnackbar({ open: true, message: t('success.boxDeleted'), severity: 'success' });
@@ -422,6 +432,8 @@ export const useBoxListLogic = () => {
       await loadData();
     } catch (error) {
       setSnackbar({ open: true, message: t('errors.boxDeleteFailed'), severity: 'error' });
+    } finally {
+      setIsDeletingBox(false);
     }
   };
 
@@ -497,6 +509,8 @@ export const useBoxListLogic = () => {
     setBoxFormData,
     deleteConfirmId,
     setDeleteConfirmId,
+    isSubmittingBox,
+    isDeletingBox,
     fullImageUrl,
     setFullImageUrl,
     drawerOpen,

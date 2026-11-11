@@ -131,6 +131,8 @@ export default function BoxList() {
     setBoxFormData,
     deleteConfirmId,
     setDeleteConfirmId,
+    isSubmittingBox,
+    isDeletingBox,
     fullImageUrl,
     setFullImageUrl,
     drawerOpen,
@@ -214,17 +216,19 @@ export default function BoxList() {
   const handleProceedWithPrint = async () => {
     setShowPrintDialog(false);
     
-    if (setLabelPrintedAfterPrint) {
+    // Only mark labels as printed once the PDF was actually generated
+    const generated = await handlePrintLabels();
+    if (generated && setLabelPrintedAfterPrint) {
       try {
         await Promise.all(
           selectedBoxes.map((box) => !box.labelPrinted ? updateBox(box.id, { labelPrinted: true }) : Promise.resolve())
         );
+        await loadData();
       } catch (err) {
         console.error('Failed to update labelPrinted status', err);
+        setSnackbar({ open: true, message: t('errors.boxUpdateFailed'), severity: 'error' });
       }
     }
-    
-    handlePrintLabels();
   };
 
 
@@ -320,6 +324,7 @@ export default function BoxList() {
             <IconButton
               size="medium"
               title={t('boxes.actions')}
+              aria-label={t('boxes.actions')}
               onClick={() => handleOpenBoxActions(box)}
               color="primary"
               sx={{ minWidth: 48, minHeight: 48 }}
@@ -614,6 +619,7 @@ export default function BoxList() {
           <Button 
             variant="contained" 
             onClick={handleSubmitBox}
+            disabled={isSubmittingBox}
           >
             {t('boxes.create')}
           </Button>
@@ -631,7 +637,7 @@ export default function BoxList() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteConfirmId(null)}>{t('boxes.cancel')}</Button>
-          <Button color="error" variant="contained" onClick={handleDeleteBox}>
+          <Button color="error" variant="contained" onClick={handleDeleteBox} disabled={isDeletingBox}>
             {t('boxes.delete')}
           </Button>
         </DialogActions>
@@ -658,9 +664,10 @@ export default function BoxList() {
       {/* Full Image Dialog */}
       <Dialog open={fullImageUrl !== null} onClose={() => setFullImageUrl(null)} maxWidth="md" fullWidth>
         <DialogTitle>
-          Bild Vorschau
+          {t('boxes.imagePreview')}
           <IconButton
             onClick={() => setFullImageUrl(null)}
+            aria-label={t('common.close')}
             sx={{ position: 'absolute', right: 8, top: 8 }}
           >
             <Close />
@@ -670,7 +677,7 @@ export default function BoxList() {
           {fullImageUrl && (
             <img
               src={fullImageUrl}
-              alt="Item large"
+              alt={t('items.fullImageAlt')}
               style={{ 
                 maxWidth: '100%', 
                 maxHeight: '80vh',
@@ -685,7 +692,7 @@ export default function BoxList() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setFullImageUrl(null)}>Schließen</Button>
+          <Button onClick={() => setFullImageUrl(null)}>{t('common.close')}</Button>
         </DialogActions>
       </Dialog>
 

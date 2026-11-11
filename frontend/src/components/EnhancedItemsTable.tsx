@@ -137,10 +137,10 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
   const handleMoveSelected = async (targetBoxId: number, boxDescription: string) => {
     try {
       await onMoveItems(Array.from(selectedItems), targetBoxId);
-      onSuccess(`${selectedItems.size} Items wurden in Box '${boxDescription}' verschoben`);
+      onSuccess(t('items.moveSuccess', { count: selectedItems.size, box: boxDescription }));
       setSelectedItems(new Set());
     } catch (error) {
-      onError('Fehler beim Verschieben');
+      onError(t('items.moveFailed'));
     }
   };
 
@@ -206,7 +206,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
       {selectedItems.size > 0 && (
         <Toolbar sx={{ bgcolor: 'primary.light', mb: 2, borderRadius: 1 }}>
           <Typography sx={{ flex: '1 1 100%' }} color="white" variant="subtitle1">
-            {selectedItems.size} ausgewählt
+            {t('items.selectedCount', { count: selectedItems.size })}
           </Typography>
           <Button
             variant="contained"
@@ -214,7 +214,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
             startIcon={<DriveFileMove />}
             onClick={() => setMoveDialogOpen(true)}
           >
-            Verschieben
+            {t('items.move')}
           </Button>
         </Toolbar>
       )}
@@ -309,6 +309,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
                 <IconButton
                   size="small"
                   onClick={() => handleOpenItemActions(item)}
+                  aria-label={t('items.actions')}
                   sx={{ minWidth: 40, minHeight: 40 }}
                 >
                   <MoreVert fontSize="small" />
@@ -319,7 +320,8 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
                     size="small"
                     color="info"
                     onClick={() => handleMoveSingle(item.id)}
-                    title="Verschieben"
+                    title={t('items.move')}
+                    aria-label={t('items.move')}
                     sx={{ minWidth: 36, minHeight: 36 }}
                   >
                     <DriveFileMove fontSize="small" />
@@ -329,6 +331,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
                     color="primary"
                     onClick={() => handleEditClick(item)}
                     title={t('items.edit')}
+                    aria-label={t('items.edit')}
                     sx={{ minWidth: 36, minHeight: 36 }}
                   >
                     <Edit fontSize="small" />
@@ -338,6 +341,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
                     color="error"
                     onClick={() => setDeleteConfirm(item.id)}
                     title={t('items.delete')}
+                    aria-label={t('items.delete')}
                     sx={{ minWidth: 36, minHeight: 36 }}
                   >
                     <Delete fontSize="small" />
@@ -357,6 +361,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
         }}
         onSuccess={onSuccess}
         onError={onError}
+        hideFab
       />
 
       {/* Delete Confirmation Dialog */}
@@ -409,7 +414,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
           {fullImageUrl && (
             <img
               src={fullImageUrl}
-              alt="Item full"
+              alt={t('items.fullImageAlt')}
               style={{ 
                 width: '100%', 
                 height: 'auto', 
@@ -426,7 +431,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setFullImageUrl(null)}>Schließen</Button>
+          <Button onClick={() => setFullImageUrl(null)}>{t('common.close')}</Button>
         </DialogActions>
       </Dialog>
 
@@ -464,7 +469,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
               <ListItemIcon>
                 <DriveFileMove color="info" />
               </ListItemIcon>
-              <ListItemText primary="Verschieben" />
+              <ListItemText primary={t('items.move')} />
             </ListItemButton>
             <ListItemButton
               onClick={handleDrawerDelete}

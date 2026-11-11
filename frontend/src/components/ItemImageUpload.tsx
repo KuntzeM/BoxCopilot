@@ -18,6 +18,7 @@ import {
   Delete,
   Close,
 } from '@mui/icons-material';
+import { useTranslation } from '../hooks/useTranslation';
 import { uploadItemImage, deleteItemImage } from '../services/itemService';
 
 interface ItemImageUploadProps {
@@ -35,6 +36,7 @@ export default function ItemImageUpload({
   onError,
   onSuccess,
 }: ItemImageUploadProps) {
+  const { t } = useTranslation();
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -77,7 +79,7 @@ export default function ItemImageUpload({
 
   const startCamera = async () => {
     if (!isOnline) {
-      onError('Kamera nur online verfügbar');
+      onError(t('itemImage.cameraOnlineOnly'));
       return;
     }
 
@@ -99,7 +101,7 @@ export default function ItemImageUpload({
       }, 100);
     } catch (error) {
       console.error('Camera access error:', error);
-      onError('Kamerazugriff fehlgeschlagen');
+      onError(t('itemImage.cameraFailed'));
     }
   };
 
@@ -131,7 +133,7 @@ export default function ItemImageUpload({
 
     canvas.toBlob(async (blob) => {
       if (!blob) {
-        onError('Fehler beim Aufnehmen');
+        onError(t('itemImage.captureFailed'));
         return;
       }
 
@@ -150,34 +152,34 @@ export default function ItemImageUpload({
 
   const handleUpload = async (file: File) => {
     if (!isOnline) {
-      onError('Upload nur online verfügbar');
+      onError(t('itemImage.uploadOnlineOnly'));
       return;
     }
 
     try {
       await uploadItemImage(itemId, file);
-      onSuccess('Bild hochgeladen');
+      onSuccess(t('itemImage.uploaded'));
       onImageUpdated();
     } catch (error) {
       console.error('Upload error:', error);
-      onError('Fehler beim Hochladen');
+      onError(t('itemImage.uploadFailed'));
     }
   };
 
   const handleDelete = async () => {
     if (!isOnline) {
-      onError('Löschen nur online verfügbar');
+      onError(t('itemImage.deleteOnlineOnly'));
       return;
     }
 
     try {
       await deleteItemImage(itemId);
-      onSuccess('Bild gelöscht');
+      onSuccess(t('itemImage.deleted'));
       onImageUpdated();
       setDeleteDialogOpen(false);
     } catch (error) {
       console.error('Delete error:', error);
-      onError('Fehler beim Löschen');
+      onError(t('itemImage.deleteFailed'));
       setDeleteDialogOpen(false);
     }
   };
@@ -186,7 +188,7 @@ export default function ItemImageUpload({
     <Box>
       {!isOnline && (
         <Alert severity="warning" sx={{ mb: 2 }}>
-          Offline - Bildfunktionen nicht verfügbar
+          {t('itemImage.offline')}
         </Alert>
       )}
 
@@ -194,7 +196,7 @@ export default function ItemImageUpload({
         <Box sx={{ mb: 2, textAlign: 'center' }}>
           <img
             src={resolveImageUrl(currentImageUrl)}
-            alt="Item"
+            alt={t('itemImage.alt')}
             style={{ 
               maxWidth: '200px', 
               maxHeight: '200px', 
@@ -204,13 +206,13 @@ export default function ItemImageUpload({
             onClick={() => setImagePreviewOpen(true)}
           />
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-            Zum Vergrößern klicken
+            {t('itemImage.clickToEnlarge')}
           </Typography>
         </Box>
       )}
 
       <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
-        <Tooltip title="Foto aufnehmen">
+        <Tooltip title={t('itemImage.takePhoto')}>
           <Box sx={{ flex: 1 }}>
             <IconButton
               color="primary"
@@ -224,7 +226,7 @@ export default function ItemImageUpload({
           </Box>
         </Tooltip>
 
-        <Tooltip title="Aus Galerie auswählen">
+        <Tooltip title={t('itemImage.chooseFromGallery')}>
           <Box sx={{ flex: 1 }}>
             <IconButton
               color="primary"
@@ -239,7 +241,7 @@ export default function ItemImageUpload({
         </Tooltip>
 
         {currentImageUrl && (
-          <Tooltip title="Bild löschen">
+          <Tooltip title={t('itemImage.deleteImage')}>
             <Box sx={{ flex: 1 }}>
               <IconButton
                 color="error"
@@ -275,7 +277,7 @@ export default function ItemImageUpload({
       {/* Camera Dialog */}
       <Dialog open={isCameraOpen} onClose={stopCamera} maxWidth="md" fullWidth>
         <DialogTitle>
-          Foto aufnehmen
+          {t('itemImage.takePhoto')}
           <IconButton
             onClick={stopCamera}
             sx={{ position: 'absolute', right: 8, top: 8 }}
@@ -308,23 +310,23 @@ export default function ItemImageUpload({
           <canvas ref={canvasRef} style={{ display: 'none' }} />
         </DialogContent>
         <DialogActions>
-          <Button onClick={stopCamera}>Abbrechen</Button>
+          <Button onClick={stopCamera}>{t('itemImage.cancel')}</Button>
           <Button variant="contained" onClick={capturePhoto}>
-            Aufnehmen
+            {t('itemImage.capture')}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>Bild löschen?</DialogTitle>
+        <DialogTitle>{t('itemImage.deleteTitle')}</DialogTitle>
         <DialogContent>
-          <Typography>Möchten Sie das Bild wirklich löschen?</Typography>
+          <Typography>{t('itemImage.deleteConfirm')}</Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Abbrechen</Button>
+          <Button onClick={() => setDeleteDialogOpen(false)}>{t('itemImage.cancel')}</Button>
           <Button variant="contained" color="error" onClick={handleDelete}>
-            Löschen
+            {t('itemImage.delete')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -337,7 +339,7 @@ export default function ItemImageUpload({
         fullWidth
       >
         <DialogTitle>
-          Bild Vorschau
+          {t('itemImage.previewTitle')}
           <IconButton
             onClick={() => setImagePreviewOpen(false)}
             sx={{ position: 'absolute', right: 8, top: 8 }}
@@ -349,7 +351,7 @@ export default function ItemImageUpload({
           <Box sx={{ textAlign: 'center', p: 2 }}>
             <img
               src={currentImageUrl ? resolveImageUrl(currentImageUrl.replace('/image', '/image/large')) : ''}
-              alt="Item Large"
+              alt={t('itemImage.altLarge')}
               style={{ 
                 maxWidth: '100%', 
                 maxHeight: '80vh',
@@ -363,7 +365,7 @@ export default function ItemImageUpload({
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setImagePreviewOpen(false)}>Schließen</Button>
+          <Button onClick={() => setImagePreviewOpen(false)}>{t('itemImage.close')}</Button>
         </DialogActions>
       </Dialog>
     </Box>

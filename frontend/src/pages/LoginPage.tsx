@@ -7,7 +7,8 @@ import {
   Divider, 
   Alert,
   Paper,
-  Container
+  Container,
+  CircularProgress,
 } from '@mui/material';
 import { Inventory2, Login as LoginIcon } from '@mui/icons-material';
 import { useTranslation } from '../hooks/useTranslation';
@@ -21,7 +22,12 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const { t } = useTranslation();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  // Backend redirects here with ?error=login_failed after a failed Nextcloud login
+  const [error, setError] = useState<string | null>(() =>
+    new URLSearchParams(window.location.search).get('error') === 'login_failed'
+      ? t('auth.nextcloudLoginFailed')
+      : null
+  );
   const [loading, setLoading] = useState(false);
 
   const handleFormLogin = async (e: React.FormEvent) => {
@@ -48,11 +54,8 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
         onLoginSuccess();
       }
     } catch (err: any) {
-      if (err.response?.data?.error) {
-        setError(err.response.data.error);
-      } else {
-        setError(t('auth.invalidCredentials'));
-      }
+      // 401 covers wrong credentials and a temporarily locked account; do not reveal which
+      setError(err.response?.status === 401 ? t('auth.loginFailed') : t('auth.loginUnavailable'));
     } finally {
       setLoading(false);
     }
@@ -126,6 +129,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
               variant="contained"
               size="large"
               disabled={loading}
+              startIcon={loading ? <CircularProgress size={20} color="inherit" /> : undefined}
               sx={{ mt: 3, mb: 2 }}
             >
               {t('auth.login')}
