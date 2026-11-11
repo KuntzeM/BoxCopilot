@@ -52,6 +52,10 @@ public class User implements Serializable {
     @Column(name = "locked_until")
     private LocalDateTime lockedUntil;
 
+    /** UTC marker of the last password reset; a session whose login-time snapshot differs from it is stale. */
+    @Column(name = "sessions_valid_after")
+    private LocalDateTime sessionsValidAfter;
+
     @Column(name = "mcp_allowed", nullable = false, columnDefinition = "boolean not null default false")
     private boolean mcpAllowed = false;
 
@@ -175,6 +179,24 @@ public class User implements Serializable {
         this.mcpAllowed = mcpAllowed;
     }
 
+    public LocalDateTime getSessionsValidAfter() {
+        return sessionsValidAfter;
+    }
+
+    public void setSessionsValidAfter(LocalDateTime sessionsValidAfter) {
+        this.sessionsValidAfter = sessionsValidAfter;
+    }
+
+    /**
+     * True if the password was reset since {@code loginSnapshot} (the copy a session took at login) was loaded.
+     * Compares the stored marker instead of timestamps against the session's creation time: that time survives
+     * {@code changeSessionId()} and also covers an anonymous session that predates the login, so it cannot tell a
+     * login after the reset from one before it.
+     */
+    public boolean passwordResetSince(User loginSnapshot) {
+        return !java.util.Objects.equals(sessionsValidAfter, loginSnapshot.sessionsValidAfter);
+    }
+
     /**
      * Check if the account is currently locked
      */
@@ -183,21 +205,5 @@ public class User implements Serializable {
             return false;
         }
         return LocalDateTime.now().isBefore(lockedUntil);
-    }
-    
-    /**
-     * Reset failed login attempts on successful login
-     */
-    public void resetFailedAttempts() {
-        this.failedLoginAttempts = 0;
-        this.lockedUntil = null;
-    }
-    
-    /**
-     * Manually unlock the account
-     */
-    public void unlock() {
-        this.failedLoginAttempts = 0;
-        this.lockedUntil = null;
     }
 }

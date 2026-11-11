@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -230,21 +231,17 @@ public class UserService {
         }
         
         user.setPasswordHash(passwordEncoder.encode(password));
+        // Any value different from the previous one ends the older sessions; +1 us keeps two resets within the
+        // clock's resolution distinct.
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        LocalDateTime previous = user.getSessionsValidAfter();
+        user.setSessionsValidAfter(previous != null && !now.isAfter(previous) ? previous.plusNanos(1000) : now);
         userRepository.save(user);
+        if (magicLoginTokenService != null) {
+            magicLoginTokenService.invalidateAllTokensForUser(user);
+        }
+        eventPublisher.publishEvent(new McpAccessRevokedEvent(user.getId()));
         log.info("Password updated for user: {}", user.getUsername());
-    }
-    
-    /**
-     * Unlock user account
-     */
-    @Transactional
-    public void unlockUser(Long id) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
-        
-        user.unlock();
-        userRepository.save(user);
-        log.info("Unlocked user account: {}", user.getUsername());
     }
     
     /**
@@ -283,7 +280,6 @@ public class UserService {
             User user = existingUser.get();
             assertMayLogIn(user);
             user.setLastLogin(LocalDateTime.now());
-            user.resetFailedAttempts();
             log.info("Existing Nextcloud user logged in: {}", user.getUsername());
             return userRepository.save(user);
         }
@@ -302,10 +298,6 @@ public class UserService {
     }
     
     private void assertMayLogIn(User user) {
-        if (user.isAccountLocked()) {
-            log.warn("OIDC login rejected for locked user: {}", user.getUsername());
-            throw new CustomUserDetailsService.AccountLockedException("Account is locked until " + user.getLockedUntil());
-        }
         if (!Boolean.TRUE.equals(user.getEnabled())) {
             log.warn("OIDC login rejected for disabled user: {}", user.getUsername());
             throw new CustomUserDetailsService.DisabledException("Account is disabled");
@@ -331,23 +323,9 @@ public class UserService {
     @Transactional
     public void updateLastLogin(User user) {
         user.setLastLogin(LocalDateTime.now());
-        user.resetFailedAttempts();
         userRepository.save(user);
     }
     
-    /**
-     * Record failed login attempt
-     */
-    @Transactional
-    public void recordFailedLogin(String username) {
-        // The login filter trims the username before authenticating, so count against the same key
-        LocalDateTime now = LocalDateTime.now();
-        int rows = userRepository.recordFailedLogin(username.trim(), now, now.plusHours(1), 5);
-        if (rows > 0) {
-            log.warn("Failed login attempt for user: {}", username);
-        }
-    }
-
     /**
      * Convert User entity to DTO
      */

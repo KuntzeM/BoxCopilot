@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 
 import java.io.Serial;
 import java.io.Serializable;
-import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -38,18 +37,8 @@ public class CustomUserDetailsService implements UserDetailsService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
         
-        // Check if account is locked
-        if (user.getLockedUntil() != null && LocalDateTime.now().isBefore(user.getLockedUntil())) {
-            log.warn("Attempt to login with locked account: {}", username);
-            throw new AccountLockedException("Account is locked until " + user.getLockedUntil());
-        }
-        
-        // Check if account is enabled
-        if (!user.getEnabled()) {
-            log.warn("Attempt to login with disabled account: {}", username);
-            throw new DisabledException("Account is disabled");
-        }
-        
+        // Disabled/locked accounts are rejected by Spring (isEnabled/isAccountNonLocked of the principal),
+        // which ends in a plain authentication failure instead of an "internal error".
         return new CustomUserPrincipal(user);
     }
     
@@ -110,16 +99,7 @@ public class CustomUserDetailsService implements UserDetailsService {
     }
     
     /**
-     * Exception for locked accounts
-     */
-    public static class AccountLockedException extends org.springframework.security.authentication.LockedException {
-        public AccountLockedException(String message) {
-            super(message);
-        }
-    }
-    
-    /**
-     * Exception for disabled accounts
+     * Exception for disabled accounts (OIDC login path)
      */
     public static class DisabledException extends org.springframework.security.authentication.DisabledException {
         public DisabledException(String message) {

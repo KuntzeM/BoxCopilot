@@ -1,6 +1,9 @@
-package com.boxcopilot.backend.mcp.abuse;
+package com.boxcopilot.backend.security;
 
 import com.boxcopilot.backend.mcp.MutableTestClock;
+import com.boxcopilot.backend.BoxCopilotApplication;
+import com.tngtech.archunit.core.importer.ClassFileImporter;
+import com.tngtech.archunit.core.importer.ImportOption;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -11,11 +14,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /** The counter behind every MCP rate limit: fixed window, one key at a time, decided against an injected clock. */
-class McpRateLimiterTest {
+class FixedWindowRateLimiterTest {
 
     private static final Duration MINUTE = Duration.ofMinutes(1);
 
@@ -23,7 +27,7 @@ class McpRateLimiterTest {
 
     @Test
     void allowsExactlyTheConfiguredNumberOfCallsWithinOneWindow() {
-        McpRateLimiter limiter = new McpRateLimiter(3, MINUTE, clock);
+        FixedWindowRateLimiter limiter = new FixedWindowRateLimiter(3, MINUTE, clock);
 
         assertThat(IntStream.range(0, 3).allMatch(i -> limiter.tryAcquire("7"))).isTrue();
         assertThat(limiter.tryAcquire("7")).isFalse();
@@ -32,7 +36,7 @@ class McpRateLimiterTest {
 
     @Test
     void countsEveryKeyOnItsOwn() {
-        McpRateLimiter limiter = new McpRateLimiter(1, MINUTE, clock);
+        FixedWindowRateLimiter limiter = new FixedWindowRateLimiter(1, MINUTE, clock);
 
         assertThat(limiter.tryAcquire("7")).isTrue();
         assertThat(limiter.tryAcquire("8")).isTrue();
@@ -41,7 +45,7 @@ class McpRateLimiterTest {
 
     @Test
     void opensAFreshWindowOnceTheOldOneHasElapsed() {
-        McpRateLimiter limiter = new McpRateLimiter(2, MINUTE, clock);
+        FixedWindowRateLimiter limiter = new FixedWindowRateLimiter(2, MINUTE, clock);
         limiter.tryAcquire("7");
         limiter.tryAcquire("7");
 
@@ -55,7 +59,7 @@ class McpRateLimiterTest {
     /** The image quota: one window per day, so the count has to survive a whole day of calls. */
     @Test
     void aDailyWindowHoldsTheCountAcrossTheDayAndResetsOnTheNext() {
-        McpRateLimiter limiter = new McpRateLimiter(200, Duration.ofDays(1), clock);
+        FixedWindowRateLimiter limiter = new FixedWindowRateLimiter(200, Duration.ofDays(1), clock);
 
         for (int i = 0; i < 200; i++) {
             clock.advance(Duration.ofMinutes(5));
@@ -73,7 +77,7 @@ class McpRateLimiterTest {
         int limit = 50;
         int threads = 16;
         int callsPerThread = 20;
-        McpRateLimiter limiter = new McpRateLimiter(limit, MINUTE, clock);
+        FixedWindowRateLimiter limiter = new FixedWindowRateLimiter(limit, MINUTE, clock);
         AtomicInteger granted = new AtomicInteger();
         CountDownLatch start = new CountDownLatch(1);
         CountDownLatch done = new CountDownLatch(threads);
@@ -104,7 +108,7 @@ class McpRateLimiterTest {
 
     @Test
     void evictionDropsOnlyKeysWhoseWindowHasElapsed() {
-        McpRateLimiter limiter = new McpRateLimiter(1, MINUTE, clock);
+        FixedWindowRateLimiter limiter = new FixedWindowRateLimiter(1, MINUTE, clock);
         limiter.tryAcquire("old");
 
         clock.advance(Duration.ofSeconds(30));
@@ -119,7 +123,7 @@ class McpRateLimiterTest {
 
     @Test
     void exhaustionIsReadableWithoutTakingAPermit() {
-        McpRateLimiter limiter = new McpRateLimiter(2, MINUTE, clock);
+        FixedWindowRateLimiter limiter = new FixedWindowRateLimiter(2, MINUTE, clock);
 
         assertThat(limiter.isExhausted("7")).isFalse();
         limiter.tryAcquire("7");
@@ -133,9 +137,32 @@ class McpRateLimiterTest {
 
     @Test
     void rejectsAMeaninglessConfiguration() {
-        assertThatThrownBy(() -> new McpRateLimiter(0, MINUTE, clock))
+        assertThatThrownBy(() -> new FixedWindowRateLimiter(0, MINUTE, clock))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new McpRateLimiter(1, Duration.ZERO, clock))
+        assertThatThrownBy(() -> new FixedWindowRateLimiter(1, Duration.ZERO, clock))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void staleKeysAreEvictedLazilyWithoutAScheduler() {
+        FixedWindowRateLimiter limiter = new FixedWindowRateLimiter(1, MINUTE, clock);
+        for (int i = 0; i < 100; i++) {
+            limiter.tryAcquire("old-" + i);
+        }
+        clock.advance(MINUTE);
+        for (int i = 0; i < 256; i++) {
+            limiter.tryAcquire("new");
+        }
+
+        assertThat(limiter.trackedKeys()).isEqualTo(1);
+    }
+
+    @Test
+    void theSecurityPackageNeverDependsOnMcp() {
+        noClasses().that().resideInAPackage("com.boxcopilot.backend.security..")
+                .should().dependOnClassesThat().resideInAPackage("com.boxcopilot.backend.mcp..")
+                .check(new ClassFileImporter()
+                        .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
+                        .importPackagesOf(BoxCopilotApplication.class));
     }
 }

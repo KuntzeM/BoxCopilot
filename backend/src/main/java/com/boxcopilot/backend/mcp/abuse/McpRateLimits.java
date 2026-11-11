@@ -1,5 +1,6 @@
 package com.boxcopilot.backend.mcp.abuse;
 
+import com.boxcopilot.backend.security.FixedWindowRateLimiter;
 import com.boxcopilot.backend.mcp.McpProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -26,40 +27,40 @@ public class McpRateLimits {
     /** How often stale counters are swept out; short enough to bound memory, long enough to cost nothing. */
     private static final long SWEEP_MINUTES = 5;
 
-    private final McpRateLimiter toolCalls;
-    private final McpRateLimiter imageCalls;
-    private final McpRateLimiter authorizationRequests;
-    private final McpRateLimiter failedTokenLookups;
-    private final List<McpRateLimiter> all;
+    private final FixedWindowRateLimiter toolCalls;
+    private final FixedWindowRateLimiter imageCalls;
+    private final FixedWindowRateLimiter authorizationRequests;
+    private final FixedWindowRateLimiter failedTokenLookups;
+    private final List<FixedWindowRateLimiter> all;
 
     public McpRateLimits(McpProperties properties, Clock clock) {
         McpProperties.RateLimit configured = properties.rateLimit();
-        this.toolCalls = new McpRateLimiter(configured.callsPerMinute(), Duration.ofMinutes(1), clock);
-        this.imageCalls = new McpRateLimiter(configured.imageCallsPerDay(), Duration.ofDays(1), clock);
+        this.toolCalls = new FixedWindowRateLimiter(configured.callsPerMinute(), Duration.ofMinutes(1), clock);
+        this.imageCalls = new FixedWindowRateLimiter(configured.imageCallsPerDay(), Duration.ofDays(1), clock);
         this.authorizationRequests =
-                new McpRateLimiter(configured.authorizationRequestsPerMinute(), Duration.ofMinutes(1), clock);
+                new FixedWindowRateLimiter(configured.authorizationRequestsPerMinute(), Duration.ofMinutes(1), clock);
         this.failedTokenLookups =
-                new McpRateLimiter(configured.failedTokenLookupsPerMinute(), Duration.ofMinutes(1), clock);
+                new FixedWindowRateLimiter(configured.failedTokenLookupsPerMinute(), Duration.ofMinutes(1), clock);
         this.all = List.of(toolCalls, imageCalls, authorizationRequests, failedTokenLookups);
     }
 
     /** Calls to {@code /mcp} per token subject and minute. */
-    public McpRateLimiter toolCalls() {
+    public FixedWindowRateLimiter toolCalls() {
         return toolCalls;
     }
 
     /** {@code get_item_image} calls per token subject and day. */
-    public McpRateLimiter imageCalls() {
+    public FixedWindowRateLimiter imageCalls() {
         return imageCalls;
     }
 
     /** Requests to the authorize and token endpoints per client address and minute. */
-    public McpRateLimiter authorizationRequests() {
+    public FixedWindowRateLimiter authorizationRequests() {
         return authorizationRequests;
     }
 
     /** Failed bearer-token lookups at {@code /mcp} per client address and minute. */
-    public McpRateLimiter failedTokenLookups() {
+    public FixedWindowRateLimiter failedTokenLookups() {
         return failedTokenLookups;
     }
 
@@ -69,6 +70,6 @@ public class McpRateLimits {
      */
     @Scheduled(fixedDelay = SWEEP_MINUTES, timeUnit = TimeUnit.MINUTES)
     public void evictStaleCounters() {
-        all.forEach(McpRateLimiter::evictStale);
+        all.forEach(FixedWindowRateLimiter::evictStale);
     }
 }

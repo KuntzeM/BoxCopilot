@@ -125,26 +125,6 @@ class UserServiceTest {
     }
 
     @Test
-    void testUnlockUser() {
-        // Arrange
-        testUser.setId(1L);
-        testUser.setFailedLoginAttempts(5);
-        testUser.setLockedUntil(LocalDateTime.now().plusHours(1));
-        assertTrue(testUser.isAccountLocked());
-
-        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
-        when(userRepository.save(any(User.class))).thenReturn(testUser);
-
-        // Act
-        userService.unlockUser(1L);
-
-        // Assert
-        assertFalse(testUser.isAccountLocked());
-        assertEquals(0, testUser.getFailedLoginAttempts());
-        verify(userRepository).save(testUser);
-    }
-
-    @Test
     void testDeleteUser_CannotDeleteSelf() {
         // Arrange
         testUser.setId(1L);
@@ -153,14 +133,6 @@ class UserServiceTest {
         // Act & Assert
         assertThrows(IllegalArgumentException.class, () -> userService.deleteUser(1L, "testuser"));
         verify(userRepository, never()).delete(any(User.class));
-    }
-
-    @Test
-    void testRecordFailedLogin_DelegatesToAtomicUpdateWithTrimmedUsername() {
-        userService.recordFailedLogin(" testuser ");
-
-        verify(userRepository).recordFailedLogin(eq("testuser"), any(LocalDateTime.class),
-                any(LocalDateTime.class), eq(5));
     }
 
     @Test
@@ -183,6 +155,21 @@ class UserServiceTest {
     }
 
     @Test
+    void testSetPassword_MarksSessionsInvalidRevokesTokensAndMcpAccess() {
+        testUser.setId(7L);
+        MagicLoginTokenService tokens = mock(MagicLoginTokenService.class);
+        userService.setMagicLoginTokenService(tokens);
+        when(userRepository.findById(7L)).thenReturn(Optional.of(testUser));
+        when(passwordEncoder.encode("a-new-password")).thenReturn("hash");
+
+        userService.setPassword(7L, "a-new-password");
+
+        assertNotNull(testUser.getSessionsValidAfter());
+        verify(tokens).invalidateAllTokensForUser(testUser);
+        verify(eventPublisher).publishEvent(new McpAccessRevokedEvent(7L));
+    }
+
+    @Test
     void testCreateOrUpdateOidcUser_RejectsDisabledUser() {
         User disabled = oidcUser();
         disabled.setEnabled(false);
@@ -196,29 +183,17 @@ class UserServiceTest {
     }
 
     @Test
-    void testCreateOrUpdateOidcUser_RejectsLockedUser() {
-        User locked = oidcUser();
-        locked.setLockedUntil(LocalDateTime.now().plusHours(1));
-        when(userRepository.findByOidcSubject("oidc-1")).thenReturn(Optional.of(locked));
+    void testLoginPathsNeverWriteLockFields() {
+        User user = oidcUser();
+        user.setFailedLoginAttempts(3);
+        when(userRepository.findByOidcSubject("oidc-1")).thenReturn(Optional.of(user));
+        when(userRepository.save(user)).thenReturn(user);
 
-        assertThrows(CustomUserDetailsService.AccountLockedException.class,
-                () -> userService.createOrUpdateOidcUser("oidc-1", "ncuser", "NC User", "nc@example.com"));
+        userService.createOrUpdateOidcUser("oidc-1", "ncuser", "NC User", "nc@example.com");
+        userService.updateLastLogin(user);
 
-        verify(userRepository, never()).save(any(User.class));
-        assertNull(locked.getLastLogin());
-    }
-
-    @Test
-    void testCreateOrUpdateOidcUser_AcceptsExpiredLock() {
-        User formerlyLocked = oidcUser();
-        formerlyLocked.setLockedUntil(LocalDateTime.now().minusMinutes(1));
-        when(userRepository.findByOidcSubject("oidc-1")).thenReturn(Optional.of(formerlyLocked));
-        when(userRepository.save(formerlyLocked)).thenReturn(formerlyLocked);
-
-        User result = userService.createOrUpdateOidcUser("oidc-1", "ncuser", "NC User", "nc@example.com");
-
-        assertSame(formerlyLocked, result);
-        assertNotNull(formerlyLocked.getLastLogin());
+        assertEquals(3, user.getFailedLoginAttempts());
+        assertNull(user.getLockedUntil());
     }
 
     @Test
@@ -361,15 +336,6 @@ class UserServiceTest {
         userService.updateUser(1L, dto);
 
         assertEquals(Role.ADMIN, testUser.getRole());
-        verifyNoInteractions(eventPublisher);
-    }
-
-    @Test
-    void testTemporaryLockPublishesNothing() {
-        for (int attempt = 0; attempt < 5; attempt++) {
-            userService.recordFailedLogin("testuser");
-        }
-
         verifyNoInteractions(eventPublisher);
     }
 

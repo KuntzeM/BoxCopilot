@@ -1,5 +1,6 @@
 package com.boxcopilot.backend.mcp.abuse;
 
+import com.boxcopilot.backend.security.FixedWindowRateLimiter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,10 +22,10 @@ import java.io.IOException;
 public class McpIpRateLimitFilter extends OncePerRequestFilter {
 
     private final RequestMatcher matcher;
-    private final McpRateLimiter limiter;
+    private final FixedWindowRateLimiter limiter;
     private final McpRateLimitAudit audit;
 
-    public McpIpRateLimitFilter(RequestMatcher matcher, McpRateLimiter limiter, McpRateLimitAudit audit) {
+    public McpIpRateLimitFilter(RequestMatcher matcher, FixedWindowRateLimiter limiter, McpRateLimitAudit audit) {
         Assert.notNull(matcher, "matcher cannot be null");
         Assert.notNull(limiter, "limiter cannot be null");
         Assert.notNull(audit, "audit cannot be null");

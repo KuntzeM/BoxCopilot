@@ -88,16 +88,19 @@ class UserMcpAccessRevocationIntegrationTest {
     }
 
     @Test
-    void lockingAndRoleChangeDoNotPublishTheEvent() {
-        for (int attempt = 0; attempt < 5; attempt++) {
-            userService.recordFailedLogin("mcp-user");
-        }
+    void settingThePasswordPublishesTheEvent() {
+        userService.setPassword(user.getId(), "another-long-password");
+
+        assertThat(revocationsFor(user.getId())).isEqualTo(1);
+    }
+
+    @Test
+    void roleChangeDoesNotPublishTheEvent() {
         UpdateUserDTO dto = new UpdateUserDTO();
         dto.setRole(Role.ADMIN);
         userService.updateUser(user.getId(), dto);
 
         User stored = userRepository.findById(user.getId()).orElseThrow();
-        assertThat(stored.isAccountLocked()).isTrue();
         assertThat(stored.getRole()).isEqualTo(Role.ADMIN);
         assertThat(stored.isMcpAllowed()).isTrue();
         assertThat(revocationsFor(user.getId())).isZero();

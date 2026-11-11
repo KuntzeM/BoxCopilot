@@ -124,16 +124,6 @@ public class AdminUserController {
     }
     
     /**
-     * Unlock user account
-     */
-    @PutMapping("/{id}/unlock")
-    public ResponseEntity<Void> unlockUser(@PathVariable Long id) {
-        log.info("Unlocking user with id: {}", id);
-        userService.unlockUser(id);
-        return ResponseEntity.ok().build();
-    }
-    
-    /**
      * Generate magic login link for a user
      * Admin-only endpoint
      */

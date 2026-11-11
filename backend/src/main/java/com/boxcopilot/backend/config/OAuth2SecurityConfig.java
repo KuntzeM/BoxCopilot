@@ -1,6 +1,12 @@
 package com.boxcopilot.backend.config;
 
 import com.boxcopilot.backend.repository.UserRepository;
+import com.boxcopilot.backend.security.LoginThrottle;
+import com.boxcopilot.backend.security.LoginThrottleFilter;
+import com.boxcopilot.backend.security.LoginThrottleProperties;
+import org.springframework.beans.factory.ObjectProvider;
+import java.time.Clock;
+import java.time.Duration;
 import com.boxcopilot.backend.service.CustomOidcUserService;
 import com.boxcopilot.backend.service.CustomUserDetailsService;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,6 +25,7 @@ import org.springframework.security.web.authentication.AuthenticationFailureHand
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
@@ -63,6 +70,24 @@ public class OAuth2SecurityConfig {
         this.customOidcUserService = customOidcUserService;
     }
     
+    private LoginThrottle fallbackThrottle;
+
+    /**
+     * The application always provides the {@link LoginThrottle} bean (SecurityBeansConfiguration); the default-limit
+     * fallback only keeps slices that load this class alone working, and is shared by the filter and the handler.
+     */
+    private synchronized LoginThrottle throttle(ObjectProvider<LoginThrottle> provider) {
+        LoginThrottle bean = provider.getIfAvailable();
+        if (bean != null) {
+            return bean;
+        }
+        if (fallbackThrottle == null) {
+            fallbackThrottle = new LoginThrottle(Clock.systemUTC(),
+                    new LoginThrottleProperties(10, 5, Duration.ofMinutes(15)));
+        }
+        return fallbackThrottle;
+    }
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -79,11 +104,14 @@ public class OAuth2SecurityConfig {
                                            AuthenticationSuccessHandler authenticationSuccessHandler,
                                            AuthenticationFailureHandler authenticationFailureHandler,
                                            SecurityContextRepository securityContextRepository,
-                                           UserRepository userRepository) throws Exception {
+                                           UserRepository userRepository,
+                                           ObjectProvider<LoginThrottle> loginThrottle) throws Exception {
 
         http
             .securityContext(context -> context.securityContextRepository(securityContextRepository))
             .addFilterAfter(new SessionRevalidationFilter(userRepository), SecurityContextHolderFilter.class)
+            // After the CSRF filter, before form login: answers 429 before any DB/bcrypt work
+            .addFilterBefore(new LoginThrottleFilter(throttle(loginThrottle)), UsernamePasswordAuthenticationFilter.class)
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
@@ -211,25 +239,14 @@ public class OAuth2SecurityConfig {
      * Injected into SecurityFilterChain to avoid circular dependency
      */
     @Bean
-    AuthenticationFailureHandler authenticationFailureHandler(com.boxcopilot.backend.service.UserService userService) {
+    AuthenticationFailureHandler authenticationFailureHandler(ObjectProvider<LoginThrottle> loginThrottle) {
+        LoginThrottle throttle = throttle(loginThrottle);
         return (request, response, exception) -> {
-            // Record failed login attempt
-            String username = request.getParameter("username");
-            if (username != null) {
-                userService.recordFailedLogin(username);
-            }
-            
+            LoginThrottleFilter.recordFailure(throttle, request, request.getParameter("username"));
+            // One generic answer for wrong password, unknown user and disabled account (no account enumeration)
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType("application/json");
-            
-            String errorMessage = "Invalid credentials";
-            if (exception instanceof CustomUserDetailsService.AccountLockedException) {
-                errorMessage = exception.getMessage();
-            } else if (exception instanceof CustomUserDetailsService.DisabledException) {
-                errorMessage = "Account is disabled";
-            }
-            
-            response.getWriter().write("{\"error\":\"" + errorMessage + "\"}");
+            response.getWriter().write("{\"error\":\"Invalid credentials\"}");
         };
     }
 }

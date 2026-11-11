@@ -34,15 +34,6 @@ class CustomOidcUserServiceTest {
     }
 
     @Test
-    void mapsLockedUserToOAuth2AuthenticationException() {
-        when(userService.createOrUpdateOidcUser("sub-1", "ncuser", "NC User", "nc@example.com"))
-                .thenThrow(new CustomUserDetailsService.AccountLockedException("Account is locked"));
-
-        assertThatThrownBy(() -> service.toLocalUser(oidcUser()))
-                .isInstanceOf(OAuth2AuthenticationException.class);
-    }
-
-    @Test
     void addsRoleAuthorityForActiveUser() {
         User user = new User("ncuser", "NC User", AuthProvider.NEXTCLOUD, Role.ADMIN);
         when(userService.createOrUpdateOidcUser("sub-1", "ncuser", "NC User", "nc@example.com")).thenReturn(user);

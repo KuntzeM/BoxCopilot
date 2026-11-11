@@ -53,12 +53,20 @@ app:
     username: ${ADMIN_USERNAME:admin}
     password: ${ADMIN_PASSWORD:}
     name: ${ADMIN_NAME:Administrator}
+  # Failed-login throttling, counted in this process (one replica, reset on restart). Overridable for deterministic E2E.
+  security:
+    login-throttle:
+      ip-limit: ${APP_LOGIN_THROTTLE_IP_LIMIT:10}
+      ip-user-limit: ${APP_LOGIN_THROTTLE_IP_USER_LIMIT:5}
+      window: ${APP_LOGIN_THROTTLE_WINDOW:15m}
   magiclink:
     default-valid-hours: ${MAGIC_LINK_VALID_HOURS:24}
   # Read-only MCP server for AI agents. Off by default: without the flag there are no MCP beans and no /mcp endpoint.
   mcp:
     enabled: ${APP_MCP_ENABLED:false}
     backend-url: ${BACKEND_URL:}
+    # Origin of the SPA's API (VITE_API_BASE_URL); empty when the SPA is served from the backend's own origin
+    spa-api-base-url: ${VITE_API_BASE_URL:}
     redirect-uris:
       - https://claude.ai/api/mcp/auth_callback
     max-connection-age: 14d

@@ -1,10 +1,11 @@
-package com.boxcopilot.backend.mcp.abuse;
+package com.boxcopilot.backend.security;
 
 import org.springframework.util.Assert;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -15,20 +16,24 @@ import java.util.concurrent.atomic.AtomicReference;
  * out with a compare-and-set, so under load exactly {@code limit} callers get through a window and the rest are
  * turned away; a plain read-modify-write would lose increments and let more through.
  *
- * <p>Memory is bounded by {@link #evictStale()}, which {@code McpRateLimits} calls on a schedule. Eviction only
+ * <p>Memory is bounded by {@link #evictStale()}, which runs lazily on every {@value #EVICT_EVERY}th
+ * {@link #tryAcquire} (no scheduler needed) and may also be called explicitly. Eviction only
  * ever removes a key whose window has already elapsed. A caller racing with that eviction re-creates the key and
  * starts a new window, which is exactly what it would have got from the evicted entry, so the race cannot hand
  * out more permits than the limit.
  */
-public final class McpRateLimiter {
+public final class FixedWindowRateLimiter {
 
+    private static final int EVICT_EVERY = 256;
+
+    private final AtomicInteger calls = new AtomicInteger();
     private final ConcurrentHashMap<String, AtomicReference<Window>> windows = new ConcurrentHashMap<>();
     private final int limit;
     private final long windowMillis;
     private final Duration window;
     private final Clock clock;
 
-    public McpRateLimiter(int limit, Duration window, Clock clock) {
+    public FixedWindowRateLimiter(int limit, Duration window, Clock clock) {
         Assert.isTrue(limit > 0, "limit must be positive");
         Assert.notNull(window, "window cannot be null");
         Assert.isTrue(!window.isZero() && !window.isNegative(), "window must be positive");
@@ -46,6 +51,9 @@ public final class McpRateLimiter {
      */
     public boolean tryAcquire(String key) {
         Assert.hasText(key, "key cannot be empty");
+        if (calls.incrementAndGet() % EVICT_EVERY == 0) {
+            evictStale();
+        }
         long now = clock.millis();
         AtomicReference<Window> reference =
                 windows.computeIfAbsent(key, ignored -> new AtomicReference<>(new Window(now, 0)));

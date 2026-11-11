@@ -2,6 +2,8 @@ package com.boxcopilot.backend.controller;
 
 import com.boxcopilot.backend.domain.User;
 import com.boxcopilot.backend.dto.MagicLoginRequestDTO;
+import com.boxcopilot.backend.security.LoginThrottle;
+import com.boxcopilot.backend.security.LoginThrottleFilter;
 import com.boxcopilot.backend.service.CustomUserDetailsService.CustomUserPrincipal;
 import com.boxcopilot.backend.service.MagicLoginTokenService;
 import com.boxcopilot.backend.service.UserService;
@@ -29,13 +31,16 @@ public class MagicLoginController {
     private final MagicLoginTokenService magicLoginTokenService;
     private final UserService userService;
     private final SecurityContextRepository securityContextRepository;
+    private final LoginThrottle loginThrottle;
 
     public MagicLoginController(MagicLoginTokenService magicLoginTokenService,
                                 UserService userService,
-                                SecurityContextRepository securityContextRepository) {
+                                SecurityContextRepository securityContextRepository,
+                                LoginThrottle loginThrottle) {
         this.magicLoginTokenService = magicLoginTokenService;
         this.userService = userService;
         this.securityContextRepository = securityContextRepository;
+        this.loginThrottle = loginThrottle;
     }
 
     /**
@@ -48,6 +53,7 @@ public class MagicLoginController {
                                                           HttpServletResponse response) {
         Optional<User> user = magicLoginTokenService.consumeToken(body.token());
         if (user.isEmpty()) {
+            LoginThrottleFilter.recordFailure(loginThrottle, request, null);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
         }
 

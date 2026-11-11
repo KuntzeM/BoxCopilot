@@ -6,6 +6,8 @@ import com.boxcopilot.backend.domain.Role;
 import com.boxcopilot.backend.domain.User;
 import com.boxcopilot.backend.repository.MagicLoginTokenRepository;
 import com.boxcopilot.backend.repository.UserRepository;
+import com.boxcopilot.backend.security.LoginThrottle;
+import com.boxcopilot.backend.security.LoginThrottleProperties;
 import com.boxcopilot.backend.service.CustomUserDetailsService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,6 +52,12 @@ class MagicLoginControllerTest {
 
     @Autowired
     private MagicLoginTokenRepository tokenRepository;
+
+    @Autowired
+    private LoginThrottle loginThrottle;
+
+    @Autowired
+    private LoginThrottleProperties throttleProperties;
 
     private User user;
 
@@ -197,5 +205,39 @@ class MagicLoginControllerTest {
 
         assertThat(result.getResponse().getStatus()).isIn(404, 405);
         assertThat(tokenIsUsed()).isFalse();
+    }
+
+    @Test
+    void failedRedemptionsFeedTheLoginThrottleOfTheCallerAddressOnly() throws Exception {
+        String ip = "198.51.100.23";
+        for (int i = 0; i < throttleProperties.ipLimit() - 1; i++) {
+            mockMvc.perform(redeem("no-such-token").with(request -> {
+                request.setRemoteAddr(ip);
+                return request;
+            })).andExpect(status().isUnauthorized());
+        }
+        assertThat(loginThrottle.isBlocked(ip, null)).isFalse();
+
+        mockMvc.perform(redeem("no-such-token").with(request -> {
+            request.setRemoteAddr(ip);
+            return request;
+        })).andExpect(status().isUnauthorized());
+
+        assertThat(loginThrottle.isBlocked(ip, null)).isTrue();
+        assertThat(loginThrottle.isBlocked("198.51.100.24", null)).isFalse();
+    }
+
+    @Test
+    void aSuccessfulRedemptionIsNotCountedAsAFailure() throws Exception {
+        String ip = "198.51.100.25";
+        mockMvc.perform(redeem(TOKEN).with(request -> {
+            request.setRemoteAddr(ip);
+            return request;
+        })).andExpect(status().isOk());
+
+        for (int i = 0; i < throttleProperties.ipLimit() - 1; i++) {
+            loginThrottle.recordFailure(ip, null);
+        }
+        assertThat(loginThrottle.isBlocked(ip, null)).isFalse();
     }
 }

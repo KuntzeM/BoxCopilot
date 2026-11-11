@@ -36,7 +36,7 @@ app:
     max-connection-age: 14d
     # The whole suite calls from one address and reaches the endpoints far faster than any real client, so the
     # limits are lifted out of the way here. McpRateLimitIntegrationTest sets tiny limits of its own, and
-    # McpRateLimiterTest proves the counter itself; the production defaults are asserted in McpStartupGuardTest.
+    # FixedWindowRateLimiterTest proves the counter itself; the production defaults are asserted in McpStartupGuardTest.
     rate-limit:
       calls-per-minute: 1000000
       image-calls-per-day: 1000000

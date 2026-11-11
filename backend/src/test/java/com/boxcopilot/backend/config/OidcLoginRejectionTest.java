@@ -44,7 +44,6 @@ import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Optional;
 
@@ -61,7 +60,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Drives the real OIDC login filter, {@link CustomOidcUserService} and {@link UserService} together
- * to prove that disabled and locked users end at the login failure URL, while an active user succeeds.
+ * to prove that disabled users end at the login failure URL, while an active user succeeds.
  * Only the identity provider (token endpoint and ID token decoding) is replaced by stubs.
  */
 @SpringJUnitWebConfig(classes = {
@@ -101,20 +100,6 @@ class OidcLoginRejectionTest {
         User disabled = nextcloudUser();
         disabled.setEnabled(false);
         when(userRepository.findByOidcSubject(SUBJECT)).thenReturn(Optional.of(disabled));
-
-        mockMvc.perform(get("/login/oauth2/code/nextcloud")
-                        .param("code", "code").param("state", STATE).session(sessionWithAuthorizationRequest()))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(header().string("Location", "http://frontend.test?error=login_failed"));
-
-        verify(userRepository, never()).save(any(User.class));
-    }
-
-    @Test
-    void lockedUserEndsAtFailureUrl() throws Exception {
-        User locked = nextcloudUser();
-        locked.setLockedUntil(LocalDateTime.now().plusHours(1));
-        when(userRepository.findByOidcSubject(SUBJECT)).thenReturn(Optional.of(locked));
 
         mockMvc.perform(get("/login/oauth2/code/nextcloud")
                         .param("code", "code").param("state", STATE).session(sessionWithAuthorizationRequest()))
