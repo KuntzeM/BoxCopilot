@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *" # nightly e2e
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (Maven verify)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      # Docker is preinstalled on ubuntu-latest (Testcontainers/Postgres tests).
+      - run: mvn -B verify
+
+  frontend:
+    name: Frontend (typecheck, test, build)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test -- --run
+      - run: npm run build
+
+  e2e:
+    name: E2E (compose + Playwright)
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      COMPOSE: docker compose -p boxpilot-e2e --env-file ${{ runner.temp }}/e2e.env -f docker-compose.yml -f docker-compose.e2e.yml
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Generate throwaway env file
+        run: |
+          rand() { openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 24; }
+          ADMIN_PW="$(rand)"
+          PG_PW="$(rand)"; REDIS_PW="$(rand)"; CLIENT_SECRET="$(rand)"
+          for v in "$ADMIN_PW" "$PG_PW" "$REDIS_PW" "$CLIENT_SECRET"; do echo "::add-mask::$v"; done
+          umask 077
+          cat > "$RUNNER_TEMP/e2e.env" <<ENV
+          POSTGRES_USER=boxuser
+          POSTGRES_PASSWORD=$PG_PW
+          POSTGRES_DB=boxcopilot
+          REDIS_PASSWORD=$REDIS_PW
+          SPRING_PROFILES_ACTIVE=prod
+          CLIENT_ID=boxpilot-e2e
+          CLIENT_SECRET=$CLIENT_SECRET
+          NEXTCLOUD_URL=http://oidc.localhost:9090/default
+          NEXTCLOUD_LOGOUT_URL=http://oidc.localhost:9090/default/endsession
+          FRONTEND_URL=http://localhost:5173
+          VITE_API_BASE_URL=http://localhost:8080
+          BACKEND_URL=http://localhost:8080
+          ADMIN_USERNAME=e2eadmin
+          ADMIN_PASSWORD=$ADMIN_PW
+          ADMIN_NAME=E2E Admin
+          TRAEFIK_FRONTEND_HOST=box.localhost
+          TRAEFIK_BACKEND_HOST=box-backend.localhost
+          ENV
+          echo "E2E_PASSWORD=$ADMIN_PW" >> "$GITHUB_ENV"
+
+      - name: Start stack
+        run: $COMPOSE up -d --build --wait --wait-timeout 300
+
+      - name: Install e2e dependencies
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run browser journey
+        working-directory: e2e
+        env:
+          E2E_USERNAME: e2eadmin
+          E2E_OUT: ${{ runner.temp }}/e2e-out
+        run: npm test
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: ${{ runner.temp }}/e2e-out
+          if-no-files-found: ignore
+
+      - name: Container logs on failure
+        if: failure()
+        run: $COMPOSE logs --no-color --tail 200
+
+      - name: Tear down
+        if: always()
+        run: $COMPOSE down -v
