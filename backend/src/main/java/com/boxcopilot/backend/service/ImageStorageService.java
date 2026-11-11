@@ -1,6 +1,7 @@
 package com.boxcopilot.backend.service;
 
 import com.boxcopilot.backend.exception.FileStorageException;
+import com.boxcopilot.backend.exception.InvalidImageException;
 import net.coobird.thumbnailator.Thumbnails;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +12,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.annotation.PostConstruct;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
+import java.awt.image.BufferedImage;
+import java.util.Collections;
+import java.util.Iterator;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -29,6 +36,7 @@ public class ImageStorageService {
     private static final Logger log = LoggerFactory.getLogger(ImageStorageService.class);
     private static final int THUMBNAIL_SIZE = 200;
     private static final int LARGE_SIZE = 1024;
+    private static final long MAX_PIXELS = 40_000_000L;
     private static final String THUMBNAIL_SUFFIX = "_thumb.jpg";
     private static final String LARGE_SUFFIX = "_large.jpg";
     
@@ -60,65 +68,77 @@ public class ImageStorageService {
         log.info("Saving image for item ID: {}", itemId);
         
         if (file.isEmpty()) {
-            throw new FileStorageException("Cannot upload empty file");
+            throw new InvalidImageException("Cannot upload empty file");
         }
         
         // Validate file type
         String contentType = file.getContentType();
         if (contentType == null || !contentType.startsWith("image/")) {
-            throw new FileStorageException("File must be an image");
+            throw new InvalidImageException("File must be an image");
         }
         
         try {
-            // Save thumbnail (200x200, center-crop)
             String thumbFilename = itemId + THUMBNAIL_SUFFIX;
             Path thumbPath = this.storageLocation.resolve(thumbFilename);
-            
+            String largeFilename = itemId + LARGE_SUFFIX;
+            Path largePath = this.storageLocation.resolve(largeFilename);
+
             // Prevent path traversal
-            if (!thumbPath.normalize().startsWith(this.storageLocation)) {
+            if (!thumbPath.normalize().startsWith(this.storageLocation)
+                    || !largePath.normalize().startsWith(this.storageLocation)) {
                 throw new FileStorageException("Cannot store file outside storage directory");
             }
-            
+
+            checkDimensions(file);
+
+            // Decode once (large variant), derive the thumbnail from it, and only then touch the disk,
+            // so a failure never leaves a half-replaced image behind.
+            BufferedImage large = Thumbnails.of(file.getInputStream())
+                    .size(LARGE_SIZE, LARGE_SIZE)
+                    .asBufferedImage();
+
+            ByteArrayOutputStream largeStream = new ByteArrayOutputStream();
+            Thumbnails.of(large)
+                    .scale(1)
+                    .outputFormat("jpg")
+                    .outputQuality(0.85)
+                    .toOutputStream(largeStream);
+
             ByteArrayOutputStream thumbStream = new ByteArrayOutputStream();
-            Thumbnails.of(file.getInputStream())
+            Thumbnails.of(large)
                     .size(THUMBNAIL_SIZE, THUMBNAIL_SIZE)
                     .outputFormat("jpg")
                     .outputQuality(0.9)
                     .toOutputStream(thumbStream);
-            
-            Files.copy(
-                new ByteArrayInputStream(thumbStream.toByteArray()),
-                thumbPath,
-                StandardCopyOption.REPLACE_EXISTING
-            );
-            
-            // Save large version (1024px max dimension, keep aspect ratio)
-            String largeFilename = itemId + LARGE_SUFFIX;
-            Path largePath = this.storageLocation.resolve(largeFilename);
-            
-            if (!largePath.normalize().startsWith(this.storageLocation)) {
-                throw new FileStorageException("Cannot store file outside storage directory");
-            }
-            
-            ByteArrayOutputStream largeStream = new ByteArrayOutputStream();
-            Thumbnails.of(file.getInputStream())
-                    .size(LARGE_SIZE, LARGE_SIZE)
-                    .outputFormat("jpg")
-                    .outputQuality(0.85)
-                    .toOutputStream(largeStream);
-            
-            Files.copy(
-                new ByteArrayInputStream(largeStream.toByteArray()),
-                largePath,
-                StandardCopyOption.REPLACE_EXISTING
-            );
-            
+
+            Files.copy(new ByteArrayInputStream(thumbStream.toByteArray()), thumbPath, StandardCopyOption.REPLACE_EXISTING);
+            Files.copy(new ByteArrayInputStream(largeStream.toByteArray()), largePath, StandardCopyOption.REPLACE_EXISTING);
+
             log.info("Images saved successfully: {} and {}", thumbFilename, largeFilename);
             return thumbFilename;
             
         } catch (IOException e) {
             log.error("Failed to save image for item ID: {}", itemId, e);
             throw new FileStorageException("Failed to save image", e);
+        }
+    }
+
+    /** Reads the header only (no pixel decode) and rejects unreadable or oversized images. */
+    private void checkDimensions(MultipartFile file) throws IOException {
+        try (ImageInputStream in = ImageIO.createImageInputStream(file.getInputStream())) {
+            Iterator<ImageReader> readers = in == null ? Collections.emptyIterator() : ImageIO.getImageReaders(in);
+            if (!readers.hasNext()) {
+                throw new InvalidImageException("File is not a readable image");
+            }
+            ImageReader reader = readers.next();
+            try {
+                reader.setInput(in, true, true);
+                if ((long) reader.getWidth(0) * reader.getHeight(0) > MAX_PIXELS) {
+                    throw new InvalidImageException("Image is too large (max 40 megapixels)");
+                }
+            } finally {
+                reader.dispose();
+            }
         }
     }
 

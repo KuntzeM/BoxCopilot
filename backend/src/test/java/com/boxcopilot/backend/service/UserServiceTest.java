@@ -128,11 +128,8 @@ class UserServiceTest {
     void testUnlockUser() {
         // Arrange
         testUser.setId(1L);
-        testUser.incrementFailedAttempts();
-        testUser.incrementFailedAttempts();
-        testUser.incrementFailedAttempts();
-        testUser.incrementFailedAttempts();
-        testUser.incrementFailedAttempts();
+        testUser.setFailedLoginAttempts(5);
+        testUser.setLockedUntil(LocalDateTime.now().plusHours(1));
         assertTrue(testUser.isAccountLocked());
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
@@ -159,71 +156,11 @@ class UserServiceTest {
     }
 
     @Test
-    void testRecordFailedLogin() {
-        // Arrange
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
-        when(userRepository.save(any(User.class))).thenReturn(testUser);
-
-        // Act
-        userService.recordFailedLogin("testuser");
-
-        // Assert
-        assertEquals(1, testUser.getFailedLoginAttempts());
-        verify(userRepository).save(testUser);
-    }
-
-    @Test
-    void testRecordFailedLogin_PaddedUsernameCountsAgainstTrimmedAccount() {
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
-        when(userRepository.save(any(User.class))).thenReturn(testUser);
-
+    void testRecordFailedLogin_DelegatesToAtomicUpdateWithTrimmedUsername() {
         userService.recordFailedLogin(" testuser ");
 
-        assertEquals(1, testUser.getFailedLoginAttempts());
-    }
-
-    @Test
-    void testRecordFailedLogin_DoesNotExtendActiveLock() {
-        LocalDateTime lockedUntil = LocalDateTime.now().plusMinutes(10);
-        testUser.setFailedLoginAttempts(5);
-        testUser.setLockedUntil(lockedUntil);
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
-
-        userService.recordFailedLogin("testuser");
-
-        assertEquals(lockedUntil, testUser.getLockedUntil());
-        assertEquals(5, testUser.getFailedLoginAttempts());
-        verify(userRepository, never()).save(any(User.class));
-    }
-
-    @Test
-    void testRecordFailedLogin_ExpiredLockStartsFreshWindow() {
-        testUser.setFailedLoginAttempts(5);
-        testUser.setLockedUntil(LocalDateTime.now().minusMinutes(1));
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
-        when(userRepository.save(any(User.class))).thenReturn(testUser);
-
-        userService.recordFailedLogin("testuser");
-
-        assertEquals(1, testUser.getFailedLoginAttempts());
-        assertFalse(testUser.isAccountLocked());
-    }
-
-    @Test
-    void testAccountLockAfterFiveAttempts() {
-        // Act
-        testUser.incrementFailedAttempts();
-        testUser.incrementFailedAttempts();
-        testUser.incrementFailedAttempts();
-        testUser.incrementFailedAttempts();
-        assertFalse(testUser.isAccountLocked());
-
-        testUser.incrementFailedAttempts();
-
-        // Assert
-        assertTrue(testUser.isAccountLocked());
-        assertEquals(5, testUser.getFailedLoginAttempts());
-        assertNotNull(testUser.getLockedUntil());
+        verify(userRepository).recordFailedLogin(eq("testuser"), any(LocalDateTime.class),
+                any(LocalDateTime.class), eq(5));
     }
 
     @Test
@@ -429,17 +366,10 @@ class UserServiceTest {
 
     @Test
     void testTemporaryLockPublishesNothing() {
-        testUser.setId(1L);
-        testUser.setEnabled(true);
-        testUser.setMcpAllowed(true);
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
-        when(userRepository.save(any(User.class))).thenReturn(testUser);
-
         for (int attempt = 0; attempt < 5; attempt++) {
             userService.recordFailedLogin("testuser");
         }
 
-        assertTrue(testUser.isAccountLocked());
         verifyNoInteractions(eventPublisher);
     }
 

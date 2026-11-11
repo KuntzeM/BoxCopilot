@@ -155,6 +155,24 @@ class RedisSessionCompatibilityTest {
         assertThat(protectedApi.status()).as(protectedApi.body()).isEqualTo(401);
     }
 
+    /** A stored security context this build cannot deserialize reads as no session attribute: anonymous, never 500. */
+    @Test
+    void anUndeserializableSecurityContextIsAnonymousNotAServerError() throws Exception {
+        loadThe35Session(true);
+        try (RedisConnection connection = redisConnectionFactory.getConnection()) {
+            connection.hashCommands().hSet(("spring:session:sessions:" + sessionId).getBytes(StandardCharsets.UTF_8),
+                    "sessionAttr:SPRING_SECURITY_CONTEXT".getBytes(StandardCharsets.UTF_8),
+                    new byte[]{(byte) 0xAC, (byte) 0xED, 0, 5, 0x73, 0x72, 0, 1, 'X'});
+        }
+
+        RealTomcat.Reply me = new RealTomcat.Client(port).send("GET", "/api/v1/me", null, null, "Cookie", sessionCookie());
+        RealTomcat.Reply protectedApi = new RealTomcat.Client(port).send("GET", "/api/v1/boxes", null, null, "Cookie", sessionCookie());
+
+        assertThat(me.status()).as(me.body()).isEqualTo(200);
+        assertThat(me.body()).contains("\"authenticated\":false");
+        assertThat(protectedApi.status()).as(protectedApi.body()).isEqualTo(401);
+    }
+
     private String sessionCookie() {
         return "SESSION=" + Base64.getEncoder().encodeToString(sessionId.getBytes(StandardCharsets.UTF_8));
     }

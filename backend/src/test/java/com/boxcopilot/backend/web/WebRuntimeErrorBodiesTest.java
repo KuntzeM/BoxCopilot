@@ -121,10 +121,13 @@ class WebRuntimeErrorBodiesTest {
     void uploadOfANonImage_68() throws Exception {
         long id = itemWithImage();
         assertError(loggedIn().upload("/api/v1/items/" + id + "/image", "file", "a.txt", "text/plain",
-                "hello".getBytes(StandardCharsets.UTF_8)), 500, "File storage error");
-        // ItemService.uploadImage deletes the old image BEFORE the new one is validated: unchanged from 3.5
-        assertThat(IMAGES.resolve(id + "_thumb.jpg")).doesNotExist();
-        assertThat(IMAGES.resolve(id + "_large.jpg")).doesNotExist();
+                "hello".getBytes(StandardCharsets.UTF_8)), 400, "File must be an image");
+        // an image content type over text bytes is rejected as unreadable
+        assertError(loggedIn().upload("/api/v1/items/" + id + "/image", "file", "a.jpg", "image/jpeg",
+                "hello".getBytes(StandardCharsets.UTF_8)), 400, "File is not a readable image");
+        // the new upload is validated before the old image is replaced: a rejected upload keeps the existing image
+        assertThat(IMAGES.resolve(id + "_thumb.jpg")).exists();
+        assertThat(IMAGES.resolve(id + "_large.jpg")).exists();
     }
 
     @Test
@@ -133,8 +136,8 @@ class WebRuntimeErrorBodiesTest {
         byte[] big = new byte[16 * 1024 * 1024];
         RealTomcat.Reply r = loggedIn().uploadRaw("/api/v1/items/" + id + "/image", "file", "big.png", "image/png", big);
         // Tomcat answers while the client is still sending, so a raw socket reads the reply reliably
-        assertThat(r.status()).isEqualTo(500);
-        assertThat(r.body()).contains("\"message\":\"An unexpected error occurred\"");
+        assertThat(r.status()).isEqualTo(413);
+        assertThat(r.body()).contains("\"status\":413").contains("\"message\":\"Upload too large\"");
         // the multipart parser refuses the request before the service runs: stored image untouched
         assertThat(IMAGES.resolve(id + "_thumb.jpg")).exists();
         assertThat(IMAGES.resolve(id + "_large.jpg")).exists();
@@ -144,9 +147,9 @@ class WebRuntimeErrorBodiesTest {
     void uploadJustBelowTheLimitIsAccepted() throws Exception {
         long id = itemWithImage();
         byte[] almost = new byte[14 * 1024 * 1024];
-        // not an image, so the service refuses it - but the multipart layer let it through (File storage error)
+        // not an image, so the service refuses it - but the multipart layer let it through
         assertError(loggedIn().upload("/api/v1/items/" + id + "/image", "file", "x.txt", "text/plain", almost),
-                500, "File storage error");
+                400, "File must be an image");
     }
 
     // ---- not in the baseline: observed on 4.1, pinned so a later change shows up --------------------------
@@ -171,6 +174,7 @@ class WebRuntimeErrorBodiesTest {
 
     @Test
     void wrongPathVariableType() throws Exception {
-        assertError(loggedIn().mutate("DELETE", "/api/v1/items/abc/image", null, null), 500, "An unexpected error occurred");
+        assertError(loggedIn().mutate("DELETE", "/api/v1/items/abc/image", null, null), 400,
+                "Invalid value for parameter 'id'");
     }
 }

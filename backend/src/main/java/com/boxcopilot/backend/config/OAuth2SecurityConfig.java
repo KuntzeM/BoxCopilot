@@ -127,7 +127,7 @@ public class OAuth2SecurityConfig {
                 .logoutUrl("/api/auth/logout")
                 .logoutSuccessHandler(oidcLogoutSuccessHandler())
                 .invalidateHttpSession(true)
-                .deleteCookies("JSESSIONID", "XSRF-TOKEN")
+                .deleteCookies("SESSION", "XSRF-TOKEN")
             )
             .userDetailsService(customUserDetailsService);
 

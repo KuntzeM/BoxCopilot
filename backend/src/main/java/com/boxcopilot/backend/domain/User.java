@@ -186,16 +186,6 @@ public class User implements Serializable {
     }
     
     /**
-     * Increment failed login attempts and lock account if threshold is reached
-     */
-    public void incrementFailedAttempts() {
-        this.failedLoginAttempts++;
-        if (this.failedLoginAttempts >= 5) {
-            this.lockedUntil = LocalDateTime.now().plusHours(1);
-        }
-    }
-    
-    /**
      * Reset failed login attempts on successful login
      */
     public void resetFailedAttempts() {

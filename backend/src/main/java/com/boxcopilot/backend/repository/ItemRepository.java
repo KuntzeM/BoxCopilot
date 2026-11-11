@@ -12,9 +12,13 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ItemRepository extends JpaRepository<Item, Long> {
+	@EntityGraph(attributePaths = "box")
 	List<Item> findByNameContainingIgnoreCaseOrderByNameAsc(String namePart);
+	@EntityGraph(attributePaths = "box")
 	List<Item> findByBox_UuidAndNameContainingIgnoreCaseOrderByNameAsc(String boxUuid, String namePart);
+	@EntityGraph(attributePaths = "box")
 	List<Item> findByBoxIdOrderByNameAsc(Long boxId);
+	@EntityGraph(attributePaths = "box")
 	List<Item> findByBox_UuidOrderByNameAsc(String boxUuid);
 	Optional<Item> findByImageToken(String imageToken);
 

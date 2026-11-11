@@ -13,6 +13,9 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class GlobalExceptionHandlerTest {
@@ -84,6 +87,16 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void rejectedUploadIsABadRequestWithTheUserMessage() {
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
+                handler.handleInvalidImage(new InvalidImageException("File is not a readable image"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().getStatus()).isEqualTo(400);
+        assertThat(response.getBody().getMessage()).isEqualTo("File is not a readable image");
+    }
+
+    @Test
     void validationErrorsKeepFieldNamesAndConstraintMessages() throws NoSuchMethodException {
         BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(new Object(), "request");
         bindingResult.addError(new FieldError("request", "name", "must not be blank"));
@@ -96,5 +109,24 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody().getMessage()).isEqualTo("Validation failed");
         assertThat(response.getBody().getFieldErrors()).containsEntry("name", "must not be blank");
+    }
+
+    @Test
+    void oversizedUploadReturnsPayloadTooLarge() {
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
+                handler.handleUploadTooLarge(new MaxUploadSizeExceededException(15L * 1024 * 1024));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE);
+        assertThat(response.getBody().getStatus()).isEqualTo(413);
+        assertThat(response.getBody().getMessage()).isEqualTo("Upload too large");
+    }
+
+    @Test
+    void typeMismatchReturnsBadRequestWithoutEchoingTheValue() {
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response = handler.handleTypeMismatch(
+                new MethodArgumentTypeMismatchException("<script>", Long.class, "id", null, null));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().getMessage()).isEqualTo("Invalid value for parameter 'id'");
     }
 }

@@ -3,6 +3,7 @@ package com.boxcopilot.backend.dto;
 import com.boxcopilot.backend.domain.Role;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 /**
  * DTO for creating new local users
@@ -16,6 +17,7 @@ public class CreateUserDTO {
     private String name;
     
     // Password is optional - can be null for passwordless accounts
+    @Size(min = 12, max = 128, message = "Password must be between 12 and 128 characters")
     private String password;
     
     @NotNull(message = "Role is required")
@@ -57,7 +59,8 @@ public class CreateUserDTO {
     }
     
     public void setPassword(String password) {
-        this.password = password;
+        // The admin form sends "" for a passwordless account; treat blank as absent so @Size does not reject it.
+        this.password = (password == null || password.isBlank()) ? null : password;
     }
     
     public Role getRole() {

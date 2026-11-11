@@ -10,16 +10,17 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: false
+    properties:
+      hibernate:
+        # Lazy collections/associations of a result list are loaded in batches instead of one select per row
+        # (the box list reads items of every box for its count).
+        default_batch_fetch_size: 100
     # No persistence context spanning the whole request. It would hold a connection for the duration of every
     # request and, worse, serve a second read of a row from the first-level cache of the first one: a check
     # that reloads the user on purpose - as the MCP access policy does - would then decide on state that was
     # read before the request even reached it. Every lazy association of this application is dereferenced
     # inside its service transaction, so nothing depends on the open view.
     open-in-view: false
-  jackson:
-    datatype:
-      datetime:
-        write-dates-as-timestamps: false
   ai:
     mcp:
       server:

@@ -181,18 +181,16 @@ public class ItemService {
                 return new ResourceNotFoundException("Item not found with ID: " + itemId);
             });
         
-        // Delete old image if exists
-        if (item.getImagePath() != null && !item.getImagePath().isBlank()) {
+        // Save (and validate) the new image first so a rejected upload leaves the existing one intact
+        String oldPath = item.getImagePath();
+        String imagePath = imageStorageService.saveImage(itemId, file);
+        if (oldPath != null && !oldPath.isBlank() && !oldPath.equals(imagePath)) {
             try {
-                imageStorageService.deleteImage(item.getImagePath());
-                log.debug("Service: Deleted old image for item ID: {}", itemId);
+                imageStorageService.deleteImage(oldPath);
             } catch (Exception e) {
                 log.warn("Service: Failed to delete old image for item ID: {}", itemId, e);
             }
         }
-        
-        // Save new image
-        String imagePath = imageStorageService.saveImage(itemId, file);
         item.setImagePath(imagePath);
         item.setImageUpdatedAt(System.currentTimeMillis());
         Item savedItem = itemRepository.save(item);
