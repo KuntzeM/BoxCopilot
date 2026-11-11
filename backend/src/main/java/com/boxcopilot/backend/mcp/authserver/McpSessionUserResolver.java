@@ -37,7 +37,8 @@ public class McpSessionUserResolver {
         Object principal = authentication.getPrincipal();
         if (principal instanceof CustomUserPrincipal customPrincipal) {
             Long id = customPrincipal.getUser().getId();
-            return id == null ? Optional.empty() : userRepository.findById(id);
+            return id == null ? Optional.empty() : userRepository.findById(id)
+                    .filter(current -> !current.passwordResetSince(customPrincipal.getUser()));
         }
         if (principal instanceof OidcUser oidcUser) {
             return userRepository.findByOidcSubject(oidcUser.getSubject());

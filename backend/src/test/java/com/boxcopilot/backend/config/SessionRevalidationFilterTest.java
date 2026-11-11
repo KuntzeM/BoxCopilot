@@ -89,6 +89,31 @@ class SessionRevalidationFilterTest {
     }
 
     @Test
+    void passwordResetSinceLoginEndsSession() throws Exception {
+        User reset = stored(Role.ADMIN, true);
+        reset.setSessionsValidAfter(java.time.LocalDateTime.now());
+        when(userRepository.findById(1L)).thenReturn(Optional.of(reset));
+
+        run();
+
+        assertTrue(session.isInvalid());
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+    }
+
+    @Test
+    void sessionStartedAfterTheResetKeepsItself() throws Exception {
+        java.time.LocalDateTime marker = java.time.LocalDateTime.now();
+        sessionUser.setSessionsValidAfter(marker); // snapshot taken by a login after the reset
+        User reset = stored(Role.ADMIN, true);
+        reset.setSessionsValidAfter(marker);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(reset));
+
+        run();
+
+        assertFalse(session.isInvalid());
+    }
+
+    @Test
     void deletedUserLosesSession() throws Exception {
         when(userRepository.findById(1L)).thenReturn(Optional.empty());
 

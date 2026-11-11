@@ -19,7 +19,7 @@ import java.io.IOException;
 import java.util.Optional;
 
 /**
- * Drops a browser session whose user was deleted, disabled or given a different role since login.
+ * Drops a browser session whose user was deleted, disabled, given a different role or had its password reset since login.
  * The session holds a login-time principal snapshot, so without this check an admin action such as a
  * demotion would only take effect once the session expires.
  */
@@ -38,7 +38,7 @@ public class SessionRevalidationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.isAuthenticated() && isStale(authentication)) {
-            log.info("Ending session: user was deleted, disabled or changed role");
+            log.info("Ending session: user was deleted, disabled, changed role or password reset");
             SecurityContextHolder.clearContext();
             HttpSession session = request.getSession(false);
             if (session != null) {
@@ -62,6 +62,9 @@ public class SessionRevalidationFilter extends OncePerRequestFilter {
             return true;
         }
         String role = "ROLE_" + current.get().getRole().name();
+        if (principal instanceof CustomUserPrincipal local && current.get().passwordResetSince(local.getUser())) {
+            return true;
+        }
         return authentication.getAuthorities().stream().noneMatch(a -> role.equals(a.getAuthority()));
     }
 }
