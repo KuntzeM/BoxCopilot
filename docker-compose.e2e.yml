@@ -6,7 +6,6 @@
 services:
   postgres:
     container_name: boxpilot-e2e-postgres
-    env_file: !reset []
     volumes: !override
       - e2e-pgdata:/var/lib/postgresql/data
 
@@ -45,7 +44,8 @@ services:
 
   frontend:
     container_name: boxpilot-e2e-frontend
-    env_file: !reset []
+    environment:
+      HSTS_ENABLED: "false"
     ports:
       - "127.0.0.1:5173:80"
     networks: !override

@@ -2,13 +2,16 @@ services:
   postgres:
     image: postgres:15.19
     container_name: boxcopilot-postgres
-    env_file: .env
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - ./pgdata:/var/lib/postgresql/data
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    cpus: 1.0
     networks:
       - boxcopilot-network
     healthcheck:
@@ -28,6 +31,10 @@ services:
       REDISCLI_AUTH: ${REDIS_PASSWORD}
     networks:
       - boxcopilot-network
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    cpus: 0.5
     healthcheck:
       test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
       interval: 10s
@@ -62,6 +69,15 @@ services:
       FRONTEND_URL: ${FRONTEND_URL}
       VITE_API_BASE_URL: ${VITE_API_BASE_URL}
       APP_IMAGE_STORAGE_PATH: /var/boxcopilot/images
+    security_opt:
+      - no-new-privileges:true
+    # runs as root until OP3: DAC_OVERRIDE keeps existing foreign-owned bind mounts writable
+    cap_drop:
+      - ALL
+    cap_add:
+      - DAC_OVERRIDE
+    mem_limit: 1g
+    cpus: 2.0
     networks:
       - boxcopilot-network
       - traefik-proxy
@@ -98,8 +114,26 @@ services:
       context: frontend
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL}
-    env_file: .env
     container_name: boxcopilot-frontend
+    environment:
+      # rendered into the nginx CSP (connect-src/img-src); must be a bare origin (scheme://host[:port], no path)
+      API_ORIGIN: ${VITE_API_BASE_URL}
+      # report = Content-Security-Policy-Report-Only, enforce = Content-Security-Policy
+      CSP_MODE: ${CSP_MODE:-report}
+      # production sits behind Traefik TLS; the e2e overlay (plain http) turns this off
+      HSTS_ENABLED: ${HSTS_ENABLED:-true}
+    security_opt:
+      - no-new-privileges:true
+    # nginx (root master, setuid workers, port 80) needs these
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - NET_BIND_SERVICE
+    mem_limit: 128m
+    cpus: 0.5
     networks:
       - boxcopilot-network
       - traefik-proxy
