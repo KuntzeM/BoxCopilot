@@ -1,0 +1,60 @@
+# Test-only overlay: full prod-profile bundle on localhost with a mock OIDC provider standing in for Nextcloud.
+# Never use in production. Usage (credentials come from the env file, never from this file):
+#   docker compose -p boxpilot-e2e --env-file <e2e.env> -f docker-compose.yml -f docker-compose.e2e.yml up -d --build
+#   docker compose -p boxpilot-e2e --env-file <e2e.env> -f docker-compose.yml -f docker-compose.e2e.yml down -v
+# Browser: http://localhost:5173 (frontend), http://localhost:8080 (backend), http://oidc.localhost:9090 (mock IdP).
+services:
+  postgres:
+    container_name: boxpilot-e2e-postgres
+    env_file: !reset []
+    volumes: !override
+      - e2e-pgdata:/var/lib/postgresql/data
+
+  redis:
+    container_name: boxpilot-e2e-redis
+
+  # "oidc.localhost" resolves to 127.0.0.1 in the browser and, through the network alias, to this container
+  # from the backend - so the issuer URL is the same on both sides, which OIDC discovery requires.
+  mock-oidc:
+    image: ghcr.io/navikt/mock-oauth2-server:2.1.10
+    environment:
+      SERVER_PORT: 9090
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks:
+      boxcopilot-network:
+        aliases:
+          - oidc.localhost
+
+  backend:
+    container_name: boxpilot-e2e-backend
+    env_file: !reset []
+    volumes: !override
+      - e2e-images:/var/boxcopilot/images
+      - e2e-logs:/app/logs
+    environment:
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks: !override
+      - boxcopilot-network
+    depends_on:
+      mock-oidc:
+        condition: service_started
+
+  frontend:
+    container_name: boxpilot-e2e-frontend
+    env_file: !reset []
+    ports:
+      - "127.0.0.1:5173:80"
+    networks: !override
+      - boxcopilot-network
+
+networks:
+  traefik-proxy: !reset null
+
+volumes:
+  e2e-pgdata:
+  e2e-images:
+  e2e-logs:

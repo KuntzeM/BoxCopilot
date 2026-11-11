@@ -203,7 +203,9 @@ upgrade was rehearsed against a dump of a 3.5 installation (see `docs/superpower
   `backend` service in `docker-compose.yml`. (Docker Desktop on Windows/macOS has lax bind-mount permissions.)
 
 **What carries over unchanged**
-- Users stay logged in: Redis sessions written by 3.5 are still read by 4.1. No forced re-login.
+- Users usually stay logged in: Redis sessions written by 3.5 are normally still read by 4.1. A stored session value
+  that 4.1 cannot deserialize (Spring Security 6 vs 7 class differences) is treated as no session: the request is
+  anonymous (401 / login page), the user signs in again, and one WARN is logged per backend start. It is never a 500.
 - MCP access and refresh tokens issued by 3.5 stay valid, and so do unredeemed magic links.
 - `Box.description` is still stored as a PostgreSQL large object (the column holds the OID as text), exactly as before.
 
@@ -220,8 +222,8 @@ upgrade was rehearsed against a dump of a 3.5 installation (see `docs/superpower
   it; a non-default port must appear in `Host`. Traefik must pass the original `Host` through.
 - `APP_MCP_ENABLED` is the only MCP master switch. `SPRING_AI_MCP_SERVER_ENABLED=true` on its own no longer
   enables anything while `APP_MCP_ENABLED` is not `true`.
-- `spring.session.timeout: 122400s` in `application-prod.yml` has no effect. `@EnableRedisHttpSession` in
-  `RedisConfig` sets its own default of 1800 s (30 minutes), and that is what applies. This was already so on 3.5.
+- Sessions expire 30 minutes after last use (1800 s, set by `@EnableRedisHttpSession` in `RedisConfig`). The dead
+  `spring.session.timeout: 122400s` key was removed from `application-prod.yml`; the effective lifetime is unchanged.
 
 #### Rolling back to the 3.5 build
 
