@@ -25,8 +25,10 @@ const OIDC_USER = 'e2e-nextcloud-user';
 
 // Simulated clients for the throttle steps (X-Forwarded-For, accepted because the Docker gateway is a trusted proxy).
 // Random per run: the limiter is in-memory with a 15-minute window and the backend is not restarted between runs.
-// The rest of the journey (incl. its deliberate wrong passwords) runs from the "no header" address.
+// The rest of the journey (incl. its deliberate wrong passwords) runs from its own random address IP_M, so repeated runs never
+// exhaust the shared "no header" address.
 const oct = () => 1 + Math.floor(Math.random() * 253);
+const IP_E = `100.64.0.${oct()}`, IP_M = `100.64.1.${oct()}`; // IP_M: the main journey (and every context without its own address)
 const IP_A = `203.0.113.${oct()}`, IP_B = `192.0.2.${oct()}`, IP_C = `198.51.100.${oct()}`, IP_D = `203.0.113.${oct()}`;
 const xff = (ip) => ({ 'X-Forwarded-For': ip });
 
@@ -83,9 +85,10 @@ async function until(fn, msg, ms = 8000) { const t = Date.now(); while (Date.now
 const ok = (c, msg) => { if (!c) throw new Error(msg); };
 const shot = (page, n) => page.screenshot({ path: join(OUT, `${n}.png`), fullPage: true }).catch(() => {});
 
-const browser = await chromium.launch();
+// fake camera device for the photo dialog step; the permission prompt is auto-accepted
+const browser = await chromium.launch({ args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
 async function newCtx(opts = {}) {
-  const ctx = await browser.newContext({ locale: 'de-DE', ...opts });
+  const ctx = await browser.newContext({ locale: 'de-DE', extraHTTPHeaders: xff(IP_M), ...opts });
   const page = await ctx.newPage();
   watch(page, opts.label || 'main');
   return { ctx, page };
@@ -139,6 +142,15 @@ async function exhaust(send, what) {
     return r;
   }
   throw new Error(`${what}: no 429 after ${seen.length} attempts, statuses ${seen.join(',')}`);
+}
+// The page navigates away right after the logout answer, so the body is read inside a route handler.
+async function captureLogout(page) {
+  const got = new Promise((resolve) => page.route(/\/api\/auth\/logout$/, async (route) => {
+    const r = await route.fetch();
+    resolve({ status: r.status(), body: await r.json().catch(() => ({})) });
+    await route.fulfill({ response: r });
+  }));
+  return got;
 }
 async function deleteUserViaUi(p, name) {
   await p.goto(FRONT + '/app/admin');
@@ -444,6 +456,7 @@ try {
     await row.waitFor();
     const tableText = await page.locator('table').innerText();
     ok(!/gesperrt|locked|sperr/i.test(tableText), 'admin table mentions a lock state');
+    allow(/\/unlock$/, 404); // registered before the request: the response listener fires during evaluate()
     const info = await page.evaluate(async ({ api, name }) => {
       const j = await (await fetch(`${api}/api/v1/admin/users`, { credentials: 'include' })).json();
       const arr = Array.isArray(j) ? j : (j.content || j.users || []);
@@ -455,7 +468,6 @@ try {
     }, { api: API, name: NEWUSER });
     ok(!info.missing, 'created user not found in admin user list response');
     ok(!info.lockField, 'user DTO still contains a lock field');
-    allow(/\/unlock$/, 404);
     ok(info.unlock === 404, `PUT .../unlock answered ${info.unlock} (expected 404)`);
   });
 
@@ -478,7 +490,11 @@ try {
   await step('17 logout: login screen, API 401, SESSION cookie gone', async () => {
     await submitLogin(page, USER, PASS);
     await loggedIn(page);
+    const lo = captureLogout(page);
     await page.getByRole('button', { name: 'Abmelden' }).click();
+    const { status: ls, body: lb } = await lo;
+    ok(ls === 200, `POST /api/auth/logout answered ${ls} (expected 200 JSON)`);
+    ok(typeof lb.redirectUrl === 'string' && lb.redirectUrl.startsWith(FRONT), `form-login logout redirectUrl should be the frontend, got ${JSON.stringify(lb)}`);
     await userField(page).waitFor();
     allow(/\/api\//, 401, 403);
     ok(!(await hasSession(ctx)), 'SESSION cookie still present after logout');
@@ -487,7 +503,7 @@ try {
   });
 
   await step('18 Nextcloud/OIDC login via mock provider, no Admin', async () => {
-    const o = await newCtx({ label: 'oidc' });
+    const o = await newCtx({ label: 'oidc', extraHTTPHeaders: {} }); // no XFF here: it would also be sent to the IdP's third-party font host (CORS preflight)
     try {
       const p = o.page;
       await p.goto(FRONT + '/app/boxes');
@@ -504,6 +520,24 @@ try {
       ok(me.username === OIDC_USER || me.username?.includes(OIDC_USER), `mapped username unexpected: ${me.username}`);
       ok(me.name === 'E2E Nextcloud', `mapped name unexpected: ${me.name}`);
       await shot(p, '18-oidc-boxlist');
+      // OIDC logout: backend answers JSON {redirectUrl} (IdP end-session), the SPA navigates there top-level and comes back
+      const lo = captureLogout(p);
+      const idp = p.waitForResponse((r) => r.request().isNavigationRequest() && /oidc\.localhost:9090\/.*endsession/.test(r.url()), { timeout: 15000 });
+      await p.getByRole('button', { name: 'Abmelden' }).click();
+      const { status: ls, body: lb } = await lo;
+      ok(ls === 200, `OIDC logout answered ${ls} (expected 200 JSON)`);
+      ok(/oidc\.localhost:9090\/.*endsession/.test(lb.redirectUrl || ''), `OIDC logout redirectUrl is not the IdP end-session URL: ${JSON.stringify(lb)}`);
+      await idp;
+      await p.waitForLoadState('load');
+      // The return trip from the IdP to BoxPilot (redirect_uri handling) cannot be verified against the mock: check it against a real Nextcloud.
+      ok(/[?&]redirect_uri=/.test(lb.redirectUrl) && decodeURIComponent(lb.redirectUrl.split('redirect_uri=')[1]).startsWith(FRONT), `redirectUrl does not carry the frontend as redirect_uri: ${JSON.stringify(lb)}`);
+      ok(!(await hasSession(o.ctx)), 'SESSION cookie still present after OIDC logout');
+      allow(/\/api\//, 401, 403);
+      ok((await o.ctx.request.get(API + '/api/v1/boxes')).status() === 401, '/api/v1/boxes not 401 after OIDC logout');
+      await shot(p, '18-after-logout-nav');
+      await p.goto(FRONT + '/app/boxes'); // open BoxPilot again
+      await userField(p).waitFor({ timeout: 10000 });
+      await shot(p, '18-oidc-logged-out');
     } finally { await o.ctx.close(); }
   });
 
@@ -559,6 +593,50 @@ try {
       await c.page.getByText(TOO_MANY).waitFor({ timeout: 10000 });
       await shot(c.page, '21-magic-throttled');
     } finally { await c.ctx.close(); }
+  });
+
+  // ---- steps that need the test box: label PDF (blob URLs, react-pdf) and camera dialog ----
+  await step('21b label printing: PDF generated and opened as blob, no errors', async () => {
+    const l = await newCtx({ label: 'label', extraHTTPHeaders: xff(IP_E) });
+    try {
+      const p = l.page;
+      await p.addInitScript(() => {
+        const orig = URL.createObjectURL.bind(URL); window.__blobs = [];
+        URL.createObjectURL = (b) => { window.__blobs.push(b); return orig(b); };
+      });
+      await login(p, USER, PASS);
+      await loggedIn(p);
+      await p.goto(editUrl());
+      const popup = p.waitForEvent('popup', { timeout: 40000 });
+      await p.getByRole('button', { name: 'Etikett drucken' }).click();
+      const pp = await popup;
+      await pp.close();
+      const head = await p.evaluate(async () => { const b = window.__blobs.at(-1); return b ? { size: b.size, head: await b.slice(0, 5).text() } : null; });
+      ok(head && head.head === '%PDF-' && head.size > 1000, `no PDF blob created: ${JSON.stringify(head)}`);
+      ok((await p.getByText(/PDF-Generierung fehlgeschlagen/).count()) === 0, 'PDF failure snackbar shown');
+      await shot(p, '21b-label');
+    } finally { await l.ctx.close(); }
+  });
+
+  await step('21c camera dialog: opens, live frame, capture + accept shows preview', async () => {
+    const l = await newCtx({ label: 'camera', extraHTTPHeaders: xff(IP_E), permissions: ['camera'] });
+    try {
+      const p = l.page;
+      await login(p, USER, PASS);
+      await loggedIn(p);
+      await p.goto(editUrl());
+      await p.getByRole('button', { name: 'Neues Item hinzufügen' }).click();
+      await p.getByRole('dialog').getByRole('button', { name: 'Foto aufnehmen' }).click();
+      const video = p.locator('video');
+      await video.waitFor({ timeout: 10000 });
+      await until(() => video.evaluate((v) => v.videoWidth > 0), 'camera video shows no frame', 10000);
+      await shot(p, '21c-camera');
+      await p.getByRole('dialog').getByRole('button', { name: 'Foto aufnehmen' }).click();
+      await p.getByRole('button', { name: 'Verwenden' }).click();
+      await p.getByRole('dialog').locator('img').first().waitFor({ timeout: 8000 });
+      await shot(p, '21c-camera-accepted');
+      await p.getByRole('dialog').getByRole('button', { name: 'Abbrechen' }).click();
+    } finally { await l.ctx.close(); }
   });
 } finally {
   await step('22 cleanup: delete test box (and test user if left over)', async () => {

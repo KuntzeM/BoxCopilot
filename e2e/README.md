@@ -11,7 +11,7 @@ Optional env: E2E_FRONTEND_URL (default http://localhost:5173), E2E_API_URL (def
 E2E_OUT (screenshot/results dir, default a fresh temp dir). The mock OIDC provider must be reachable at oidc.localhost:9090
 (docker-compose.e2e.yml). The script creates one box and one user and deletes both at the end; it expects the E2E stack, never production.
 
-Throttle steps: the journey runs from the default client address; the throttle steps simulate separate clients with
+Throttle steps: the journey and each throttle step simulate separate clients with
 `X-Forwarded-For` headers (random addresses per run, so the suite can run repeatedly without restarting the backend). This needs
 the backend to trust the Docker gateway as proxy (default `TRUSTED_PROXY_PATTERN`) and the E2E overlay's small limits
 (`APP_LOGIN_THROTTLE_IP_LIMIT=8`, `APP_LOGIN_THROTTLE_IP_USER_LIMIT=5`). Container checks (non-root uid, logs) are not part of this script.
