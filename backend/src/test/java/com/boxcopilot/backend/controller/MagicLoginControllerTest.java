@@ -97,7 +97,7 @@ class MagicLoginControllerTest {
         assertThat(context).isNotNull();
         assertThat(context.getAuthentication().getPrincipal())
                 .isInstanceOfSatisfying(CustomUserDetailsService.CustomUserPrincipal.class,
-                        principal -> assertThat(principal.getUser().getId()).isEqualTo(user.getId()));
+                        principal -> assertThat(principal.getId()).isEqualTo(user.getId()));
         assertThat(tokenIsUsed()).isTrue();
     }
 

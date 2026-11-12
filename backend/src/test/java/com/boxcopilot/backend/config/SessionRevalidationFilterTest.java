@@ -34,12 +34,17 @@ class SessionRevalidationFilterTest {
         sessionUser = new User("admin", "Admin", AuthProvider.LOCAL, Role.ADMIN);
         sessionUser.setId(1L);
         sessionUser.setEnabled(true);
-        CustomUserPrincipal principal = new CustomUserPrincipal(sessionUser);
-        SecurityContextHolder.getContext().setAuthentication(
-                UsernamePasswordAuthenticationToken.authenticated(principal, null, principal.getAuthorities()));
+        loginAs(sessionUser);
         session = new MockHttpSession();
         request = new MockHttpServletRequest();
         request.setSession(session);
+    }
+
+    /** The principal snapshots the user (incl. reset marker) when it is built, as at login. */
+    private static void loginAs(User user) {
+        CustomUserPrincipal principal = new CustomUserPrincipal(user);
+        SecurityContextHolder.getContext().setAuthentication(
+                UsernamePasswordAuthenticationToken.authenticated(principal, null, principal.getAuthorities()));
     }
 
     @AfterEach
@@ -103,7 +108,8 @@ class SessionRevalidationFilterTest {
     @Test
     void sessionStartedAfterTheResetKeepsItself() throws Exception {
         java.time.LocalDateTime marker = java.time.LocalDateTime.now();
-        sessionUser.setSessionsValidAfter(marker); // snapshot taken by a login after the reset
+        sessionUser.setSessionsValidAfter(marker);
+        loginAs(sessionUser); // snapshot taken by a login after the reset
         User reset = stored(Role.ADMIN, true);
         reset.setSessionsValidAfter(marker);
         when(userRepository.findById(1L)).thenReturn(Optional.of(reset));

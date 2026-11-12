@@ -11,9 +11,11 @@ import jakarta.validation.constraints.Size;
 public class CreateUserDTO {
     
     @NotBlank(message = "Username is required")
+    @Size(max = 255, message = "Username must be at most 255 characters")
     private String username;
     
     @NotBlank(message = "Name is required")
+    @Size(max = 255, message = "Name must be at most 255 characters")
     private String name;
     
     // Password is optional - can be null for passwordless accounts

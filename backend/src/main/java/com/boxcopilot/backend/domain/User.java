@@ -188,13 +188,13 @@ public class User implements Serializable {
     }
 
     /**
-     * True if the password was reset since {@code loginSnapshot} (the copy a session took at login) was loaded.
+     * True if the password was reset since the session took {@code loginMarker} (the {@code sessionsValidAfter} at login).
      * Compares the stored marker instead of timestamps against the session's creation time: that time survives
      * {@code changeSessionId()} and also covers an anonymous session that predates the login, so it cannot tell a
      * login after the reset from one before it.
      */
-    public boolean passwordResetSince(User loginSnapshot) {
-        return !java.util.Objects.equals(sessionsValidAfter, loginSnapshot.sessionsValidAfter);
+    public boolean passwordResetSince(LocalDateTime loginMarker) {
+        return !java.util.Objects.equals(sessionsValidAfter, loginMarker);
     }
 
     /**

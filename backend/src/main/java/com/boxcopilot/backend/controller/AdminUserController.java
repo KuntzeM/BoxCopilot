@@ -91,7 +91,7 @@ public class AdminUserController {
     @PutMapping("/{id}")
     public ResponseEntity<UserDTO> updateUser(
             @PathVariable Long id,
-            @RequestBody UpdateUserDTO updateUserDTO) {
+            @Valid @RequestBody UpdateUserDTO updateUserDTO) {
         
         log.info("Updating user with id: {}", id);
         

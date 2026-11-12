@@ -52,7 +52,7 @@ public class SessionRevalidationFilter extends OncePerRequestFilter {
         Object principal = authentication.getPrincipal();
         Optional<User> current;
         if (principal instanceof CustomUserPrincipal local) {
-            current = userRepository.findById(local.getUser().getId());
+            current = userRepository.findById(local.getId());
         } else if (principal instanceof OidcUser oidc) {
             current = userRepository.findByOidcSubject(oidc.getSubject());
         } else {
@@ -62,7 +62,7 @@ public class SessionRevalidationFilter extends OncePerRequestFilter {
             return true;
         }
         String role = "ROLE_" + current.get().getRole().name();
-        if (principal instanceof CustomUserPrincipal local && current.get().passwordResetSince(local.getUser())) {
+        if (principal instanceof CustomUserPrincipal local && current.get().passwordResetSince(local.getSessionsValidAfter())) {
             return true;
         }
         return authentication.getAuthorities().stream().noneMatch(a -> role.equals(a.getAuthority()));

@@ -14,7 +14,7 @@ import java.util.Optional;
 /**
  * Turns the application's session authentication into the current database state of that user.
  *
- * <p>The session carries a {@code CustomUserPrincipal} with an attached JPA entity (form login and magic link) or
+ * <p>The session carries a {@code CustomUserPrincipal} with identity and reset marker only (form login and magic link) or
  * an {@code OidcUser} (Nextcloud). Both are snapshots taken at login time and may be hours old, so nothing but
  * the identity is taken from them: the user is always reloaded, which is what makes a disabled, locked or
  * un-allowed user fail at the authorize endpoint rather than at the next login.
@@ -36,9 +36,9 @@ public class McpSessionUserResolver {
         }
         Object principal = authentication.getPrincipal();
         if (principal instanceof CustomUserPrincipal customPrincipal) {
-            Long id = customPrincipal.getUser().getId();
+            Long id = customPrincipal.getId();
             return id == null ? Optional.empty() : userRepository.findById(id)
-                    .filter(current -> !current.passwordResetSince(customPrincipal.getUser()));
+                    .filter(current -> !current.passwordResetSince(customPrincipal.getSessionsValidAfter()));
         }
         if (principal instanceof OidcUser oidcUser) {
             return userRepository.findByOidcSubject(oidcUser.getSubject());

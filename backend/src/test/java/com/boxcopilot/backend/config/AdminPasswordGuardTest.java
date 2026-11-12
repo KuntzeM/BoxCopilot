@@ -47,6 +47,15 @@ class AdminPasswordGuardTest {
     }
 
     @Test
+    void prodRejectsPasswordShorterThanTwelveCharacters() {
+        assertThatThrownBy(guard("prod", "elevenchars")::afterPropertiesSet)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("ADMIN_PASSWORD")
+                .hasMessageContaining("12");
+        assertThatCode(guard("prod", "twelve-chars")::afterPropertiesSet).doesNotThrowAnyException();
+    }
+
+    @Test
     void prodAcceptsStrongConfiguredPassword() {
         AdminPasswordGuard guard = guard("prod", "s3cret-Passw0rd-xyz");
 

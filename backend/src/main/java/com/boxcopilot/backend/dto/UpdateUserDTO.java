@@ -1,13 +1,19 @@
 package com.boxcopilot.backend.dto;
 
 import com.boxcopilot.backend.domain.Role;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 /**
  * DTO for updating existing users
  */
 public class UpdateUserDTO {
     
+    // null = unchanged; limits match users.username / users.name (VARCHAR(255), V5)
+    @Size(max = 255, message = "Username must be at most 255 characters")
+    @Pattern(regexp = ".*\\S.*", message = "Username must not be blank")
     private String username;
+    @Size(max = 255, message = "Name must be at most 255 characters")
     private String name;
     private Role role;
     private Boolean enabled;

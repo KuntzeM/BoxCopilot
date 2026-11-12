@@ -21,7 +21,7 @@ import org.springframework.stereotype.Component;
  * (the guard is a dependency of {@code UserService}). Once the application is up, every stored
  * ADMIN password hash is compared against the default password, which covers databases that were
  * created before this check existed. In the {@code prod} profile a violation aborts startup; in
- * other profiles it is only logged, so local development keeps working with the dev default.
+ * other profiles it is only logged (also the minimum length of 12 characters), so local development keeps working with the dev default.
  */
 @Component("adminPasswordGuard")
 public class AdminPasswordGuard implements InitializingBean, ApplicationRunner {
@@ -29,6 +29,7 @@ public class AdminPasswordGuard implements InitializingBean, ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(AdminPasswordGuard.class);
     private static final String PROD_PROFILE = "prod";
     private static final String DEFAULT_PASSWORD = "admin";
+    private static final int MIN_PASSWORD_LENGTH = 12;
 
     private final Environment environment;
     private final UserRepository userRepository;
@@ -51,6 +52,8 @@ public class AdminPasswordGuard implements InitializingBean, ApplicationRunner {
             reject("ADMIN_PASSWORD must be set to a non-blank value");
         } else if (DEFAULT_PASSWORD.equals(configuredPassword)) {
             reject("ADMIN_PASSWORD must not be the default password");
+        } else if (configuredPassword.length() < MIN_PASSWORD_LENGTH) {
+            reject("ADMIN_PASSWORD must be at least " + MIN_PASSWORD_LENGTH + " characters long");
         }
     }
 

@@ -31,4 +31,12 @@ class CreateUserDTOTest {
         assertThat(validator.validate(withPassword("short"))).hasSize(1);
         assertThat(validator.validate(withPassword("a-long-enough-pw"))).isEmpty();
     }
+
+    @Test
+    void usernameAndNameAreLimitedToTheColumnSize() {
+        CreateUserDTO ok = new CreateUserDTO("a".repeat(255), "b".repeat(255), null, Role.USER);
+        assertThat(validator.validate(ok)).isEmpty();
+        CreateUserDTO tooLong = new CreateUserDTO("a".repeat(256), "b".repeat(256), null, Role.USER);
+        assertThat(validator.validate(tooLong)).hasSize(2);
+    }
 }

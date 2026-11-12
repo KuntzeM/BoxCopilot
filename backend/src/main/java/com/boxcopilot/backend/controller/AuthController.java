@@ -5,7 +5,7 @@ import com.boxcopilot.backend.dto.UserPrincipalDTO;
 import com.boxcopilot.backend.service.CustomUserDetailsService;
 import com.boxcopilot.backend.service.McpAllowanceProbe;
 import com.boxcopilot.backend.service.McpPendingProbe;
-import com.boxcopilot.backend.repository.UserRepository;
+import com.boxcopilot.backend.service.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -26,13 +26,13 @@ public class AuthController {
 
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
     
-    private final UserRepository userRepository;
+    private final UserService userService;
     private final McpPendingProbe mcpPendingProbe;
     private final McpAllowanceProbe mcpAllowanceProbe;
 
-    public AuthController(UserRepository userRepository, McpPendingProbe mcpPendingProbe,
+    public AuthController(UserService userService, McpPendingProbe mcpPendingProbe,
                           McpAllowanceProbe mcpAllowanceProbe) {
-        this.userRepository = userRepository;
+        this.userService = userService;
         this.mcpPendingProbe = mcpPendingProbe;
         this.mcpAllowanceProbe = mcpAllowanceProbe;
     }
@@ -72,7 +72,7 @@ public class AuthController {
             String preferredUsername = (String) claims.get("preferred_username");
             
             // Find user in database to get role and other details
-            Optional<User> userOpt = userRepository.findByOidcSubject(sub);
+            Optional<User> userOpt = userService.findByOidcSubject(sub);
             if (userOpt.isPresent()) {
                 User user = userOpt.get();
                 dto = new UserPrincipalDTO(
@@ -97,19 +97,18 @@ public class AuthController {
             if (principal instanceof CustomUserDetailsService.CustomUserPrincipal) {
                 CustomUserDetailsService.CustomUserPrincipal customPrincipal = 
                     (CustomUserDetailsService.CustomUserPrincipal) principal;
-                User user = customPrincipal.getUser();
-                
+
                 dto = new UserPrincipalDTO(
-                    user.getId(),
-                    user.getUsername(),
-                    user.getName(),
-                    user.getRole(),
-                    user.getAuthProvider(),
+                    customPrincipal.getId(),
+                    customPrincipal.getUsername(),
+                    customPrincipal.getName(),
+                    customPrincipal.getRole(),
+                    customPrincipal.getAuthProvider(),
                     csrfTokenValue,
                     true
                 );
                 
-                log.info("Local user {} accessed /me endpoint", user.getUsername());
+                log.info("Local user {} accessed /me endpoint", customPrincipal.getUsername());
             } else {
                 UserDetails userDetails = (UserDetails) principal;
                 dto = new UserPrincipalDTO();
