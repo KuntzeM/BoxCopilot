@@ -1,13 +1,15 @@
 # Rendered by the nginx image's envsubst step (only API_ORIGIN, CSP_MODE, HSTS_ENABLED; see NGINX_ENVSUBST_FILTER
 # in the Dockerfile), so nginx's own $variables stay untouched. This file is included in the http context.
 # add_header with an empty value is skipped, so each map yields either the header value or "".
+# CSP additions for lazy @react-pdf/renderer (label PDFs): 'wasm-unsafe-eval' = compile its WebAssembly (no JS eval);
+# data: in connect-src = it fetches its inlined wasm from a data: URI; worker-src blob: = it spawns a blob: worker.
 map "${CSP_MODE}" $csp_enforce {
     default "";
-    enforce "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: ${API_ORIGIN}; font-src 'self' data:; connect-src 'self' ${API_ORIGIN}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+    enforce "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: ${API_ORIGIN}; font-src 'self' data:; connect-src 'self' data: ${API_ORIGIN}; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
 }
 # anything other than CSP_MODE=enforce is report-only
 map "${CSP_MODE}" $csp_report {
-    default "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: ${API_ORIGIN}; font-src 'self' data:; connect-src 'self' ${API_ORIGIN}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+    default "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: ${API_ORIGIN}; font-src 'self' data:; connect-src 'self' data: ${API_ORIGIN}; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
     enforce "";
 }
 # HSTS only behind TLS (HSTS_ENABLED=true)
