@@ -59,7 +59,7 @@ class McpSecurityConfig {
         DefaultSecurityFilterChain chain = http
                 .securityMatcher(McpEndpoints.MCP, McpEndpoints.MCP_PATTERN,
                         McpEndpoints.PROTECTED_RESOURCE_METADATA_PATTERN)
-                .csrf(AbstractHttpConfigurer::disable)
+                .csrf(csrf -> csrf.ignoringRequestMatchers(mcpEndpoint))
                 .cors(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
