@@ -167,16 +167,6 @@ class MagicLoginControllerTest {
     }
 
     @Test
-    void lockedUserIsUnauthorizedAndTokenStaysUnused() throws Exception {
-        user.setLockedUntil(LocalDateTime.now().plusHours(1));
-        userRepository.save(user);
-
-        mockMvc.perform(redeem(TOKEN)).andExpect(status().isUnauthorized());
-
-        assertThat(tokenIsUsed()).isFalse();
-    }
-
-    @Test
     void failedRedemptionDoesNotCreateAnAuthenticatedSession() throws Exception {
         MvcResult result = mockMvc.perform(redeem("no-such-token"))
                 .andExpect(status().isUnauthorized())

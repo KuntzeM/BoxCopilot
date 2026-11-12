@@ -41,7 +41,7 @@ public class CustomUserDetailsService implements UserDetailsService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
         
-        // Disabled/locked accounts are rejected by Spring (isEnabled/isAccountNonLocked of the principal),
+        // Disabled accounts are rejected by Spring (isEnabled of the principal),
         // which ends in a plain authentication failure instead of an "internal error".
         return new CustomUserPrincipal(user);
     }
@@ -61,7 +61,6 @@ public class CustomUserDetailsService implements UserDetailsService {
         private final Role role;
         private final AuthProvider authProvider;
         private final boolean enabled;
-        private final boolean accountNonLocked;
         /** Reset marker captured at login; compared with the current one to end sessions after a password reset. */
         private final LocalDateTime sessionsValidAfter;
         /** Needed once by DaoAuthenticationProvider; transient so it can never reach the session store. */
@@ -74,7 +73,6 @@ public class CustomUserDetailsService implements UserDetailsService {
             this.role = user.getRole();
             this.authProvider = user.getAuthProvider();
             this.enabled = Boolean.TRUE.equals(user.getEnabled());
-            this.accountNonLocked = !user.isAccountLocked();
             this.sessionsValidAfter = user.getSessionsValidAfter();
             this.passwordHash = user.getPasswordHash();
         }
@@ -122,11 +120,6 @@ public class CustomUserDetailsService implements UserDetailsService {
         @Override
         public boolean isAccountNonExpired() {
             return true;
-        }
-
-        @Override
-        public boolean isAccountNonLocked() {
-            return accountNonLocked;
         }
 
         @Override

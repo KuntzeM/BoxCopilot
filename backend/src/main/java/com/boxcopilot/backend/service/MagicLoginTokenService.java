@@ -100,11 +100,6 @@ public class MagicLoginTokenService {
             return Optional.empty();
         }
 
-        if (user.isAccountLocked()) {
-            log.warn("Magic login rejected: user '{}' is locked", user.getUsername());
-            return Optional.empty();
-        }
-
         if (tokenRepository.consume(tokenString, LocalDateTime.now()) != 1) {
             log.warn("Magic login rejected: token of user '{}' is used or expired", user.getUsername());
             return Optional.empty();

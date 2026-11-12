@@ -92,7 +92,7 @@ class JsonContractTest {
 
     @Test
     void userDto() throws Exception {
-        UserDTO u = new UserDTO(1L, "admin", "Administrator", AuthProvider.LOCAL, Role.ADMIN, true, LDT, LDT, 0, null, true);
+        UserDTO u = new UserDTO(1L, "admin", "Administrator", AuthProvider.LOCAL, Role.ADMIN, true, LDT, LDT, true);
         u.setMcpAllowed(false);
         assertThat(actual(u)).isEqualTo(baseline("15-admin-users-list.json").get(0));
     }

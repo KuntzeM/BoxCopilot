@@ -220,24 +220,6 @@ class MagicLoginTokenServiceTest {
     }
 
     @Test
-    void consumeDoesNotConsumeTokenOfLockedUser() {
-        testUser.setLockedUntil(LocalDateTime.now().plusHours(1));
-        when(tokenRepository.findByToken(testToken.getToken())).thenReturn(Optional.of(testToken));
-
-        assertFalse(magicLoginTokenService.consumeToken(testToken.getToken()).isPresent());
-        verify(tokenRepository, never()).consume(anyString(), any(LocalDateTime.class));
-    }
-
-    @Test
-    void consumeAcceptsUserWhoseLockHasExpired() {
-        testUser.setLockedUntil(LocalDateTime.now().minusMinutes(1));
-        when(tokenRepository.findByToken(testToken.getToken())).thenReturn(Optional.of(testToken));
-        when(tokenRepository.consume(eq(testToken.getToken()), any(LocalDateTime.class))).thenReturn(1);
-
-        assertTrue(magicLoginTokenService.consumeToken(testToken.getToken()).isPresent());
-    }
-
-    @Test
     void logsNeverContainTheTokenOrItsPrefix() {
         String tokenString = testToken.getToken();
         String prefix = tokenString.substring(0, 8);
