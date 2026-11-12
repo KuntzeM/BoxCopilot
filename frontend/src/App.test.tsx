@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import axios from './services/axiosConfig';
 import App from './App';
@@ -89,6 +89,50 @@ describe('App menu - Claude connection entry', () => {
 
     await screen.findByRole('button', { name: 'Logout' });
     expect(screen.queryByRole('button', { name: 'Claude connection' })).toBeNull();
+  });
+});
+
+describe('App logout', () => {
+  const realLocation = window.location;
+  const assign = vi.fn();
+
+  beforeEach(() => {
+    vi.mocked(axios.get).mockReset();
+    vi.mocked(axios.post).mockReset();
+    assign.mockReset();
+    Object.defineProperty(window, 'location', { configurable: true, value: { ...realLocation, assign } });
+    document.cookie = 'app-language=en';
+  });
+
+  afterEach(() => {
+    cleanup();
+    Object.defineProperty(window, 'location', { configurable: true, value: realLocation });
+  });
+
+  it('navigates top-level to the redirectUrl the server returns', async () => {
+    mockMe({});
+    vi.mocked(axios.post).mockResolvedValue({ data: { redirectUrl: 'https://idp.example/logout?redirect_uri=x' } });
+    render(
+      <MemoryRouter initialEntries={['/app/boxes']}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Logout' }));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('https://idp.example/logout?redirect_uri=x'));
+    expect(axios.post).toHaveBeenCalledWith('/api/auth/logout');
+  });
+
+  it('falls back to the login page when the logout call fails', async () => {
+    mockMe({});
+    vi.mocked(axios.post).mockRejectedValue(new Error('network'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(
+      <MemoryRouter initialEntries={['/app/boxes']}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Logout' }));
+    await waitFor(() => expect(window.location.href).toBe('/'));
   });
 });
 

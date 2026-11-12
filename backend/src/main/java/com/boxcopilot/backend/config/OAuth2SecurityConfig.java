@@ -186,14 +186,7 @@ public class OAuth2SecurityConfig {
 
     @Bean
     LogoutSuccessHandler oidcLogoutSuccessHandler() {
-        return new LogoutSuccessHandler() {
-            @Override
-            public void onLogoutSuccess(HttpServletRequest request, HttpServletResponse response,
-                                        Authentication authentication) throws IOException {
-                // Redirect to Nextcloud logout to end the OIDC session
-                response.sendRedirect(nextcloudLogoutUrl + "?redirect_uri=" + frontendUrl);
-            }
-        };
+        return new OidcLogoutSuccessHandler(frontendUrl, nextcloudLogoutUrl);
     }
     
     /**

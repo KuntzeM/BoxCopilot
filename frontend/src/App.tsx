@@ -100,8 +100,9 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
 
   const handleLogout = async () => {
     try {
-      await axios.post('/api/auth/logout');
-      window.location.href = '/';
+      // Same-origin answer {redirectUrl}: the IdP end-session URL (OIDC users) or the frontend itself.
+      const { data } = await axios.post<{ redirectUrl?: string }>('/api/auth/logout');
+      window.location.assign(data?.redirectUrl || '/');
     } catch (error) {
       console.error('Logout failed:', error);
       // Force reload anyway to clear state
