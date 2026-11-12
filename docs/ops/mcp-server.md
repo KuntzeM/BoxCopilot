@@ -30,10 +30,12 @@ does not need direct database access for the normal case:
 - Disabling a user, deleting a user, or an admin turning off `mcp_allowed` for a user has the same effect as
   regenerate: client and all authorizations for that user are deleted (`McpAccessRevokedListener`,
   `@TransactionalEventListener(phase = BEFORE_COMMIT)`, so it is atomic with the user change).
-- A **temporary lock** (`lockedUntil`, set automatically after 5 failed login attempts) does **not** delete
-  anything. It is enforced only by `McpAccessPolicy` on every access, so an attacker cannot destroy a victim's
-  MCP connection (and force them to re-enter their client ID) just by triggering their account lockout. Once the
-  lock expires, the existing connection works again without any action.
+- Since 0.2.0 failed logins no longer lock accounts (they are throttled per client IP instead, see the main README),
+  so a login attack cannot touch a victim's MCP connection. `McpAccessPolicy` still denies a user whose legacy
+  `lockedUntil` is in the future; migration V15 cleared all such values and nothing sets them any more.
+- **Setting the user's password** (Admin Panel) revokes the user's MCP access the same way as regenerate: the
+  password-reset path publishes `McpAccessRevokedEvent`, and the MCP authorization chain also rejects a session older
+  than the reset (`sessions_valid_after`, `McpSessionUserResolver`). The user has to enter the client ID again.
 
 If a support engineer ever needs to act without the affected user (e.g. the user cannot access the dialog): the
 same effect can be reached through the Admin Panel by toggling `mcp_allowed` off and back on for that user, which
@@ -211,16 +213,16 @@ documented there or has just been added there as part of this story.
 |---|---|---|---|---|
 | `APP_MCP_ENABLED` | `false` | — | Master kill-switch for the whole MCP feature (`app.mcp.enabled`). | Y |
 | `BACKEND_URL` | *(none)* | `APP_MCP_ENABLED=true` | Fixed OAuth issuer / resource identifier (`app.mcp.backend-url`). Startup fails without it (and without `https` in prod) when MCP is on. Never derived from the request or `X-Forwarded-*`. Also the DNS-rebinding allow-list of `/mcp`: the `Host` header must equal its host (with port, if it names a non-default one; `:443` on https and `:80` on http are ignored) or the call gets 421, and an `Origin`, if sent, must equal its origin or the call gets 403. | Y |
-| `VITE_API_BASE_URL` | *(none, required)* | always | Base URL the SPA calls the backend on, baked into the frontend bundle at **build** time. **Must name the same origin as `BACKEND_URL`.** The backend sets the `mcp_authz` pending-authorization cookie and the OAuth issuer on `BACKEND_URL`, while the SPA builds the MCP "continue" URL and the connector URL shown in the "Claude-Verbindung" dialog from this value; if the two origins differ, the cookie is set on one origin and the continue-redirect points at the other, and the connect flow silently loops with no error. Nothing checks this at runtime — a Vite build-time variable and a Spring property cannot be cross-validated — so it is an operator invariant, kept visibly aligned in `.env.example`. Changing it requires a frontend rebuild. | Y |
+| `VITE_API_BASE_URL` | *(none, required)* | always | Base URL the SPA calls the backend on, baked into the frontend bundle at **build** time. **Must name the same origin as `BACKEND_URL`.** The backend sets the `mcp_authz` pending-authorization cookie and the OAuth issuer on `BACKEND_URL`, while the SPA builds the MCP "continue" URL and the connector URL shown in the "Claude-Verbindung" dialog from this value; if the two origins differ, the cookie is set on one origin and the continue-redirect points at the other, and the connect flow silently loops with no error. Since 0.2.0 the backend compares the two origins at startup (`McpStartupGuard`, via `app.mcp.spa-api-base-url`) and refuses to start when MCP is enabled and they differ; the value baked into an already-built frontend bundle cannot be checked, so rebuild the frontend whenever you change it. Changing it requires a frontend rebuild. | Y |
 | `APP_MCP_CLEANUP_CRON` | `0 0 3 * * *` | optional | Cron schedule for the nightly authorization cleanup job. | Y |
 | `APP_MCP_COOKIE_SAME_SITE` | *(blank — follows the session cookie)* | optional | `SameSite` attribute of the short-lived `mcp_authz` pending-authorization cookie (`app.mcp.cookie-same-site`). Blank means it follows `server.servlet.session.cookie.same-site` (`none` in `application-prod.yml`), because the cookie has to travel on exactly the requests the session cookie travels on. Set it to `Lax` where frontend and backend share a site. | Y |
 | `APP_MCP_CALLS_PER_MINUTE` | `60` | optional | Per-subject rate limit on `/mcp` tool calls. | Y |
 | `APP_MCP_IMAGE_CALLS_PER_DAY` | `200` | optional | Per-subject daily quota on `get_item_image` calls (the expensive, large-payload tool). | Y |
 | `APP_MCP_AUTHORIZATION_REQUESTS_PER_MINUTE` | `30` | optional | Per-IP rate limit on `/oauth2/authorize` and `/oauth2/token`. Only meaningful if `TRUSTED_PROXY_PATTERN`/M4 is correctly configured — otherwise it rate-limits the proxy's address, not the caller's. | Y |
 | `APP_MCP_FAILED_TOKEN_LOOKUPS_PER_MINUTE` | `30` | optional | Per-IP limit on failed bearer-token lookups at `/mcp` (every failed lookup costs a DB query). Same caveat as above. | Y |
-| `TRUSTED_PROXY_PATTERN` | private-address-space regex (see `application-prod.yml`) | optional, recommended in prod | **Java regular expression** (not CIDR) matched by Tomcat's `RemoteIpValve` against the immediate peer address, to decide whether to trust its `X-Forwarded-*` headers. Underpins the two IP-based limits above and the `ip=` field in the MCP audit log. Renamed from the originally spec'd `TRUSTED_PROXY_CIDR` during implementation review because the underlying mechanism is regex-based, not CIDR-based. | Y |
+| `TRUSTED_PROXY_PATTERN` | private-address-space regex (see `application-prod.yml`) | optional, recommended in prod | **Java regular expression** (not CIDR) matched by Tomcat's `RemoteIpValve` against the immediate peer address, to decide whether to trust its `X-Forwarded-*` headers. Underpins the two IP-based limits above, the login throttling of `POST /api/auth/login` and `POST /api/v1/auth/magic-login`, and the `ip=` field in the MCP audit log. Renamed from the originally spec'd `TRUSTED_PROXY_CIDR` during implementation review because the underlying mechanism is regex-based, not CIDR-based. | Y |
 | `REDIS_PASSWORD` | *(none, required)* | always in prod | Redis `requirepass` and the backend's session-store credential. Predates MCP (S2 hardening) but is a hard prerequisite for the app to start at all in `prod`. | Y |
-| `ADMIN_PASSWORD` | *(none in prod; `admin` only in `dev`)* | always in prod | Bootstrap admin account password. Startup fails in `prod` if empty or literally `admin`, and also if an existing admin account's password hash still matches `admin`. Predates MCP (S2 hardening), listed here because it gates the Admin Panel screen used to grant `mcp_allowed`. | Y |
+| `ADMIN_PASSWORD` | *(none in prod; `admin` only in `dev`)* | always in prod | Bootstrap admin account password. Startup fails in `prod` if empty, literally `admin` or shorter than 12 characters, and also if an existing admin account's password hash still matches `admin`. Predates MCP (S2 hardening), listed here because it gates the Admin Panel screen used to grant `mcp_allowed`. | Y |
 | `FRONTEND_URL` | *(none, required)* | always | Base URL of the SPA. Already required pre-MCP; now additionally the base of magic links and the redirect target after the pending-authorization cookie flow (spec §4.1/§4.4). | Y |
 | `MAGIC_LINK_VALID_HOURS` | `24` | optional | Maximum lifetime of a magic login link (hard cap enforced since the S2/S3 magic-link hardening fixes; the previous unbounded value is no longer accepted). | Y |
 
@@ -322,16 +324,15 @@ ledger (`.superpowers/sdd/2026-09-21-mcp-server-sprint/progress.md`).
    required (spec §4.3); this sprint added the new MCP migrations but did not perform or automate that
    validation run.
 6. **Remaining §4.4 "Phase 4 and own tickets" items**, not bundled into this sprint's stories:
-   - **M3** — session invalidation on role change or user deactivation (sessions carry a snapshot of the user entity; the 34h in `application-prod.yml` has no effect, the
-     30-minute idle default of `@EnableRedisHttpSession` applies).
-   - **Container hardening** — non-root user (opt-in available, see the main README; not the default), `read_only` root filesystem with explicit volumes, `cap_drop: ALL`
-     for the backend/frontend containers.
+   - **M3** — session invalidation on role change or user deactivation: done (`SessionRevalidationFilter`, and since
+     0.2.0 also after a password reset). The 30-minute idle default of `@EnableRedisHttpSession` applies.
+   - **Container hardening** — done in 0.2.0: the backend runs non-root (uid 10001) with a read-only root filesystem and
+     `cap_drop: ALL`; the frontend drops all capabilities except those nginx needs (see the 0.2.0 release notes).
    - **Unified login error messages** — locked/disabled/wrong-password are still distinguishable in the login
      failure handler (`OAuth2SecurityConfig`), an account-enumeration nicety, not fixed this sprint.
-   - **Configurable cookie `SameSite` for the *session* cookie** — still fixed to `none` in
-     `application-prod.yml`; making it `Lax` where frontend and backend share a site remains a future
-     improvement. This applies to the session cookie only: the MCP `mcp_authz` cookie *is* configurable, via
-     `APP_MCP_COOKIE_SAME_SITE` (see the environment variable table above), and only falls back to the session
+   - **Configurable cookie `SameSite` for the *session* cookie** — done in 0.2.0: `SESSION_COOKIE_SAME_SITE`
+     (default `none`; `lax` where frontend and backend share a site). The MCP `mcp_authz` cookie has its own
+     `APP_MCP_COOKIE_SAME_SITE` (see the environment variable table above) and only falls back to the session
      cookie's value when that is left blank.
    - **Global LIKE-escaping audit** — spec §3.3 assumes Spring Data's derived `...ContainingIgnoreCase` methods
      escape `%`/`_` themselves; this was accepted based on framework behavior but a systematic check across all
@@ -358,7 +359,8 @@ ledger (`.superpowers/sdd/2026-09-21-mcp-server-sprint/progress.md`).
     before creating them).
 11. **`mcpAllowed` in `/api/v1/me` does not reflect a temporary lock** — `McpUserAllowanceProbe` reports the
     stored `users.mcp_allowed` flag only, while the actual gate (`McpAccessPolicy`) additionally denies a
-    temporarily locked account. A locked user therefore still sees the "Claude-Verbindung" dialog and gets a
+    temporarily locked account. Since 0.2.0 no new locks are created and V15 cleared the old ones, so this can only
+    occur for a lock written by hand. A locked user therefore still sees the "Claude-Verbindung" dialog and gets a
     bare `403` when a tool call or an authorize request is attempted. This is deliberate and documented in a
     comment on the probe: a lock is temporary (it expires on its own) and the dialog's own maintenance actions
     remain legitimate while it lasts. The residual rough edge is purely cosmetic — the dialog's error states are

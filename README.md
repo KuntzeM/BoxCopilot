@@ -22,7 +22,7 @@
   - Create boxes with current room, target room, description, and handling flags (Fragile, Do not stack).
   - List and filter boxes: search by item name, filter by target room, and optionally show only fragile/no‑stack boxes.
   - Quick actions per box: copy/open public link, edit, delete, and expand to preview items.
-  - Public sharing: per‑box UUID public page shows box details and items (no login required).
+  - Public sharing: per‑box UUID public page shows box details and items (no login required). The link can be regenerated per box; the old link and printed QR labels stop working.
   - Label printing: select boxes and generate an A4 PDF (3 labels/page) with QR codes to the public page, target room, and handling badges.
 
 - Items
@@ -38,8 +38,8 @@
   - Item images served via tokenized endpoints with sensible caching for fast loads.
 
 - Admin & Authentication
-  - Admin panel to manage users, roles, passwords, unlock accounts, and generate magic login links.
-  - Dual authentication: Nextcloud/OIDC and form login; account lockout after multiple failed attempts.
+  - Admin panel to manage users, roles, passwords, and generate magic login links. Setting a user's password ends that user's sessions.
+  - Dual authentication: Nextcloud/OIDC and form login; failed form and magic-link logins are throttled per client IP (see [Security](#security)).
 
 - Language
   - Switch between German and English; preference is remembered.
@@ -85,7 +85,7 @@ On first startup, a default admin account is created from `ADMIN_USERNAME` / `AD
 - Password: `admin` in the `dev` profile only (override with `ADMIN_PASSWORD`)
 - Role: `ADMIN`
 
-**Important:** In the `prod` profile `ADMIN_PASSWORD` has no default. Startup fails if it is empty or `admin`, or if an existing ADMIN account still has the password `admin`. Set `REDIS_PASSWORD` as well (Redis runs with `requirepass`).
+**Important:** In the `prod` profile `ADMIN_PASSWORD` has no default. Startup fails if it is empty, `admin` or shorter than 12 characters, or if an existing ADMIN account still has the password `admin`. Passwords set in the Admin Panel are 12 to 128 characters. Set `REDIS_PASSWORD` as well (Redis runs with `requirepass`).
 
 ### Frontend
 ```bash
@@ -105,31 +105,43 @@ See [application-*.yml](backend/src/main/resources/) for profile configurations.
 ### API Endpoints
 
 **Authentication:**
-- `POST /login` - Form-based login (username + password)
+- `POST /api/auth/login` - Form-based login (`username` + `password`, form-encoded, with CSRF token); 429 + `Retry-After` when throttled
 - `GET /oauth2/authorization/nextcloud` - Initiate OIDC login
-- `GET /api/v1/auth/magic-login?token={uuid}` - Magic link authentication
-- `POST /api/v1/auth/logout` - Logout current user
+- `POST /api/v1/auth/magic-login` - Redeem a magic login link (`{"token": "..."}`); 429 + `Retry-After` when throttled
+- `POST /api/auth/logout` - Logout current user
 - `GET /api/v1/me` - Get current user info
+- `GET /api/v1/csrf` - Fetch the CSRF token
+
+**Health (no authentication):**
+- `GET /actuator/health` - `{"status":"UP"}` or `{"status":"DOWN"}` (503), no details; used by the compose healthcheck
 
 **User Management (ADMIN only):**
 - `GET /api/v1/admin/users` - List all users
+- `GET /api/v1/admin/users/{id}` - Get one user
 - `POST /api/v1/admin/users` - Create new user
 - `PUT /api/v1/admin/users/{id}` - Update user
+- `PUT /api/v1/admin/users/{id}/password` - Set password (ends that user's sessions, invalidates their magic links, revokes their MCP access)
 - `DELETE /api/v1/admin/users/{id}` - Delete user
 - `POST /api/v1/admin/users/{id}/magic-link` - Generate magic login link
+- `DELETE /api/v1/admin/users/{id}/magic-link` - Invalidate the user's magic links
 
 **Boxes (authenticated):**
 - `GET /api/v1/boxes` - List all boxes
+- `GET /api/v1/boxes/{uuid}` - Get one box
 - `POST /api/v1/boxes` - Create box
 - `PUT /api/v1/boxes/{id}` - Update box
-- `DELETE /api/v1/boxes/{id}` - Delete box
+- `POST /api/v1/boxes/{id}/rotate-share` - Regenerate the public link and image tokens (old links and printed QR labels stop working)
+- `DELETE /api/v1/boxes/{id}` - Delete box (also removes its image files)
 
 **Items (authenticated):**
-- `GET /api/v1/items` - List all items
+- `GET /api/v1/items/box/{boxUuid}` - List the items of a box
+- `GET /api/v1/items/search` - Search items
 - `POST /api/v1/items` - Create item
 - `PUT /api/v1/items/{id}` - Update item
 - `DELETE /api/v1/items/{id}` - Delete item
-- `POST /api/v1/items/{id}/image` - Upload item image
+- `PUT /api/v1/items/{id}/move` - Move item to another box
+- `PUT /api/v1/items/move-bulk` - Move several items to another box
+- `POST /api/v1/items/{id}/image` - Upload item image (max 25 megapixels; 400 if not a valid image, 503 + `Retry-After` when busy)
 - `DELETE /api/v1/items/{id}/image` - Delete item image
 
 **Public Access (no authentication):**
@@ -161,6 +173,14 @@ POSTGRES_USER=boxuser
 POSTGRES_PASSWORD=secure-password-here
 POSTGRES_DB=boxcopilot
 
+# Redis (sessions) and the bootstrap admin; ADMIN_PASSWORD needs at least 12 characters
+REDIS_PASSWORD=generate-with-openssl-rand-base64-24
+ADMIN_PASSWORD=generate-with-openssl-rand-base64-24
+
+# URLs (VITE_API_BASE_URL is baked into the frontend bundle at build time)
+FRONTEND_URL=https://boxes.example.com
+VITE_API_BASE_URL=https://boxes-api.example.com
+
 # OAuth2/OIDC (Nextcloud)
 CLIENT_ID=your-nextcloud-oauth-client-id
 CLIENT_SECRET=your-nextcloud-oauth-client-secret
@@ -172,10 +192,59 @@ TRAEFIK_FRONTEND_HOST=boxes.example.com
 TRAEFIK_BACKEND_HOST=boxes-api.example.com
 ```
 
-2. **Start services**
+[`.env.example`](.env.example) lists every variable, including the optional ones (login throttling, session cookie
+`SameSite`, CSP/HSTS, upload concurrency, MCP). In `prod` the backend lists all missing required variables in one
+startup message.
+
+2. **Prepare the data directories** (the backend runs as non-root uid 10001; only needed once)
 ```bash
-docker-compose up -d
+mkdir -p logs images && sudo chown -R 10001:10001 logs images
 ```
+
+3. **Start services**
+```bash
+docker compose up -d
+```
+
+Health: `docker compose ps` shows the backend as healthy once `GET /actuator/health` reports `UP`; the frontend starts after it.
+
+Back up the database and the `images` directory together: [`docs/ops/backup-restore.md`](docs/ops/backup-restore.md).
+
+### Security
+
+- **Login throttling.** Failed logins are counted per client IP and per IP + username. By default an IP may fail 10 logins
+  in 15 minutes and one IP + username pair 5 (`APP_LOGIN_THROTTLE_IP_LIMIT`, `APP_LOGIN_THROTTLE_IP_USER_LIMIT`,
+  `APP_LOGIN_THROTTLE_WINDOW`). After that `POST /api/auth/login` and `POST /api/v1/auth/magic-login` answer **429** with a
+  `Retry-After` header, before any password check; failed magic-link redemptions count against the IP only. A blocked IP
+  cannot log in even with the correct password until the window ends, so people behind one shared address (NAT) share the
+  quota. Accounts are never locked, so nobody can lock someone else out by guessing their username.
+- **In-process, one replica.** The counters live in the backend process: they reset on restart and are not shared between
+  replicas. Run a single backend replica.
+- **`TRUSTED_PROXY_PATTERN` must be right.** The client IP comes from `X-Forwarded-For`, which Tomcat trusts only from
+  addresses matching this Java regular expression (not CIDR). The default covers private ranges and loopback. If your
+  proxy is outside them, or the pattern is wrong, all clients appear as the proxy and share one counter.
+- **Password reset ends sessions.** Setting a user's password in the Admin Panel ends all of that user's sessions, invalidates
+  their magic links and revokes their MCP access. Resetting your own password logs you out. The session holds no password
+  hash. Every authenticated request re-reads the user from the database to check that the session is still valid.
+- **Session cookie.** `SESSION_COOKIE_SAME_SITE` defaults to `none` (needed when the SPA runs on another site than the API).
+  Set `lax` when frontend and API share a site, e.g. `app.example.com` and `api.example.com`; `strict` breaks the OIDC
+  redirect back to the backend.
+- **Frontend headers.** The frontend nginx sends `Content-Security-Policy` (report-only by default, `CSP_MODE=enforce` to
+  enforce), `Strict-Transport-Security` (`HSTS_ENABLED`, on by default in `docker-compose.yml`, set `false` for plain http),
+  `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`. The CSP allows the
+  origin of `VITE_API_BASE_URL` (derived automatically as `API_ORIGIN`).
+- **Containers.** The backend runs as uid 10001 with a read-only root filesystem, no extra capabilities and a memory limit;
+  postgres and the frontend do not receive the application secrets they do not need.
+- **Uploads.** Images are limited to 25 megapixels, only a few are decoded at once (`APP_IMAGE_MAX_CONCURRENT_UPLOADS`,
+  default 2), and the backend refuses to start if the image directory is not writable.
+- **MCP.** With `APP_MCP_ENABLED=true` the backend refuses to start unless `VITE_API_BASE_URL` and `BACKEND_URL` have the
+  same origin. See [`docs/ops/mcp-server.md`](docs/ops/mcp-server.md).
+
+### Upgrading to 0.2.0
+
+Read [`docs/releases/0.2.0.md`](docs/releases/0.2.0.md) first. It lists the upgrade steps in order (backup, `ADMIN_PASSWORD`
+of at least 12 characters, `chown` for the non-root backend, `TRUSTED_PROXY_PATTERN`, new variables, everyone signs in
+again, switching the CSP from report-only to enforce), the migrations V15 and V16, and the rollback procedure.
 
 ### Upgrading from the Spring Boot 3.5 build
 
@@ -187,20 +256,18 @@ upgrade was rehearsed against a dump of a 3.5 installation (see `docs/superpower
 - Take a database dump, e.g. `docker exec boxcopilot-postgres pg_dump -U <POSTGRES_USER> <POSTGRES_DB> > boxpilot-3.5.sql`.
   The upgrade adds no Flyway migration (the schema stays at V14) and Flyway reports "up to date", so the dump is only
   needed if you want to discard data written by 4.1 later.
-- The backend has a TCP healthcheck (`start_period` 120s) and the frontend waits for it to be healthy
+- The backend has a healthcheck on `GET /actuator/health` (`start_period` 120s) and the frontend waits for it to be healthy
   (`depends_on: condition: service_healthy`). If the backend never becomes healthy, `docker compose up -d` reports the
   failed dependency and the frontend stays down.
 - The backend image sets `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75`, which raises the heap ceiling from the JVM
-  default (25%) to 75% of the memory the container sees. The compose file sets no memory limit, so on a shared host
-  set `mem_limit` (or adjust the percentage).
+  default (25%) to 75% of the memory the container sees. The compose file sets `mem_limit: 1g` for the backend; if you
+  raise or remove it, adjust the percentage.
 - Postgres is now pinned to `postgres:15.19` (Debian 13 / trixie); the previous `postgres:15` was already a moving
   tag. Before upgrading run `docker exec boxcopilot-postgres cat /etc/os-release`. If the running image is Debian 12
   (bookworm), either pin `postgres:15.19-bookworm` or `REINDEX` your text indexes after the swap (glibc collation
   changes).
-- *Optional hardening:* the image ships a non-root user (uid/gid 10001) but runs as root by default so existing
-  root-owned `./logs` and `./images` keep working. To run non-root, before `docker compose up`:
-  `mkdir -p logs images && sudo chown -R 10001:10001 logs images`, then uncomment `user: "10001:10001"` on the
-  `backend` service in `docker-compose.yml`. (Docker Desktop on Windows/macOS has lax bind-mount permissions.)
+- *Non-root backend:* since 0.2.0 the backend runs as uid/gid 10001 with a read-only root filesystem. See the
+  [0.2.0 release notes](docs/releases/0.2.0.md) for the one-time `chown` of `logs` and `images` and how to go back to root.
 
 **What carries over unchanged**
 - Users usually stay logged in: Redis sessions written by 3.5 are normally still read by 4.1. A stored session value
@@ -243,11 +310,8 @@ upgrade was rehearsed against a dump of a 3.5 installation (see `docs/superpower
 
 #### Known issues (not caused by the migration)
 
-Found during verification; each also occurs on the 3.5 build, except where noted.
-- `ItemService.uploadImage` deletes the item's existing image before it validates the new upload, so a rejected
-  non-image upload removes the stored image.
-- Several client errors (missing request parameter, missing multipart part, over-size upload, wrong content type)
-  are answered with 500 by the catch-all handler instead of a 4xx.
+Found during the Boot 4 verification; each also occurs on the 3.5 build, except where noted. Rejected uploads no longer remove the stored image, and over-size uploads and wrong content types get a 4xx since 0.2.0.
+- A missing request parameter or a missing multipart part is answered with 500 by the catch-all handler instead of a 4xx.
 - Redeeming a magic link can race the SPA's own `/api/v1/me` call for the `XSRF-TOKEN` cookie, so a valid link can
   show "invalid" without being consumed; loading the link again normally works. In testing this happened more often
   on 4.1 (7 of 8 cold loads) than on 3.5 (4 of 8).
@@ -308,13 +372,16 @@ services:
       - "traefik.http.routers.traefik-secure.entrypoints=https"
       - "traefik.http.routers.traefik-secure.rule=Host(`traefik.example.com`)"
       - "traefik.http.routers.traefik-secure.tls=true"
-      - "traefik.http.routers.traefik-secure.tls.certresolver=cloudflare"
+      - "traefik.http.routers.traefik-secure.tls.certresolver=http"
       - "traefik.http.routers.traefik-secure.service=api@internal"
 
 networks:
   traefik-proxy:
-    external: false
+    # fixed name: BoxCopilot's docker-compose.yml joins this network as external "traefik-proxy"
+    name: traefik-proxy
 ```
+
+The `traefik.example.com` dashboard router above has no authentication middleware. Remove it (and `api.dashboard`) or protect it before exposing Traefik to the internet.
 
 Create `traefik/traefik.yml`:
 ```yaml
@@ -344,7 +411,8 @@ providers:
     filename: /config.yml
 
 certificatesResolvers:
-  cloudflare:
+  # The name must match the tls.certresolver label in docker-compose.yml ("http").
+  http:
     acme:
       email: your-email@example.com
       storage: acme.json
@@ -387,16 +455,18 @@ networks:
     external: true
 ```
 
-Both frontend and backend services include Traefik labels for:
+Both frontend and backend services include Traefik labels (certificate resolver `http`, entrypoints `http` and `https`) for:
 - HTTP → HTTPS redirect
 - TLS certificate provisioning (Let's Encrypt)
 - Host-based routing
+
+Traefik forwards `X-Forwarded-For`; the backend uses it for login throttling only for requests that arrive from an address matching `TRUSTED_PROXY_PATTERN` (default: private ranges and loopback, which covers the compose network). Check the pattern if Traefik runs on a different network, see [Security](#security).
 
 ## Technology Stack
 
 **Backend:** Java 21, Spring Boot 4.1, Spring Security with OAuth2/OIDC, Spring Data JPA, PostgreSQL, Redis, Flyway
 
-**Frontend:** React 18, TypeScript, Vite, Material-UI, Axios, React Router
+**Frontend:** React 19, TypeScript, Vite, Material-UI, Axios, React Router
 
 **Infrastructure:** Docker, Docker Compose, Traefik, PostgreSQL 15, Redis
 
