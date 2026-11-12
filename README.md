@@ -108,7 +108,7 @@ See [application-*.yml](backend/src/main/resources/) for profile configurations.
 - `POST /api/auth/login` - Form-based login (`username` + `password`, form-encoded, with CSRF token); 429 + `Retry-After` when throttled
 - `GET /oauth2/authorization/nextcloud` - Initiate OIDC login
 - `POST /api/v1/auth/magic-login` - Redeem a magic login link (`{"token": "..."}`); 429 + `Retry-After` when throttled
-- `POST /api/auth/logout` - Logout current user
+- `POST /api/auth/logout` - Logout current user; answers 200 with `{"redirectUrl": ...}` (identity provider logout URL for OIDC users, the frontend otherwise) and the SPA navigates there
 - `GET /api/v1/me` - Get current user info
 - `GET /api/v1/csrf` - Fetch the CSRF token
 
@@ -196,7 +196,7 @@ TRAEFIK_BACKEND_HOST=boxes-api.example.com
 `SameSite`, CSP/HSTS, upload concurrency, MCP). In `prod` the backend lists all missing required variables in one
 startup message.
 
-2. **Prepare the data directories** (the backend runs as non-root uid 10001; only needed once)
+2. **Prepare the data directories** (the backend runs as non-root uid 10001; once, for both `logs` and `images`, before the first start. Without it the container exits: the log shows `Permission denied` for `/app/logs/boxcopilot.log` or the image directory error)
 ```bash
 mkdir -p logs images && sudo chown -R 10001:10001 logs images
 ```
@@ -221,8 +221,10 @@ Back up the database and the `images` directory together: [`docs/ops/backup-rest
 - **In-process, one replica.** The counters live in the backend process: they reset on restart and are not shared between
   replicas. Run a single backend replica.
 - **`TRUSTED_PROXY_PATTERN` must be right.** The client IP comes from `X-Forwarded-For`, which Tomcat trusts only from
-  addresses matching this Java regular expression (not CIDR). The default covers private ranges and loopback. If your
-  proxy is outside them, or the pattern is wrong, all clients appear as the proxy and share one counter.
+  addresses matching this Java regular expression (not CIDR). The default covers private ranges and loopback; a blank
+  value is treated like an unset one, and the backend logs the pattern in effect at startup (`Trusted proxy pattern
+  (default|custom from TRUSTED_PROXY_PATTERN): ...`). If your proxy is outside the range, or the pattern is wrong, all
+  clients appear as the proxy and share one login throttle counter, so a few failed logins block everybody.
 - **Password reset ends sessions.** Setting a user's password in the Admin Panel ends all of that user's sessions, invalidates
   their magic links and revokes their MCP access. Resetting your own password logs you out. The session holds no password
   hash. Every authenticated request re-reads the user from the database to check that the session is still valid.
@@ -230,7 +232,8 @@ Back up the database and the `images` directory together: [`docs/ops/backup-rest
   Set `lax` when frontend and API share a site, e.g. `app.example.com` and `api.example.com`; `strict` breaks the OIDC
   redirect back to the backend.
 - **Frontend headers.** The frontend nginx sends `Content-Security-Policy` (report-only by default, `CSP_MODE=enforce` to
-  enforce), `Strict-Transport-Security` (`HSTS_ENABLED`, on by default in `docker-compose.yml`, set `false` for plain http),
+  enforce; verified with the browser suite in both modes, switch after watching the browser console for the first
+  days), `Strict-Transport-Security` (`HSTS_ENABLED`, on by default in `docker-compose.yml`, set `false` for plain http),
   `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`. The CSP allows the
   origin of `VITE_API_BASE_URL` (derived automatically as `API_ORIGIN`).
 - **Containers.** The backend runs as uid 10001 with a read-only root filesystem, no extra capabilities and a memory limit;
