@@ -28,12 +28,16 @@ services:
   backend:
     container_name: boxpilot-e2e-backend
     env_file: !reset []
+    # named volumes over image paths that exist and are owned by uid 10001 (see Dockerfile) inherit that ownership
     volumes: !override
       - e2e-images:/var/boxcopilot/images
       - e2e-logs:/app/logs
     environment:
       ADMIN_USERNAME: ${ADMIN_USERNAME}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      # Small login-throttle limits so the E2E throttle steps stay quick (production defaults: 10 / 5 / 15m)
+      APP_LOGIN_THROTTLE_IP_LIMIT: "8"
+      APP_LOGIN_THROTTLE_IP_USER_LIMIT: "5"
     ports:
       - "127.0.0.1:8080:8080"
     networks: !override

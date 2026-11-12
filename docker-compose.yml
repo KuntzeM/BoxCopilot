@@ -45,10 +45,15 @@ services:
     build: backend
     container_name: boxcopilot-backend
     working_dir: /app
-    # Optional hardening: run as the non-root user the image prepares (uid 10001). Needs
+    # Runs as non-root uid 10001 (set in the Dockerfile). UPGRADE from a root-run install (one time, before `up`):
     #   mkdir -p logs images && sudo chown -R 10001:10001 logs images
-    # BEFORE `docker compose up`; see README. Left off by default so existing root-owned bind mounts keep working.
-    # user: "10001:10001"
+    # ROLLBACK to root: uncomment the next line (add `cap_add: [DAC_OVERRIDE]` if the dirs belong to another uid).
+    # user: "0:0"
+    # Without the chown startup fails with a clear message (ImageStorageService requires a writable image directory;
+    # logback also cannot write log files); check `docker compose logs backend`.
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777   # Tomcat work dir, multipart temp files (up to 15 MB), Java tmp
     env_file: .env
     volumes:
       - ./logs:/app/logs
@@ -71,11 +76,8 @@ services:
       APP_IMAGE_STORAGE_PATH: /var/boxcopilot/images
     security_opt:
       - no-new-privileges:true
-    # runs as root until OP3: DAC_OVERRIDE keeps existing foreign-owned bind mounts writable
     cap_drop:
       - ALL
-    cap_add:
-      - DAC_OVERRIDE
     mem_limit: 1g
     cpus: 2.0
     networks:
@@ -97,8 +99,9 @@ services:
 
 
     healthcheck:
-      # TCP probe only (bash is in the image, curl is not); start_period covers Flyway + startup.
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      # GET /actuator/health via bash /dev/tcp (no curl in the image); healthy only on "status":"UP" (DB + Redis).
+      # start_period covers Flyway + startup.
+      test: ["CMD", "timeout", "4", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8080; printf "GET /actuator/health HTTP/1.0\r\n\r\n" >&3; grep -q status.:.UP <&3']
       interval: 15s
       timeout: 5s
       retries: 10
