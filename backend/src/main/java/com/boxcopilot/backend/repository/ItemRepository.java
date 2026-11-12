@@ -22,6 +22,10 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
 	List<Item> findByBox_UuidOrderByNameAsc(String boxUuid);
 	Optional<Item> findByImageToken(String imageToken);
 
+	/** Legacy items whose image token is NULL or blank (startup backfill). */
+	@Query("select i from Item i where i.imageToken is null or trim(i.imageToken) = ''")
+	List<Item> findWithoutImageToken();
+
 	/** Bounded name search that loads each item's box in the same statement. */
 	@EntityGraph(attributePaths = "box")
 	List<Item> findByNameContainingIgnoreCase(String namePart, Pageable pageable);

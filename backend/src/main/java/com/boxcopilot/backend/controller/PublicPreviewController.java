@@ -1,82 +1,25 @@
 package com.boxcopilot.backend.controller;
 
-import com.boxcopilot.backend.domain.Box;
-import com.boxcopilot.backend.domain.Item;
 import com.boxcopilot.backend.dto.BoxPreviewDTO;
-import com.boxcopilot.backend.repository.BoxRepository;
-import com.boxcopilot.backend.repository.ItemRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.http.ResponseEntity;
-import org.springframework.transaction.annotation.Transactional;
+import com.boxcopilot.backend.service.BoxService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
-
+/** Unauthenticated read-only box view; an unknown UUID answers 404 via the global exception handler. */
 @RestController
 @RequestMapping("/api/v1/public")
 public class PublicPreviewController {
 
-    private static final Logger log = LoggerFactory.getLogger(PublicPreviewController.class);
+    private final BoxService boxService;
 
-    private final BoxRepository boxRepo;
-    private final ItemRepository itemRepo;
-
-    public PublicPreviewController(BoxRepository boxRepo, ItemRepository itemRepo) {
-        this.boxRepo = boxRepo;
-        this.itemRepo = itemRepo;
+    public PublicPreviewController(BoxService boxService) {
+        this.boxService = boxService;
     }
 
     @GetMapping("/{uuid}")
-    @Transactional(readOnly = true)
-    public ResponseEntity<BoxPreviewDTO> preview(@PathVariable String uuid) {
-        log.debug("Public preview requested for box UUID: {}", uuid);
-        // Find box directly by UUID
-        Optional<Box> boxOpt = boxRepo.findByUuid(uuid);
-        if (boxOpt.isEmpty()) {
-            log.warn("Public preview failed - box not found: {}", uuid);
-            return ResponseEntity.notFound().build();
-        }
-        
-        final Box box = boxOpt.get();
-
-        // Fetch items by box ID (more efficient than loading all items)
-        List<Item> items = itemRepo.findByBoxIdOrderByNameAsc(box.getId());
-
-        List<BoxPreviewDTO.ItemDTO> itemDTOs = items.stream()
-            .map(i -> {
-                BoxPreviewDTO.ItemDTO dto = new BoxPreviewDTO.ItemDTO(i.getId(), i.getName());
-                // Add imageUrl if item has an image (with cache-busting timestamp)
-                if (i.getImagePath() != null && !i.getImagePath().isBlank() && i.getImageToken() != null) {
-                    String imageUrl = "/api/v1/public/items/" + i.getImageToken() + "/image";
-                    if (i.getImageUpdatedAt() != null) {
-                        imageUrl += "?t=" + i.getImageUpdatedAt();
-                    }
-                    dto.setImageUrl(imageUrl);
-                }
-                return dto;
-            })
-            .collect(Collectors.toList());
-
-        BoxPreviewDTO dto = new BoxPreviewDTO(
-            box.getId(),
-            box.getUuid(),
-            box.getCurrentRoom(),
-            box.getTargetRoom(),
-            box.getDescription(),
-            itemDTOs
-        );
-        
-        dto.setBoxNumber(box.getBoxNumber());
-        dto.setIsFragile(box.getIsFragile());
-        dto.setNoStack(box.getNoStack());
-
-        log.info("Public preview generated for box: {} with {} items", uuid, itemDTOs.size());
-        return ResponseEntity.ok(dto);
+    public BoxPreviewDTO preview(@PathVariable String uuid) {
+        return boxService.getPublicPreview(uuid);
     }
 }
