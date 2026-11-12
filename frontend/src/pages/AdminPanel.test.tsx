@@ -169,4 +169,27 @@ describe('AdminPanel hardening', () => {
     );
     expect(await screen.findByText('Action failed')).toBeTruthy();
   });
+
+  it('validates create-user fields client-side before submitting', async () => {
+    vi.mocked(userService.getUsers).mockResolvedValue([buildUser()]);
+    render(
+      <LanguageProvider>
+        <AdminPanel />
+      </LanguageProvider>,
+    );
+    await screen.findByTitle('Edit User');
+    fireEvent.click(screen.getAllByRole('button', { name: /Create User|Add User|New User/i })[0]);
+    const dialog = within(screen.getByRole('dialog'));
+    const save = dialog.getByRole('button', { name: 'Save' }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    fireEvent.change(dialog.getByLabelText(/Username/), { target: { value: 'x'.repeat(256) } });
+    fireEvent.change(dialog.getByLabelText(/^Name/), { target: { value: 'Bob' } });
+    expect(dialog.getByText('Username must not be blank and at most 255 characters.')).toBeTruthy();
+    expect(save.disabled).toBe(true);
+    fireEvent.change(dialog.getByLabelText(/Username/), { target: { value: 'bob' } });
+    expect(save.disabled).toBe(false);
+    fireEvent.change(dialog.getByLabelText(/Password/), { target: { value: 'p'.repeat(129) } });
+    expect(dialog.getByText('Password must be at most 128 characters.')).toBeTruthy();
+    expect(save.disabled).toBe(true);
+  });
 });

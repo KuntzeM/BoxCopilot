@@ -79,6 +79,13 @@ function TabPanel(props: TabPanelProps) {
 }
 
 const MIN_PASSWORD_LENGTH = 12;
+const MAX_PASSWORD_LENGTH = 128;
+const MAX_TEXT_LENGTH = 255;
+const passwordInvalid = (p: string) => p.length < MIN_PASSWORD_LENGTH || p.length > MAX_PASSWORD_LENGTH;
+
+// Mirrors the backend DTO rules; a field is "bad" when non-empty-but-blank or too long. Required-ness is checked at submit.
+const textInvalid = (v: string | undefined, required: boolean) =>
+  (!!v && (v.length > MAX_TEXT_LENGTH || !v.trim())) || (required && !v?.trim());
 
 export default function AdminPanel() {
   const { t } = useTranslation();
@@ -669,6 +676,8 @@ export default function AdminPanel() {
             value={formData.username || ''}
             onChange={(e) => setFormData({ ...formData, username: e.target.value })}
             required
+            error={!!formData.username && textInvalid(formData.username, false)}
+            helperText={formData.username && textInvalid(formData.username, false) ? t('admin.usernameInvalid') : undefined}
           />
           <TextField
             fullWidth
@@ -677,6 +686,8 @@ export default function AdminPanel() {
             value={formData.name || ''}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             required
+            error={!!formData.name && textInvalid(formData.name, false)}
+            helperText={formData.name && textInvalid(formData.name, false) ? t('admin.nameInvalid') : undefined}
           />
           <TextField
             fullWidth
@@ -685,11 +696,13 @@ export default function AdminPanel() {
             type="password"
             value={formData.password || ''}
             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-            error={!!formData.password && formData.password.length < MIN_PASSWORD_LENGTH}
+            error={!!formData.password && passwordInvalid(formData.password)}
             helperText={
               formData.password && formData.password.length < MIN_PASSWORD_LENGTH
                 ? t('admin.passwordTooShort')
-                : t('admin.passwordless')
+                : formData.password && formData.password.length > MAX_PASSWORD_LENGTH
+                  ? t('admin.passwordTooLong')
+                  : t('admin.passwordless')
             }
           />
           <FormControl fullWidth margin="normal">
@@ -725,7 +738,12 @@ export default function AdminPanel() {
           </Button>
           <Button 
             onClick={() => runOnce(handleCreateUser)}
-            disabled={submitting || (!!formData.password && formData.password.length < MIN_PASSWORD_LENGTH)}
+            disabled={
+              submitting ||
+              textInvalid(formData.username, true) ||
+              textInvalid(formData.name, true) ||
+              (!!formData.password && passwordInvalid(formData.password))
+            }
             variant="contained"
             fullWidth
             size="large"
@@ -747,6 +765,8 @@ export default function AdminPanel() {
             value={formData.username || ''}
             onChange={(e) => setFormData({ ...formData, username: e.target.value })}
             disabled={selectedUser?.authProvider === AuthProvider.NEXTCLOUD}
+            error={textInvalid(formData.username, true)}
+            helperText={textInvalid(formData.username, true) ? t('admin.usernameInvalid') : undefined}
           />
           <TextField
             fullWidth
@@ -754,6 +774,8 @@ export default function AdminPanel() {
             label={t('admin.name')}
             value={formData.name || ''}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            error={!!formData.name && formData.name.length > MAX_TEXT_LENGTH}
+            helperText={formData.name && formData.name.length > MAX_TEXT_LENGTH ? t('admin.nameInvalid') : undefined}
           />
           <FormControl fullWidth margin="normal">
             <InputLabel>{t('admin.role')}</InputLabel>
@@ -796,7 +818,9 @@ export default function AdminPanel() {
             {t('admin.cancel')}
           </Button>
           <Button 
-            onClick={() => runOnce(handleUpdateUser)} disabled={submitting} 
+            onClick={() => runOnce(handleUpdateUser)}
+            disabled={submitting || textInvalid(formData.username, true) || (formData.name?.length ?? 0) > MAX_TEXT_LENGTH}
+
             variant="contained"
             fullWidth
             size="large"
@@ -881,8 +905,14 @@ export default function AdminPanel() {
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             required
-            error={newPassword.length > 0 && newPassword.length < MIN_PASSWORD_LENGTH}
-            helperText={newPassword.length > 0 && newPassword.length < MIN_PASSWORD_LENGTH ? t('admin.passwordTooShort') : undefined}
+            error={newPassword.length > 0 && passwordInvalid(newPassword)}
+            helperText={
+              newPassword.length > MAX_PASSWORD_LENGTH
+                ? t('admin.passwordTooLong')
+                : newPassword.length > 0 && newPassword.length < MIN_PASSWORD_LENGTH
+                  ? t('admin.passwordTooShort')
+                  : undefined
+            }
           />
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
@@ -897,7 +927,7 @@ export default function AdminPanel() {
           </Button>
           <Button 
             onClick={() => runOnce(handleSetPassword)}
-            disabled={submitting || newPassword.length < MIN_PASSWORD_LENGTH}
+            disabled={submitting || passwordInvalid(newPassword)}
             variant="contained"
             fullWidth
             size="large"

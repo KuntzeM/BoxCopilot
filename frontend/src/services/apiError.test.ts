@@ -7,6 +7,11 @@ describe('extractApiError', () => {
     expect(extractApiError({ response: { data: { message: 'M' } } }, 'fb')).toBe('M');
   });
 
+  it('localizes a validation response and lists the field messages, not the raw message', () => {
+    const err = { response: { data: { status: 400, message: 'Validation failed', fieldErrors: { username: 'Username must be at most 255 characters' } } } };
+    expect(extractApiError(err, 'fb')).toBe('Eingabe ungültig: username – Username must be at most 255 characters');
+  });
+
   it('ignores the raw err.message and returns the fallback', () => {
     expect(extractApiError(new Error('Request failed with status code 500'), 'fb')).toBe('fb');
     expect(extractApiError({ message: 'Network Error', response: { data: {} } }, 'fb')).toBe('fb');

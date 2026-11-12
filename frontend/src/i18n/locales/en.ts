@@ -204,6 +204,7 @@ export const en: TranslationKeys = {
     skipPhoto: 'Continue without photo',
   },
   errors: {
+    validationFailed: 'Invalid input',
     invalidBoxId: 'Invalid Box ID',
     boxNotFound: 'Box not found',
     boxLoadFailed: 'Failed to load box',
@@ -286,6 +287,9 @@ export const en: TranslationKeys = {
     userDeleted: 'User deleted',
     passwordSet: 'Password set',
     passwordSetSessionsEnded: 'Active sessions of this user were ended.',
+    usernameInvalid: 'Username must not be blank and at most 255 characters.',
+    nameInvalid: 'Name must not be blank and at most 255 characters.',
+    passwordTooLong: 'Password must be at most 128 characters.',
     passwordTooShort: 'Password must be at least 12 characters.',
     confirmRoleChangeTitle: 'Change role',
     confirmRoleChange: 'Change the role of {{username}} to {{role}}?',

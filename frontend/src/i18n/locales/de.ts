@@ -202,6 +202,7 @@ export const de = {
     skipPhoto: 'Ohne Foto weiter',
   },
   errors: {
+    validationFailed: 'Eingabe ungültig',
     invalidBoxId: 'Ungültige Box-ID',
     boxNotFound: 'Box nicht gefunden',
     boxLoadFailed: 'Box konnte nicht geladen werden',
@@ -284,6 +285,9 @@ export const de = {
     userDeleted: 'Benutzer gelöscht',
     passwordSet: 'Passwort gesetzt',
     passwordSetSessionsEnded: 'Aktive Sitzungen des Nutzers wurden beendet.',
+    usernameInvalid: 'Benutzername darf nicht leer sein und höchstens 255 Zeichen haben.',
+    nameInvalid: 'Name darf nicht leer sein und höchstens 255 Zeichen haben.',
+    passwordTooLong: 'Das Passwort darf höchstens 128 Zeichen lang sein.',
     passwordTooShort: 'Das Passwort muss mindestens 12 Zeichen lang sein.',
     confirmRoleChangeTitle: 'Rolle ändern',
     confirmRoleChange: 'Rolle von {{username}} auf {{role}} ändern?',
