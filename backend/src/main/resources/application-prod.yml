@@ -49,6 +49,10 @@ frontend:
 
 # Image Storage
 app:
+  proxy:
+    # Default for server.tomcat.remoteip.internal-proxies. A blank TRUSTED_PROXY_PATTERN counts as unset (see
+    # TrustedProxyDefault); a Spring placeholder alone would take the empty value literally.
+    default-trusted-pattern: "10\\.\\d\\d?\\d?\\.\\d\\d?\\d?\\.\\d\\d?\\d?|192\\.168\\.\\d\\d?\\d?\\.\\d\\d?\\d?|172\\.(1[6-9]|2\\d|3[01])\\.\\d\\d?\\d?\\.\\d\\d?\\d?|127\\.\\d\\d?\\d?\\.\\d\\d?\\d?\\.\\d\\d?\\d?|0:0:0:0:0:0:0:1|::1"
   image:
     storage:
       path: ${APP_IMAGE_STORAGE_PATH:/var/boxcopilot/images}
@@ -80,7 +84,7 @@ server:
       # TRUSTED_PROXY_PATTERN. That value is a JAVA REGULAR EXPRESSION, which is what Tomcat matches the
       # address against - CIDR notation such as 10.0.0.0/8 matches nothing and would silently distrust every
       # proxy. The pattern deliberately avoids {n,m} quantifiers: a closing brace would end the placeholder.
-      internal-proxies: "${TRUSTED_PROXY_PATTERN:10\\.\\d\\d?\\d?\\.\\d\\d?\\d?\\.\\d\\d?\\d?|192\\.168\\.\\d\\d?\\d?\\.\\d\\d?\\d?|172\\.(1[6-9]|2\\d|3[01])\\.\\d\\d?\\d?\\.\\d\\d?\\d?|127\\.\\d\\d?\\d?\\.\\d\\d?\\d?\\.\\d\\d?\\d?|0:0:0:0:0:0:0:1|::1}"
+      internal-proxies: "${TRUSTED_PROXY_PATTERN:${app.proxy.default-trusted-pattern}}"
   servlet:
     session:
       cookie:

@@ -1,2 +1,3 @@
 org.springframework.boot.EnvironmentPostProcessor=\
-com.boxcopilot.backend.mcp.McpStarterSwitch
+com.boxcopilot.backend.mcp.McpStarterSwitch,\
+com.boxcopilot.backend.config.TrustedProxyDefault

@@ -87,6 +87,7 @@ final class RealTomcat {
                 StandardEnvironment resolver = new StandardEnvironment();
                 yaml.forEach(resolver.getPropertySources()::addFirst);
                 resolver.getPropertySources().addFirst(new MapPropertySource("operator", operator));
+                new com.boxcopilot.backend.config.TrustedProxyDefault().postProcessEnvironment(resolver, null);
                 context.getEnvironment().getPropertySources().addFirst(new MapPropertySource("prod-proxy", Map.of(
                         "server.forward-headers-strategy", resolver.getProperty("server.forward-headers-strategy"),
                         "server.tomcat.remoteip.internal-proxies",
@@ -100,6 +101,13 @@ final class RealTomcat {
     static class DefaultPattern extends ProdProxySettings {
         DefaultPattern() {
             super(Map.of());
+        }
+    }
+
+    /** The operator left {@code TRUSTED_PROXY_PATTERN=} blank, which must behave like unset. */
+    static class BlankPattern extends ProdProxySettings {
+        BlankPattern() {
+            super(Map.of("TRUSTED_PROXY_PATTERN", ""));
         }
     }
 
