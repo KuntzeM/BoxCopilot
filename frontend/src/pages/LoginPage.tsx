@@ -7,11 +7,16 @@ import {
   Divider, 
   Alert,
   Paper,
-  Container
+  Container,
+  CircularProgress,
+  IconButton,
+  InputAdornment,
 } from '@mui/material';
-import { Inventory2, Login as LoginIcon } from '@mui/icons-material';
+import { Inventory2, Login as LoginIcon, Visibility, VisibilityOff } from '@mui/icons-material';
 import { useTranslation } from '../hooks/useTranslation';
 import axios from '../services/axiosConfig';
+import { extractRetryAfterSeconds } from '../services/apiError';
+import LanguageSelector from '../components/LanguageSelector';
 
 interface LoginPageProps {
   onLoginSuccess: () => void;
@@ -21,8 +26,14 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const { t } = useTranslation();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  // Backend redirects here with ?error=login_failed after a failed Nextcloud login
+  const [error, setError] = useState<string | null>(() =>
+    new URLSearchParams(window.location.search).get('error') === 'login_failed'
+      ? t('auth.nextcloudLoginFailed')
+      : null
+  );
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleFormLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,8 +41,9 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
     setLoading(true);
 
     try {
-      // First, ensure CSRF token is fetched
-      await axios.get('/api/v1/csrf');
+      // Fetch a fresh CSRF token and send it explicitly, the login POST is CSRF-protected
+      const csrfResponse = await axios.get<{ token: string }>('/api/v1/csrf');
+      axios.defaults.headers.common['X-XSRF-TOKEN'] = csrfResponse.data.token;
       
       const formData = new URLSearchParams();
       formData.append('username', username);
@@ -47,10 +59,12 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
         onLoginSuccess();
       }
     } catch (err: any) {
-      if (err.response?.data?.error) {
-        setError(err.response.data.error);
+      const status = err.response?.status;
+      if (status === 429) {
+        const seconds = extractRetryAfterSeconds(err) ?? 60;
+        setError(t('auth.tooManyAttempts', { minutes: String(Math.max(1, Math.ceil(seconds / 60))) }));
       } else {
-        setError(t('auth.invalidCredentials'));
+        setError(status === 401 ? t('auth.loginFailed') : t('auth.loginUnavailable'));
       }
     } finally {
       setLoading(false);
@@ -58,12 +72,16 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
   };
 
   const handleNextcloudLogin = () => {
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+    // Empty base URL = same origin (reverse proxy), consistent with the other API helpers
+    const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
     window.location.href = `${apiBaseUrl}/oauth2/authorization/nextcloud`;
   };
 
   return (
     <Container maxWidth="sm">
+      <Box sx={{ position: 'absolute', top: 8, right: 8 }}>
+        <LanguageSelector />
+      </Box>
       <Box
         sx={{
           display: 'flex',
@@ -107,17 +125,36 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
               margin="normal"
               required
               autoComplete="username"
+              autoCapitalize="off"
+              autoCorrect="off"
               autoFocus
             />
             <TextField
               fullWidth
               label={t('auth.password')}
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               margin="normal"
               required
               autoComplete="current-password"
+              autoCapitalize="off"
+              autoCorrect="off"
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        edge="end"
+                        onClick={() => setShowPassword((v) => !v)}
+                        aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
+                      >
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
             />
             <Button
               type="submit"
@@ -125,6 +162,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
               variant="contained"
               size="large"
               disabled={loading}
+              startIcon={loading ? <CircularProgress size={20} color="inherit" /> : undefined}
               sx={{ mt: 3, mb: 2 }}
             >
               {t('auth.login')}

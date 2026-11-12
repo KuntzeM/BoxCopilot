@@ -1,6 +1,7 @@
 package com.boxcopilot.backend.config;
 
 import com.boxcopilot.backend.domain.Box;
+import com.boxcopilot.backend.repository.BoxNumberPoolRepository;
 import com.boxcopilot.backend.repository.BoxRepository;
 import com.boxcopilot.backend.service.BoxNumberService;
 import jakarta.annotation.PostConstruct;
@@ -24,9 +25,12 @@ public class BoxNumberMigration {
     private final BoxRepository boxRepository;
     private final BoxNumberService boxNumberService;
     private final TransactionTemplate transactionTemplate;
+    private final BoxNumberPoolRepository poolRepository;
 
-    public BoxNumberMigration(BoxRepository boxRepository, BoxNumberService boxNumberService, TransactionTemplate transactionTemplate) {
+    public BoxNumberMigration(BoxRepository boxRepository, BoxNumberService boxNumberService,
+                              TransactionTemplate transactionTemplate, BoxNumberPoolRepository poolRepository) {
         this.boxRepository = boxRepository;
+        this.poolRepository = poolRepository;
         this.boxNumberService = boxNumberService;
         this.transactionTemplate = transactionTemplate;
     }
@@ -40,25 +44,19 @@ public class BoxNumberMigration {
     }
 
     private void performMigration() {
-        // Find all boxes with null-safe sorting by createdAt
-        List<Box> allBoxes = boxRepository.findAll().stream()
+        List<Box> boxesWithoutNumbers = boxRepository.findByBoxNumberIsNull().stream()
             .sorted(Comparator.comparing(Box::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
             .toList();
 
-        if (allBoxes.isEmpty()) {
-            log.info("No boxes found for box number migration");
+        // Healthy database: every box is numbered and the pool already exists -> nothing to do, no scan.
+        if (boxesWithoutNumbers.isEmpty() && poolRepository.count() > 0) {
+            log.info("No boxes need box number migration");
             return;
         }
 
         // First, ensure existing numbers are reserved in the pool.
-        allBoxes.stream()
-            .filter(box -> box.getBoxNumber() != null)
+        boxRepository.findByBoxNumberIsNotNull()
             .forEach(box -> boxNumberService.reserveBoxNumber(box.getBoxNumber()));
-
-        // Then assign numbers to boxes that lack one.
-        List<Box> boxesWithoutNumbers = allBoxes.stream()
-            .filter(box -> box.getBoxNumber() == null)
-            .toList();
 
         if (boxesWithoutNumbers.isEmpty()) {
             log.info("No boxes need box number migration");

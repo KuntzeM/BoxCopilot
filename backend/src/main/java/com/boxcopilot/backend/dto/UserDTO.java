@@ -17,9 +17,8 @@ public class UserDTO {
     private Boolean enabled;
     private LocalDateTime createdAt;
     private LocalDateTime lastLogin;
-    private Integer failedLoginAttempts;
-    private LocalDateTime lockedUntil;
     private Boolean hasPassword;
+    private Boolean mcpAllowed;
     private LocalDateTime lastMagicLinkCreatedAt;
     private LocalDateTime lastMagicLinkExpiresAt;
     private Boolean lastMagicLinkUsed;
@@ -29,7 +28,7 @@ public class UserDTO {
     
     public UserDTO(Long id, String username, String name, AuthProvider authProvider, Role role, 
                    Boolean enabled, LocalDateTime createdAt, LocalDateTime lastLogin, 
-                   Integer failedLoginAttempts, LocalDateTime lockedUntil) {
+                   Boolean hasPassword) {
         this.id = id;
         this.username = username;
         this.name = name;
@@ -38,23 +37,6 @@ public class UserDTO {
         this.enabled = enabled;
         this.createdAt = createdAt;
         this.lastLogin = lastLogin;
-        this.failedLoginAttempts = failedLoginAttempts;
-        this.lockedUntil = lockedUntil;
-    }
-    
-    public UserDTO(Long id, String username, String name, AuthProvider authProvider, Role role, 
-                   Boolean enabled, LocalDateTime createdAt, LocalDateTime lastLogin, 
-                   Integer failedLoginAttempts, LocalDateTime lockedUntil, Boolean hasPassword) {
-        this.id = id;
-        this.username = username;
-        this.name = name;
-        this.authProvider = authProvider;
-        this.role = role;
-        this.enabled = enabled;
-        this.createdAt = createdAt;
-        this.lastLogin = lastLogin;
-        this.failedLoginAttempts = failedLoginAttempts;
-        this.lockedUntil = lockedUntil;
         this.hasPassword = hasPassword;
     }
     
@@ -124,28 +106,20 @@ public class UserDTO {
         this.lastLogin = lastLogin;
     }
     
-    public Integer getFailedLoginAttempts() {
-        return failedLoginAttempts;
-    }
-    
-    public void setFailedLoginAttempts(Integer failedLoginAttempts) {
-        this.failedLoginAttempts = failedLoginAttempts;
-    }
-    
-    public LocalDateTime getLockedUntil() {
-        return lockedUntil;
-    }
-    
-    public void setLockedUntil(LocalDateTime lockedUntil) {
-        this.lockedUntil = lockedUntil;
-    }
-    
-    public Boolean getHasPassword() {
+public Boolean getHasPassword() {
         return hasPassword;
     }
     
     public void setHasPassword(Boolean hasPassword) {
         this.hasPassword = hasPassword;
+    }
+
+    public Boolean getMcpAllowed() {
+        return mcpAllowed;
+    }
+
+    public void setMcpAllowed(Boolean mcpAllowed) {
+        this.mcpAllowed = mcpAllowed;
     }
 
     public LocalDateTime getLastMagicLinkCreatedAt() {

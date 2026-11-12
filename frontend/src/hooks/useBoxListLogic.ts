@@ -1,15 +1,14 @@
-import { useState, useEffect, useMemo, createElement } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box as BoxModel, CreateBoxPayload, Item } from '../types/models';
 import { fetchBoxes, createBox, deleteBox } from '../services/boxService';
 import { fetchItemsByBoxUuid, searchItems } from '../services/itemService';
 import { useTranslation } from './useTranslation';
+import { generateLabelPdf } from '../utils/labelPdf';
 
 type SnackbarState = { open: boolean; message: string; severity: 'success' | 'error' | 'info' };
 
 // PDF Generation Constants
-const BASE_TIMEOUT_MS = 30000; // 30 seconds base timeout for PDF generation
-const PER_BOX_TIMEOUT_MS = 2000; // Additional 2 seconds per box
 const BLOB_CLEANUP_TIMEOUT_MS = 300000; // 5 minutes fallback cleanup for blob URLs
 
 /**
@@ -31,6 +30,7 @@ export const useBoxListLogic = () => {
   const [filteredBoxes, setFilteredBoxes] = useState<BoxModel[]>([]);
   const [matchedItemIds, setMatchedItemIds] = useState<Set<number>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   
   // Filter state
   const [itemQuery, setItemQuery] = useState('');
@@ -66,6 +66,8 @@ export const useBoxListLogic = () => {
     labelPrinted: false
   });
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [isSubmittingBox, setIsSubmittingBox] = useState(false);
+  const [isDeletingBox, setIsDeletingBox] = useState(false);
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
   const [boxItemsById, setBoxItemsById] = useState<Record<number, Item[]>>({});
   const [loadingBoxItemIds, setLoadingBoxItemIds] = useState<Set<number>>(new Set());
@@ -109,6 +111,7 @@ export const useBoxListLogic = () => {
   // === Data Operations ===
   const loadData = async () => {
     setIsLoading(true);
+    setLoadError(false);
     try {
       const boxes = await fetchBoxes({ includeItems: false });
 
@@ -130,7 +133,7 @@ export const useBoxListLogic = () => {
       }, {});
       setBoxItemsById(initialItemsById);
     } catch (error) {
-      setSnackbar({ open: true, message: t('errors.boxesFetchFailed'), severity: 'error' });
+      setLoadError(true);
     } finally {
       setIsLoading(false);
     }
@@ -288,65 +291,18 @@ export const useBoxListLogic = () => {
     window.open(url, '_blank');
   };
 
-  const handlePrintLabels = async () => {
+  // Resolves true only when the PDF was generated and opened
+  const handlePrintLabels = async (): Promise<boolean> => {
     if (selectedBoxes.length === 0) {
       setSnackbar({ open: true, message: t('boxes.noBoxSelected'), severity: 'info' });
-      return;
+      return false;
     }
     
     try {
-      // Dynamically import PDF dependencies (code splitting)
-      const [{ pdf }, { LabelPDFDocument }, { generateQRCodesForBoxes }, { registerPDFFonts }] = await Promise.all([
-        import('@react-pdf/renderer'),
-        import('../components/LabelPDFDocument'),
-        import('../utils/printUtils'),
-        import('../utils/pdfFonts'),
-      ]);
-      
-      // Register fonts for PDF
-      registerPDFFonts();
-      
-      // Show progress dialog
-      setPdfProgress({ open: true, current: 0, total: selectedBoxes.length, currentBoxNumber: '' });
-      
-      // Generate QR codes with progress updates
-      const qrCodes = await generateQRCodesForBoxes(
-        selectedBoxes,
-        (current, total, boxNumber) => {
-          setPdfProgress({ open: true, current, total, currentBoxNumber: boxNumber });
-        }
+      const pdfBlob = await generateLabelPdf(selectedBoxes, t, (current, total, boxNumber) =>
+        setPdfProgress({ open: true, current, total, currentBoxNumber: boxNumber }),
       );
-      
-      // Prepare translations (cannot use hooks inside PDF components)
-      // Extract box number prefix by removing the {{number}} placeholder
-      // Expected format: "#{{number}}" or "Box {{number}}"
-      const boxNumberTemplate = t('boxes.boxNumber');
-      const boxNumberPlaceholder = '{{number}}';
-      const placeholderIndex = boxNumberTemplate.indexOf(boxNumberPlaceholder);
-      const boxNumberPrefix =
-        placeholderIndex !== -1
-          ? boxNumberTemplate.slice(0, placeholderIndex).trimEnd()
-          : '#'; // Fallback to '#' if placeholder not found
-      
-      const translations = {
-        boxNumber: boxNumberPrefix,
-        targetRoom: t('boxes.targetRoom').toUpperCase(),
-        fragile: t('boxes.fragilePrintLabel'),
-        doNotStack: t('boxes.noStackPrintLabel'),
-      };
-      
-      // Generate PDF blob with dynamic timeout (base 30s + 2s per box)
-      const timeoutDuration = BASE_TIMEOUT_MS + (selectedBoxes.length * PER_BOX_TIMEOUT_MS);
-      const pdfBlobPromise = pdf(
-        createElement(LabelPDFDocument, { boxes: selectedBoxes, qrCodes, translations })
-      ).toBlob();
-      
-      const timeoutPromise = new Promise<Blob>((_, reject) => {
-        setTimeout(() => reject(new Error('PDF generation timeout')), timeoutDuration);
-      });
-      
-      const pdfBlob = await Promise.race([pdfBlobPromise, timeoutPromise]);
-      
+
       // Close progress dialog
       setPdfProgress({ open: false, current: 0, total: 0, currentBoxNumber: '' });
       
@@ -379,6 +335,7 @@ export const useBoxListLogic = () => {
         }, 500);
       });
       
+      return true;
     } catch (error) {
       console.error('[PDF] Label generation failed:', error);
       
@@ -391,6 +348,7 @@ export const useBoxListLogic = () => {
         : t('boxes.pdfGenerationFailed');
       
       setSnackbar({ open: true, message: errorMessage, severity: 'error' });
+      return false;
     }
   };
 
@@ -401,6 +359,8 @@ export const useBoxListLogic = () => {
   };
 
   const handleSubmitBox = async () => {
+    if (isSubmittingBox) return;
+    setIsSubmittingBox(true);
     try {
       const newBox = await createBox(boxFormData as CreateBoxPayload);
       setSnackbar({ open: true, message: t('success.boxCreated'), severity: 'success' });
@@ -409,11 +369,14 @@ export const useBoxListLogic = () => {
       navigate(`/app/boxes/${newBox.id}/edit`);
     } catch (error) {
       setSnackbar({ open: true, message: t('errors.boxCreateFailed'), severity: 'error' });
+    } finally {
+      setIsSubmittingBox(false);
     }
   };
 
   const handleDeleteBox = async () => {
-    if (deleteConfirmId === null) return;
+    if (deleteConfirmId === null || isDeletingBox) return;
+    setIsDeletingBox(true);
     try {
       await deleteBox(deleteConfirmId);
       setSnackbar({ open: true, message: t('success.boxDeleted'), severity: 'success' });
@@ -421,6 +384,8 @@ export const useBoxListLogic = () => {
       await loadData();
     } catch (error) {
       setSnackbar({ open: true, message: t('errors.boxDeleteFailed'), severity: 'error' });
+    } finally {
+      setIsDeletingBox(false);
     }
   };
 
@@ -469,6 +434,7 @@ export const useBoxListLogic = () => {
     filteredBoxes,
     matchedItemIds,
     isLoading,
+    loadError,
     itemQuery,
     setItemQuery,
     roomQuery,
@@ -496,6 +462,8 @@ export const useBoxListLogic = () => {
     setBoxFormData,
     deleteConfirmId,
     setDeleteConfirmId,
+    isSubmittingBox,
+    isDeletingBox,
     fullImageUrl,
     setFullImageUrl,
     drawerOpen,

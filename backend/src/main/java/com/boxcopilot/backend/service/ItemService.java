@@ -14,9 +14,9 @@ import jakarta.annotation.PostConstruct;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -34,9 +34,12 @@ public class ItemService {
     private final BoxRepository boxRepository;
     private final ItemMapper itemMapper;
     private final ImageStorageService imageStorageService;
+    private final TransactionTemplate transactionTemplate;
 
     public ItemService(ItemRepository itemRepository, BoxRepository boxRepository, 
-                      ItemMapper itemMapper, ImageStorageService imageStorageService) {
+                      ItemMapper itemMapper, ImageStorageService imageStorageService,
+                      TransactionTemplate transactionTemplate) {
+        this.transactionTemplate = transactionTemplate;
         this.itemRepository = itemRepository;
         this.boxRepository = boxRepository;
         this.itemMapper = itemMapper;
@@ -45,21 +48,8 @@ public class ItemService {
 
     @PostConstruct
     public void initImageTokens() {
-        ensureImageTokens();
-    }
-
-    /**
-     * Retrieves all items.
-     */
-    @Transactional(readOnly = true)
-    public List<ItemResponseDTO> getAllItems() {
-        log.debug("Service: Fetching all items");
-        List<ItemResponseDTO> items = itemRepository.findAll().stream()
-            .sorted(Comparator.comparing(Item::getName, String.CASE_INSENSITIVE_ORDER))
-            .map(itemMapper::toResponseDTO)
-            .collect(Collectors.toList());
-        log.debug("Service: Found {} items", items.size());
-        return items;
+        // @PostConstruct bypasses the @Transactional proxy; Postgres needs a transaction for the Box @Lob.
+        transactionTemplate.executeWithoutResult(status -> ensureImageTokens());
     }
 
     /**
@@ -181,18 +171,16 @@ public class ItemService {
                 return new ResourceNotFoundException("Item not found with ID: " + itemId);
             });
         
-        // Delete old image if exists
-        if (item.getImagePath() != null && !item.getImagePath().isBlank()) {
+        // Save (and validate) the new image first so a rejected upload leaves the existing one intact
+        String oldPath = item.getImagePath();
+        String imagePath = imageStorageService.saveImage(itemId, file);
+        if (oldPath != null && !oldPath.isBlank() && !oldPath.equals(imagePath)) {
             try {
-                imageStorageService.deleteImage(item.getImagePath());
-                log.debug("Service: Deleted old image for item ID: {}", itemId);
+                imageStorageService.deleteImage(oldPath);
             } catch (Exception e) {
                 log.warn("Service: Failed to delete old image for item ID: {}", itemId, e);
             }
         }
-        
-        // Save new image
-        String imagePath = imageStorageService.saveImage(itemId, file);
         item.setImagePath(imagePath);
         item.setImageUpdatedAt(System.currentTimeMillis());
         Item savedItem = itemRepository.save(item);
@@ -313,17 +301,12 @@ public class ItemService {
      */
     @Transactional
     public void ensureImageTokens() {
-        List<Item> items = itemRepository.findAll().stream()
-            .filter(i -> i.getImageToken() == null || i.getImageToken().isBlank())
-            .toList();
-        if (items.isEmpty()) {
-            return;
+        List<Long> ids = itemRepository.findIdsWithoutImageToken();
+        for (Long id : ids) {
+            itemRepository.updateImageToken(id, UUID.randomUUID().toString());
         }
-        for (Item item : items) {
-            item.setImageToken(UUID.randomUUID().toString());
+        if (!ids.isEmpty()) {
+            log.info("Backfilled image tokens for {} items", ids.size());
         }
-        itemRepository.saveAll(items);
-        log.info("Backfilled image tokens for {} items", items.size());
     }
 }
-

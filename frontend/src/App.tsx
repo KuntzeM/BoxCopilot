@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
+import { Routes, Route, Navigate, Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
   CssBaseline, 
   Container, 
@@ -20,26 +20,32 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-import { 
-  Inventory2, 
-  WbSunny, 
-  DarkMode, 
-  Logout, 
+import {
+  Inventory2,
+  WbSunny,
+  DarkMode,
+  Logout,
   AdminPanelSettings,
   Menu as MenuIcon,
   Language as LanguageIcon,
 } from '@mui/icons-material';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 import axios from './services/axiosConfig';
-import BoxList from './pages/BoxList';
 import PublicPreview from './pages/PublicPreview';
-import BoxEditPage from './pages/BoxEditPage';
 import LoginPage from './pages/LoginPage';
-import AdminPanel from './pages/AdminPanel';
+import MagicLoginPage from './pages/MagicLoginPage';
+import ClaudeConnectionDialog from './components/ClaudeConnectionDialog';
 import { CookieThemeProvider, useThemeContext } from './context/ThemeContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { useTranslation } from './hooks/useTranslation';
+import { useMcpContinue } from './hooks/useMcpContinue';
 import LanguageSelector from './components/LanguageSelector';
 import { Role, UserPrincipal } from './types/models';
+
+// Authenticated-only pages are split out so /public/:token and login stay light.
+const BoxList = lazy(() => import('./pages/BoxList'));
+const BoxEditPage = lazy(() => import('./pages/BoxEditPage'));
+const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 
 function LoadingScreen() {
   return (
@@ -51,8 +57,7 @@ function LoadingScreen() {
 
 function hasAdminAccess(user: UserPrincipal | null) {
   if (!user) return false;
-  const anyUser = user as any;
-  return user.role === Role.ADMIN || user.isAdmin === true || anyUser.admin === true;
+  return user.role === Role.ADMIN || user.admin === true;
 }
 
 function ProtectedRoute({
@@ -68,9 +73,6 @@ function ProtectedRoute({
   children: React.ReactElement;
   requireAdmin?: boolean;
 }) {
-  const location = useLocation();
-  const navigate = useNavigate();
-
   if (isLoading) {
     return <LoadingScreen />;
   }
@@ -81,9 +83,7 @@ function ProtectedRoute({
 
   // Check admin requirement
   if (requireAdmin && !hasAdminAccess(user)) {
-    // Redirect non-admins away from admin routes
-    navigate('/app/boxes');
-    return null;
+    return <Navigate to="/app/boxes" replace />;
   }
 
   return children;
@@ -96,11 +96,13 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [claudeDialogOpen, setClaudeDialogOpen] = useState(false);
 
   const handleLogout = async () => {
     try {
-      await axios.post('/api/auth/logout');
-      window.location.href = '/';
+      // Same-origin answer {redirectUrl}: the IdP end-session URL (OIDC users) or the frontend itself.
+      const { data } = await axios.post<{ redirectUrl?: string }>('/api/auth/logout');
+      window.location.assign(data?.redirectUrl || '/');
     } catch (error) {
       console.error('Logout failed:', error);
       // Force reload anyway to clear state
@@ -122,6 +124,11 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
     handleCloseMobileMenu();
   };
 
+  const handleMobileClaudeClick = () => {
+    setClaudeDialogOpen(true);
+    handleCloseMobileMenu();
+  };
+
   const handleMobileLogout = async () => {
     handleCloseMobileMenu();
     await handleLogout();
@@ -132,8 +139,9 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
       <AppBar position="static" elevation={2}>
         <Toolbar>
           <Box
-            onClick={() => navigate('/app/boxes')}
-            sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}
+            component={RouterLink}
+            to="/app/boxes"
+            sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'inherit', textDecoration: 'none' }}
             aria-label={t('app.title')}
           >
             <Inventory2 />
@@ -156,7 +164,7 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
             <IconButton
               onClick={() => setMobileMenuOpen(true)}
               color="inherit"
-              aria-label="Menu"
+              aria-label={t('app.menu')}
               size="large"
               sx={{ minWidth: 48, minHeight: 48 }}
             >
@@ -176,6 +184,11 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
                 {mode === 'light' ? <DarkMode /> : <WbSunny />}
               </IconButton>
               <LanguageSelector variant="icon" />
+              {user && (
+                <Typography variant="body2" sx={{ ml: 1, fontWeight: 600 }}>
+                  {user.name || user.username}
+                </Typography>
+              )}
               {hasAdminAccess(user) && (
                 <Button
                   color="inherit"
@@ -183,7 +196,17 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
                   onClick={() => navigate('/app/admin')}
                   sx={{ ml: 1 }}
                 >
-                  Admin
+                  {t('app.admin')}
+                </Button>
+              )}
+              {user?.mcpAllowed === true && (
+                <Button
+                  color="inherit"
+                  startIcon={<SmartToyIcon />}
+                  onClick={() => setClaudeDialogOpen(true)}
+                  sx={{ ml: 1 }}
+                >
+                  {t('mcp.title')}
                 </Button>
               )}
               <Button
@@ -204,8 +227,8 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
         anchor="right"
         open={mobileMenuOpen}
         onClose={handleCloseMobileMenu}
-        PaperProps={{
-          sx: { width: 280 },
+        slotProps={{
+          paper: { sx: { width: 280 } },
         }}
       >
         <Box sx={{ pt: 2 }}>
@@ -213,7 +236,7 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
             {/* User Info */}
             <ListItem sx={{ pb: 2 }}>
               <Box>
-                <Typography variant="subtitle1" fontWeight={600}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                   {user?.name || user?.username}
                 </Typography>
                 {user?.name && user?.username && (
@@ -248,7 +271,17 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
                 <ListItemIcon>
                   <AdminPanelSettings color="primary" />
                 </ListItemIcon>
-                <ListItemText primary="Admin" />
+                <ListItemText primary={t('app.admin')} />
+              </ListItemButton>
+            )}
+
+            {/* Claude Connection */}
+            {user?.mcpAllowed === true && (
+              <ListItemButton onClick={handleMobileClaudeClick} sx={{ minHeight: 56 }}>
+                <ListItemIcon>
+                  <SmartToyIcon color="primary" />
+                </ListItemIcon>
+                <ListItemText primary={t('mcp.title')} />
               </ListItemButton>
             )}
 
@@ -263,9 +296,13 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
         </Box>
       </Drawer>
 
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-        {children}
+      <Container component="main" maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        <Suspense fallback={<CircularProgress aria-label="loading" />}>{children}</Suspense>
       </Container>
+
+      {user?.mcpAllowed === true && (
+        <ClaudeConnectionDialog open={claudeDialogOpen} onClose={() => setClaudeDialogOpen(false)} />
+      )}
     </>
   );
 }
@@ -274,16 +311,13 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<UserPrincipal | null>(null);
+  const location = useLocation();
 
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const response = await axios.get<UserPrincipal>('/api/v1/me');
-        const normalizedUser: UserPrincipal = {
-          ...response.data,
-          isAdmin:
-            response.data.isAdmin ?? (response.data as any).admin ?? response.data.role === Role.ADMIN,
-        };
+        const normalizedUser = response.data;
         setIsAuthenticated(normalizedUser.authenticated === true);
         setUser(normalizedUser);
         // Capture CSRF token from backend and set it for subsequent unsafe requests
@@ -302,12 +336,15 @@ export default function App() {
     checkAuth();
   }, []);
 
+  useMcpContinue(isAuthenticated, user?.mcpPending);
+
   return (
     <CookieThemeProvider>
       <LanguageProvider>
         <CssBaseline />
         <Routes>
           <Route path="/public/:token" element={<PublicPreview />} />
+          <Route path="/magic" element={<MagicLoginPage />} />
           <Route
             path="/app/boxes"
             element={
@@ -343,7 +380,8 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route path="*" element={<Navigate to="/app/boxes" replace />} />
+          {/* keep the query string so LoginPage can read ?error=login_failed */}
+          <Route path="*" element={<Navigate to={{ pathname: '/app/boxes', search: location.search }} replace />} />
         </Routes>
       </LanguageProvider>
     </CookieThemeProvider>

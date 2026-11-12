@@ -1,11 +1,16 @@
 package com.boxcopilot.backend.config;
 
+import com.boxcopilot.backend.repository.UserRepository;
+import com.boxcopilot.backend.security.LoginThrottle;
+import com.boxcopilot.backend.security.LoginThrottleFilter;
 import com.boxcopilot.backend.service.CustomOidcUserService;
 import com.boxcopilot.backend.service.CustomUserDetailsService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.HttpMethod;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -15,6 +20,10 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -63,15 +72,27 @@ public class OAuth2SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, 
+    SecurityContextRepository securityContextRepository() {
+        return new HttpSessionSecurityContextRepository();
+    }
+
+    @Bean
+    @Order(3)
+    SecurityFilterChain securityFilterChain(HttpSecurity http,
                                            AuthenticationSuccessHandler authenticationSuccessHandler,
-                                           AuthenticationFailureHandler authenticationFailureHandler) throws Exception {
-        
+                                           AuthenticationFailureHandler authenticationFailureHandler,
+                                           SecurityContextRepository securityContextRepository,
+                                           UserRepository userRepository,
+                                           LoginThrottle loginThrottle) throws Exception {
+
         http
+            .securityContext(context -> context.securityContextRepository(securityContextRepository))
+            .addFilterAfter(new SessionRevalidationFilter(userRepository), SecurityContextHolderFilter.class)
+            // After the CSRF filter, before form login: answers 429 before any DB/bcrypt work
+            .addFilterBefore(new LoginThrottleFilter(loginThrottle), UsernamePasswordAuthenticationFilter.class)
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                .ignoringRequestMatchers("/api/auth/login", "/api/v1/auth/magic-login")
             )
             .authorizeHttpRequests(auth -> auth
                 // Admin endpoints - require ADMIN role
@@ -80,8 +101,18 @@ public class OAuth2SecurityConfig {
                 .requestMatchers("/api/public/**", "/api/v1/public/**").permitAll()
                 .requestMatchers("/api/v1/public/items/**").permitAll()
                 .requestMatchers("/api/v1/me", "/api/v1/csrf").permitAll()
-                .requestMatchers("/api/auth/login", "/api/v1/auth/magic-login").permitAll()
-                .requestMatchers("/login/**", "/oauth2/**", "/error").permitAll()
+                .requestMatchers("/api/auth/login").permitAll()
+                // Only the POST redeems a magic link; a GET would put the token into URLs, logs and referrers
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/magic-login").permitAll()
+                // Resumes an interrupted MCP authorization. Public so that an expired session yields a redirect to
+                // the frontend instead of a 401 in a top-level navigation; the handler requires authentication
+                // itself. The literal keeps this configuration free of any dependency on the mcp package.
+                .requestMatchers(HttpMethod.GET, "/api/v1/mcp/continue").permitAll()
+                // Readiness probe for the container healthcheck. Only "health" is exposed (management.endpoints.web.
+                // exposure.include) and it shows no details; every other /actuator path is not exposed and falls
+                // through to authenticated(). A GET is exempt from CSRF and creates no session.
+                .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
+                .requestMatchers("/login/**", "/oauth2/authorization/**", "/error").permitAll()
                 // All other API endpoints require authentication
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().authenticated()
@@ -106,7 +137,7 @@ public class OAuth2SecurityConfig {
                 .logoutUrl("/api/auth/logout")
                 .logoutSuccessHandler(oidcLogoutSuccessHandler())
                 .invalidateHttpSession(true)
-                .deleteCookies("JSESSIONID", "XSRF-TOKEN")
+                .deleteCookies("SESSION", "XSRF-TOKEN")
             )
             .userDetailsService(customUserDetailsService);
 
@@ -155,14 +186,7 @@ public class OAuth2SecurityConfig {
 
     @Bean
     LogoutSuccessHandler oidcLogoutSuccessHandler() {
-        return new LogoutSuccessHandler() {
-            @Override
-            public void onLogoutSuccess(HttpServletRequest request, HttpServletResponse response,
-                                        Authentication authentication) throws IOException {
-                // Redirect to Nextcloud logout to end the OIDC session
-                response.sendRedirect(nextcloudLogoutUrl + "?redirect_uri=" + frontendUrl);
-            }
-        };
+        return new OidcLogoutSuccessHandler(frontendUrl, nextcloudLogoutUrl);
     }
     
     /**
@@ -176,7 +200,7 @@ public class OAuth2SecurityConfig {
             if (authentication.getPrincipal() instanceof CustomUserDetailsService.CustomUserPrincipal) {
                 CustomUserDetailsService.CustomUserPrincipal principal = 
                     (CustomUserDetailsService.CustomUserPrincipal) authentication.getPrincipal();
-                userService.updateLastLogin(principal.getUser());
+                userService.findByUsername(principal.getUsername()).ifPresent(userService::updateLastLogin);
             }
             
             response.setStatus(HttpServletResponse.SC_OK);
@@ -190,25 +214,13 @@ public class OAuth2SecurityConfig {
      * Injected into SecurityFilterChain to avoid circular dependency
      */
     @Bean
-    AuthenticationFailureHandler authenticationFailureHandler(com.boxcopilot.backend.service.UserService userService) {
+    AuthenticationFailureHandler authenticationFailureHandler(LoginThrottle throttle) {
         return (request, response, exception) -> {
-            // Record failed login attempt
-            String username = request.getParameter("username");
-            if (username != null) {
-                userService.recordFailedLogin(username);
-            }
-            
+            LoginThrottleFilter.recordFailure(throttle, request, request.getParameter("username"));
+            // One generic answer for wrong password, unknown user and disabled account (no account enumeration)
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType("application/json");
-            
-            String errorMessage = "Invalid credentials";
-            if (exception instanceof CustomUserDetailsService.AccountLockedException) {
-                errorMessage = exception.getMessage();
-            } else if (exception instanceof CustomUserDetailsService.DisabledException) {
-                errorMessage = "Account is disabled";
-            }
-            
-            response.getWriter().write("{\"error\":\"" + errorMessage + "\"}");
+            response.getWriter().write("{\"error\":\"Invalid credentials\"}");
         };
     }
 }

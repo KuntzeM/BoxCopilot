@@ -24,8 +24,11 @@ public class Box {
     @Column
     private String targetRoom;
 
+    // Schema validation expects `oid` for a @Lob String, but the V1 column is `text` and production rows hold the
+    // object ids of large objects as text. columnDefinition tells validation the real column type. This is not a
+    // Hibernate 7 behaviour change.
     @Lob
-    @Column
+    @Column(columnDefinition = "text")
     private String description;
 
     @Column(name = "is_fragile", nullable = false)

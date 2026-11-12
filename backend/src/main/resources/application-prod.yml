@@ -3,6 +3,11 @@ spring:
   config:
     activate:
       on-profile: prod
+  autoconfigure:
+    # Boot 4 dropped spring.session.store-type: every session store on the classpath is configured, so the one
+    # not wanted must be excluded. Production keeps its sessions in Redis.
+    exclude:
+      - org.springframework.boot.session.jdbc.autoconfigure.JdbcSessionAutoConfiguration
   datasource:
     url: ${SPRING_DATASOURCE_URL}
     username: ${POSTGRES_USER}
@@ -11,9 +16,6 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
-  session:
-    store-type: redis
-    timeout: 122400s
   security:
     oauth2:
       client:
@@ -34,6 +36,7 @@ spring:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -46,27 +49,47 @@ frontend:
 
 # Image Storage
 app:
+  proxy:
+    # Default for server.tomcat.remoteip.internal-proxies. A blank TRUSTED_PROXY_PATTERN counts as unset (see
+    # TrustedProxyDefault); a Spring placeholder alone would take the empty value literally.
+    default-trusted-pattern: "10\\.\\d\\d?\\d?\\.\\d\\d?\\d?\\.\\d\\d?\\d?|192\\.168\\.\\d\\d?\\d?\\.\\d\\d?\\d?|172\\.(1[6-9]|2\\d|3[01])\\.\\d\\d?\\d?\\.\\d\\d?\\d?|127\\.\\d\\d?\\d?\\.\\d\\d?\\d?\\.\\d\\d?\\d?|0:0:0:0:0:0:0:1|::1"
   image:
     storage:
       path: ${APP_IMAGE_STORAGE_PATH:/var/boxcopilot/images}
   admin:
     username: ${ADMIN_USERNAME:admin}
-    password: ${ADMIN_PASSWORD:admin}
     name: ${ADMIN_NAME:Administrator}
 
 logging:
   level:
     org.springframework: INFO
+    # Debug logging of the security packages would put principals, authorizations and token handling into the
+    # log file; both stay pinned at INFO in production.
+    org.springframework.security: INFO
     com.boxcopilot.backend: INFO
+    com.boxcopilot.backend.mcp: INFO
   file:
     path: /app/logs
 
 # Ensure proper behavior behind reverse proxy and cross-site cookies
 server:
-  forward-headers-strategy: framework
+  # 'native' lets Tomcat's RemoteIpValve resolve the client address, and it honours X-Forwarded-For only for a
+  # request that really arrives from one of the internal proxies below. 'framework' trusted every caller, which
+  # made the forwarded address - and with it the IP rate limits and the audit log - freely forgeable.
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      # Traefik receives a Docker-assigned address on the compose network, so the trusted set is the private
+      # address space rather than one fixed IP. Where the proxy address is known, narrow it with
+      # TRUSTED_PROXY_PATTERN. That value is a JAVA REGULAR EXPRESSION, which is what Tomcat matches the
+      # address against - CIDR notation such as 10.0.0.0/8 matches nothing and would silently distrust every
+      # proxy. The pattern deliberately avoids {n,m} quantifiers: a closing brace would end the placeholder.
+      internal-proxies: "${TRUSTED_PROXY_PATTERN:${app.proxy.default-trusted-pattern}}"
   servlet:
     session:
       cookie:
-        same-site: none
+        # 'none' lets a SPA on another site send the cookie. Use 'lax' when SPA and API share a site
+        # (e.g. app.example.com and api.example.com); 'strict' would break the OIDC redirect back to the API.
+        same-site: ${SESSION_COOKIE_SAME_SITE:none}
         secure: true
 

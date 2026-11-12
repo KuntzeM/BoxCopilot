@@ -2,6 +2,7 @@ import React, { useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Alert,
+  ButtonBase,
   Box,
   Button,
   Checkbox,
@@ -68,7 +69,7 @@ interface BoxHandlingBadgesProps {
 
 const BoxHandlingBadges: React.FC<BoxHandlingBadgesProps> = ({ box }) => {
   const { t } = useTranslation();
-  
+
   if (!box.isFragile && !box.noStack) {
     return null;
   }
@@ -106,6 +107,8 @@ export default function BoxList() {
     filteredBoxes,
     matchedItemIds,
     isLoading,
+    loadError,
+    allBoxes,
     itemQuery,
     setItemQuery,
     roomQuery,
@@ -131,6 +134,8 @@ export default function BoxList() {
     setBoxFormData,
     deleteConfirmId,
     setDeleteConfirmId,
+    isSubmittingBox,
+    isDeletingBox,
     fullImageUrl,
     setFullImageUrl,
     drawerOpen,
@@ -165,7 +170,7 @@ export default function BoxList() {
   const handleBulkUpdateMoved = async () => {
     const selectedBoxes = filteredBoxes.filter((b) => selectedIds.includes(b.id));
     const allMoved = selectedBoxes.every((b) => b.isMovedToTarget);
-    
+
     try {
       await Promise.all(
         selectedBoxes.map((box) => updateBox(box.id, { isMovedToTarget: !allMoved }))
@@ -181,7 +186,7 @@ export default function BoxList() {
   const handleBulkUpdateLabelPrinted = async () => {
     const selectedBoxes = filteredBoxes.filter((b) => selectedIds.includes(b.id));
     const allPrinted = selectedBoxes.every((b) => b.labelPrinted);
-    
+
     try {
       await Promise.all(
         selectedBoxes.map((box) => updateBox(box.id, { labelPrinted: !allPrinted }))
@@ -199,6 +204,8 @@ export default function BoxList() {
     [selectedIds, filteredBoxes]
   );
 
+  const deleteTarget = allBoxes.find((b) => b.id === deleteConfirmId);
+
   const allSelectedMoved = selectedBoxes.every((b) => b.isMovedToTarget);
   const allSelectedPrinted = selectedBoxes.every((b) => b.labelPrinted);
   const hasUnprintedLabels = selectedBoxes.some((b) => !b.labelPrinted);
@@ -213,18 +220,20 @@ export default function BoxList() {
 
   const handleProceedWithPrint = async () => {
     setShowPrintDialog(false);
-    
-    if (setLabelPrintedAfterPrint) {
+
+    // Only mark labels as printed once the PDF was actually generated
+    const generated = await handlePrintLabels();
+    if (generated && setLabelPrintedAfterPrint) {
       try {
         await Promise.all(
           selectedBoxes.map((box) => !box.labelPrinted ? updateBox(box.id, { labelPrinted: true }) : Promise.resolve())
         );
+        await loadData();
       } catch (err) {
         console.error('Failed to update labelPrinted status', err);
+        setSnackbar({ open: true, message: t('errors.boxUpdateFailed'), severity: 'error' });
       }
     }
-    
-    handlePrintLabels();
   };
 
 
@@ -249,7 +258,7 @@ export default function BoxList() {
               label={isMobile ? undefined : t('boxes.labelPrinted')}
               size="small"
               color="primary"
-              sx={{ 
+              sx={{
                 pointerEvents: 'none',
                 ...(isMobile && {
                   '& .MuiChip-label': { display: 'none' },
@@ -267,7 +276,7 @@ export default function BoxList() {
               label={isMobile ? undefined : t('boxes.moved')}
               size="small"
               color="success"
-              sx={{ 
+              sx={{
                 pointerEvents: 'none',
                 ...(isMobile && {
                   '& .MuiChip-label': { display: 'none' },
@@ -281,19 +290,24 @@ export default function BoxList() {
           )}
         </Box>
       )}
-      
+
       <Box sx={{ p: 2 }}>
-        <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" flexWrap="wrap">
-          <Stack direction="row" spacing={2} alignItems="center" sx={{ flex: 1, minWidth: 200 }}>
+        <Stack direction="row" spacing={2} sx={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flex: 1, minWidth: 200 }}>
             <Checkbox
               checked={selectedIds.includes(box.id)}
               onChange={() => toggleSelect(box.id)}
-              inputProps={{ 'aria-label': t('boxes.selectBox', { number: box.boxNumber }) }}
+              slotProps={{ input: { 'aria-label': t('boxes.selectBox', { number: box.boxNumber }) } }}
             />
-            <Box 
-              sx={{ 
+            <ButtonBase
+              component="div"
+              role="link"
+              aria-label={t('boxes.openBox', { number: box.boxNumber ?? 0 })}
+              sx={{
                 flex: 1,
-                cursor: 'pointer',
+                display: 'block',
+                textAlign: 'left',
+                borderRadius: 1,
                 '&:hover': {
                   opacity: 0.8
                 }
@@ -313,13 +327,14 @@ export default function BoxList() {
                 </Typography>
               )}
               <BoxHandlingBadges box={box} />
-            </Box>
+            </ButtonBase>
           </Stack>
 
-          <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" justifyContent="flex-end">
+          <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <IconButton
               size="medium"
               title={t('boxes.actions')}
+              aria-label={t('boxes.actions')}
               onClick={() => handleOpenBoxActions(box)}
               color="primary"
               sx={{ minWidth: 48, minHeight: 48 }}
@@ -333,23 +348,22 @@ export default function BoxList() {
       <Divider />
 
       <Box sx={{ p: 2 }}>
-        <Stack
-          direction="row"
-          spacing={1}
-          alignItems="center"
+        <ButtonBase
           onClick={() => toggleExpandBox(box)}
-          sx={{ cursor: 'pointer', userSelect: 'none' }}
+          aria-expanded={expandedBoxes.has(box.id)}
+          aria-label={t('boxes.expandItems', { number: box.boxNumber ?? 0 })}
+          sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', justifyContent: 'flex-start', borderRadius: 1, userSelect: 'none' }}
         >
           {expandedBoxes.has(box.id) ? <ExpandLess /> : <ExpandMore />}
-          <Typography variant="subtitle1" fontWeight={700}>
-            {t('items.itemsCount', { count: getBoxItemCount(box) })}
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+            {getBoxItemCount(box) === 1 ? t('items.itemsCountOne') : t('items.itemsCount', { count: getBoxItemCount(box) })}
           </Typography>
-        </Stack>
+        </ButtonBase>
 
         <Collapse in={expandedBoxes.has(box.id)} timeout="auto" unmountOnExit>
           <Stack spacing={1.5} sx={{ mt: 2 }}>
             {isLoadingItemsForBox(box.id) ? (
-              <Stack direction="row" spacing={1} alignItems="center">
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                 <CircularProgress size={18} />
                 <Typography variant="body2" color="text.secondary">
                   {t('common.loading')}
@@ -369,26 +383,31 @@ export default function BoxList() {
                       : undefined,
                   }}
                 >
-                  <Stack direction="row" alignItems="center" spacing={1.5}>
+                  <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
                     {item.imageUrl ? (
-                      <Avatar
-                        src={resolveImageUrl(item.imageUrl)}
-                        alt={item.name}
-                        loading="lazy"
-                        sx={{ width: 40, height: 40, cursor: 'pointer', flexShrink: 0 }}
+                      <ButtonBase
+                        aria-label={t('boxes.showPhoto', { name: item.name })}
+                        sx={{ borderRadius: '50%', flexShrink: 0 }}
                         onClick={() => {
                           if (item.imageUrl) {
                             setFullImageUrl(withApiBase(item.imageUrl.replace('/image', '/image/large')));
                           }
                         }}
-                      />
+                      >
+                        <Avatar
+                          src={resolveImageUrl(item.imageUrl)}
+                          alt=""
+                          slotProps={{ img: { loading: 'lazy' } }}
+                          sx={{ width: 40, height: 40 }}
+                        />
+                      </ButtonBase>
                     ) : (
                       <Avatar sx={{ width: 40, height: 40, bgcolor: 'grey.300', flexShrink: 0 }}>
                         📦
                       </Avatar>
                     )}
                     <Box sx={{ flex: 1, minWidth: 160 }}>
-                      <Typography variant="body2" fontWeight={500}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
                         {item.name}
                       </Typography>
                     </Box>
@@ -404,10 +423,10 @@ export default function BoxList() {
         </Collapse>
       </Box>
     </Paper>
-  ), [selectedIds, expandedBoxes, t, resolveImageUrl, withApiBase, matchedItemIds, theme]);
+  ), [selectedIds, expandedBoxes, t, resolveImageUrl, withApiBase, matchedItemIds, theme, isMobile, getBoxItems, getBoxItemCount, isLoadingItemsForBox]);
 
   return (
-    <Box sx={{ width: '100%', pb: 4 }}>
+    <Box sx={{ width: '100%', pb: isMobile ? 16 : 4 }}>
       <Stack spacing={2} sx={{ mb: 2 }}>
         <Paper sx={{ p: 2, borderRadius: 2, boxShadow: 2 }}>
           <Stack spacing={2}>
@@ -426,9 +445,9 @@ export default function BoxList() {
                 value={roomQuery}
                 onChange={(e) => setRoomQuery(e.target.value)}
               />
-              <Button 
+              <Button
                 fullWidth
-                variant="outlined" 
+                variant="outlined"
                 onClick={handleResetFilter}
                 size="small"
               >
@@ -444,24 +463,24 @@ export default function BoxList() {
             >
               {showAdvancedFilters ? '▼' : '▶'} {t('boxes.advancedFilters')}
               {(filterFragile || filterNoStack || filterMoved || filterLabelPrinted) && (
-                <Chip 
+                <Chip
                   label={[
-                    filterFragile && '🔔', 
+                    filterFragile && '🔔',
                     filterNoStack && '⛔',
                     filterMoved && '🚚',
                     filterLabelPrinted && '🏷️'
-                  ].filter(Boolean).join(' ')} 
-                  size="small" 
-                  sx={{ ml: 1 }} 
+                  ].filter(Boolean).join(' ')}
+                  size="small"
+                  sx={{ ml: 1 }}
                 />
               )}
             </Button>
 
             {/* Advanced Filters */}
             <Collapse in={showAdvancedFilters}>
-              <Stack 
-                direction={isMobile ? 'column' : 'row'} 
-                spacing={isMobile ? 1 : 2} 
+              <Stack
+                direction={isMobile ? 'column' : 'row'}
+                spacing={isMobile ? 1 : 2}
                 sx={{ pl: isMobile ? 0 : 1, pt: 1 }}
               >
                 <FormControlLabel
@@ -517,9 +536,9 @@ export default function BoxList() {
           </Stack>
         </Paper>
 
-        <Stack direction={isMobile ? 'column' : 'row'} spacing={1.5} justifyContent="space-between" alignItems={isMobile ? 'stretch' : 'center'}>
-          <Typography variant="h5" fontWeight={700}>{t('boxes.boxes')}</Typography>
-          <Stack direction="row" spacing={1} justifyContent={isMobile ? 'flex-start' : 'flex-end'}>
+        <Stack direction={isMobile ? 'column' : 'row'} spacing={1.5} sx={{ justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center' }}>
+          <Typography variant="h5" sx={{ fontWeight: 700 }}>{t('boxes.boxes')}</Typography>
+          <Stack direction="row" spacing={1} sx={{ justifyContent: isMobile ? 'flex-start' : 'flex-end' }}>
             <Button
               variant="outlined"
               startIcon={<EditNote />}
@@ -546,7 +565,26 @@ export default function BoxList() {
       </Stack>
 
       {isLoading ? (
-        <Paper sx={{ p: 3, textAlign: 'center' }}>{t('boxes.loadingBoxes')}</Paper>
+        <Paper role="status" sx={{ p: 3, textAlign: 'center' }}>{t('boxes.loadingBoxes')}</Paper>
+      ) : loadError ? (
+        <Alert
+          severity="error"
+          action={
+            <Button color="inherit" size="small" onClick={loadData}>
+              {t('common.retry')}
+            </Button>
+          }
+        >
+          {t('boxes.loadFailed')}
+        </Alert>
+      ) : allBoxes.length === 0 ? (
+        <Paper sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
+          <Typography variant="h6" component="h2" gutterBottom>{t('boxes.emptyTitle')}</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('boxes.emptyHint')}</Typography>
+          <Button variant="contained" startIcon={<Add />} onClick={handleOpenBoxDialog}>
+            {t('boxes.createFirst')}
+          </Button>
+        </Paper>
       ) : filteredBoxes.length === 0 ? (
         <Alert severity="info">{t('boxes.noBoxesFound')}</Alert>
       ) : (
@@ -584,7 +622,7 @@ export default function BoxList() {
               placeholder={t('boxes.placeholderDescription')}
             />
             <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1, border: 1, borderColor: 'divider' }}>
-              <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1.5 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1.5 }}>
                 {t('boxes.transportHints')}
               </Typography>
               <FormControlLabel
@@ -612,9 +650,10 @@ export default function BoxList() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenBoxDialog(false)}>{t('boxes.cancel')}</Button>
-          <Button 
-            variant="contained" 
+          <Button
+            variant="contained"
             onClick={handleSubmitBox}
+            disabled={isSubmittingBox}
           >
             {t('boxes.create')}
           </Button>
@@ -628,11 +667,15 @@ export default function BoxList() {
       >
         <DialogTitle>{t('boxes.deleteBoxTitle')}</DialogTitle>
         <DialogContent>
-          <Typography>{t('boxes.deleteBoxMessage')}</Typography>
+          <Typography>
+            {deleteTarget
+              ? t('boxes.deleteBoxMessageNamed', { number: deleteTarget.boxNumber ?? 0 })
+              : t('boxes.deleteBoxMessage')}
+          </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteConfirmId(null)}>{t('boxes.cancel')}</Button>
-          <Button color="error" variant="contained" onClick={handleDeleteBox}>
+          <Button color="error" variant="contained" onClick={handleDeleteBox} disabled={isDeletingBox}>
             {t('boxes.delete')}
           </Button>
         </DialogActions>
@@ -659,9 +702,10 @@ export default function BoxList() {
       {/* Full Image Dialog */}
       <Dialog open={fullImageUrl !== null} onClose={() => setFullImageUrl(null)} maxWidth="md" fullWidth>
         <DialogTitle>
-          Bild Vorschau
+          {t('boxes.imagePreview')}
           <IconButton
             onClick={() => setFullImageUrl(null)}
+            aria-label={t('common.close')}
             sx={{ position: 'absolute', right: 8, top: 8 }}
           >
             <Close />
@@ -671,9 +715,9 @@ export default function BoxList() {
           {fullImageUrl && (
             <img
               src={fullImageUrl}
-              alt="Item large"
-              style={{ 
-                maxWidth: '100%', 
+              alt={t('items.fullImageAlt')}
+              style={{
+                maxWidth: '100%',
                 maxHeight: '80vh',
                 objectFit: 'contain'
               }}
@@ -686,7 +730,7 @@ export default function BoxList() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setFullImageUrl(null)}>Schließen</Button>
+          <Button onClick={() => setFullImageUrl(null)}>{t('common.close')}</Button>
         </DialogActions>
       </Dialog>
 
@@ -772,12 +816,12 @@ export default function BoxList() {
         anchor="bottom"
         open={drawerOpen}
         onClose={handleCloseDrawer}
-        PaperProps={{
-          sx: {
+        slotProps={{
+          paper: { sx: {
             borderTopLeftRadius: 16,
             borderTopRightRadius: 16,
             maxHeight: '70vh',
-          },
+          } },
         }}
       >
         <Box sx={{ p: 2 }}>

@@ -12,6 +12,7 @@ import {
   Checkbox,
   Typography,
   Avatar,
+  ButtonBase,
   Toolbar,
   Chip,
   Drawer,
@@ -23,9 +24,9 @@ import {
   useTheme,
   Stack,
 } from '@mui/material';
-import { 
-  Delete, 
-  DriveFileMove, 
+import {
+  Delete,
+  DriveFileMove,
   Image as ImageIcon,
   MoreVert,
   Edit,
@@ -57,15 +58,16 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
   const { t } = useTranslation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  
+
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const itemToDelete = items.find((i) => i.id === deleteConfirm);
   const [editData, setEditData] = useState<UpdateItemPayload>({ name: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
-  
+
   // Bottom sheet state for mobile actions
   const [actionDrawerOpen, setActionDrawerOpen] = useState(false);
   const [selectedItemForActions, setSelectedItemForActions] = useState<Item | null>(null);
@@ -137,21 +139,16 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
   const handleMoveSelected = async (targetBoxId: number, boxDescription: string) => {
     try {
       await onMoveItems(Array.from(selectedItems), targetBoxId);
-      onSuccess(`${selectedItems.size} Items wurden in Box '${boxDescription}' verschoben`);
+      onSuccess(t('items.moveSuccess', { count: selectedItems.size, box: boxDescription }));
       setSelectedItems(new Set());
     } catch (error) {
-      onError('Fehler beim Verschieben');
+      onError(t('items.moveFailed'));
     }
   };
 
   const handleMoveSingle = (itemId: number) => {
     setSelectedItems(new Set([itemId]));
     setMoveDialogOpen(true);
-  };
-
-  const handleManageImage = (itemId: number, currentImageUrl?: string) => {
-    setImageItemId(itemId);
-    setImageDialogOpen(true);
   };
 
   const handleImageClick = (itemId: number, imageUrl: string) => {
@@ -211,7 +208,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
       {selectedItems.size > 0 && (
         <Toolbar sx={{ bgcolor: 'primary.light', mb: 2, borderRadius: 1 }}>
           <Typography sx={{ flex: '1 1 100%' }} color="white" variant="subtitle1">
-            {selectedItems.size} ausgewählt
+            {t('items.selectedCount', { count: selectedItems.size })}
           </Typography>
           <Button
             variant="contained"
@@ -219,7 +216,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
             startIcon={<DriveFileMove />}
             onClick={() => setMoveDialogOpen(true)}
           >
-            Verschieben
+            {t('items.move')}
           </Button>
         </Toolbar>
       )}
@@ -258,16 +255,21 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
             {/* Image */}
             <Box sx={{ flexShrink: 0 }}>
               {item.imageUrl ? (
-                <Avatar
-                  src={resolveImageUrl(item.imageUrl)}
-                  alt={item.name}
-                  loading="lazy"
-                  sx={{ width: 48, height: 48, cursor: 'pointer' }}
+                <ButtonBase
+                  aria-label={t('boxes.showPhoto', { name: item.name })}
+                  sx={{ borderRadius: '50%' }}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleImageClick(item.id, item.imageUrl!);
                   }}
-                />
+                >
+                  <Avatar
+                    src={resolveImageUrl(item.imageUrl)}
+                    alt=""
+                    slotProps={{ img: { loading: 'lazy' } }}
+                    sx={{ width: 48, height: 48 }}
+                  />
+                </ButtonBase>
               ) : (
                 <Avatar sx={{ width: 48, height: 48, bgcolor: 'grey.300' }}>
                   📦
@@ -314,6 +316,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
                 <IconButton
                   size="small"
                   onClick={() => handleOpenItemActions(item)}
+                  aria-label={t('items.actions')}
                   sx={{ minWidth: 40, minHeight: 40 }}
                 >
                   <MoreVert fontSize="small" />
@@ -324,7 +327,8 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
                     size="small"
                     color="info"
                     onClick={() => handleMoveSingle(item.id)}
-                    title="Verschieben"
+                    title={t('items.move')}
+                    aria-label={t('items.move')}
                     sx={{ minWidth: 36, minHeight: 36 }}
                   >
                     <DriveFileMove fontSize="small" />
@@ -334,6 +338,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
                     color="primary"
                     onClick={() => handleEditClick(item)}
                     title={t('items.edit')}
+                    aria-label={t('items.edit')}
                     sx={{ minWidth: 36, minHeight: 36 }}
                   >
                     <Edit fontSize="small" />
@@ -343,6 +348,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
                     color="error"
                     onClick={() => setDeleteConfirm(item.id)}
                     title={t('items.delete')}
+                    aria-label={t('items.delete')}
                     sx={{ minWidth: 36, minHeight: 36 }}
                   >
                     <Delete fontSize="small" />
@@ -362,15 +368,18 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
         }}
         onSuccess={onSuccess}
         onError={onError}
+        hideFab
       />
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteConfirm !== null} onClose={() => !isLoading && setDeleteConfirm(null)}>
         <DialogTitle>{t('items.deleteItem')}</DialogTitle>
-        <DialogContent>{t('items.deleteMessage')}</DialogContent>
+        <DialogContent>
+          {itemToDelete ? t('items.deleteMessageNamed', { name: itemToDelete.name }) : t('items.deleteMessage')}
+        </DialogContent>
         <DialogActions sx={{ p: 2 }}>
-          <Button 
-            onClick={() => setDeleteConfirm(null)} 
+          <Button
+            onClick={() => setDeleteConfirm(null)}
             disabled={isLoading}
             fullWidth
             size="large"
@@ -379,10 +388,10 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
           >
             {t('items.cancel')}
           </Button>
-          <Button 
-            onClick={handleDeleteConfirm} 
-            color="error" 
-            variant="contained" 
+          <Button
+            onClick={handleDeleteConfirm}
+            color="error"
+            variant="contained"
             disabled={isLoading}
             fullWidth
             size="large"
@@ -414,10 +423,10 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
           {fullImageUrl && (
             <img
               src={fullImageUrl}
-              alt="Item full"
-              style={{ 
-                width: '100%', 
-                height: 'auto', 
+              alt={t('items.fullImageAlt')}
+              style={{
+                width: '100%',
+                height: 'auto',
                 display: 'block',
                 maxHeight: '80vh',
                 objectFit: 'contain'
@@ -431,7 +440,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setFullImageUrl(null)}>Schließen</Button>
+          <Button onClick={() => setFullImageUrl(null)}>{t('common.close')}</Button>
         </DialogActions>
       </Dialog>
 
@@ -440,12 +449,12 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
         anchor="bottom"
         open={actionDrawerOpen}
         onClose={handleCloseActionDrawer}
-        PaperProps={{
-          sx: {
+        slotProps={{
+          paper: { sx: {
             borderTopLeftRadius: 16,
             borderTopRightRadius: 16,
             maxHeight: '70vh',
-          },
+          } },
         }}
       >
         <Box sx={{ p: 2 }}>
@@ -469,7 +478,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
               <ListItemIcon>
                 <DriveFileMove color="info" />
               </ListItemIcon>
-              <ListItemText primary="Verschieben" />
+              <ListItemText primary={t('items.move')} />
             </ListItemButton>
             <ListItemButton
               onClick={handleDrawerDelete}

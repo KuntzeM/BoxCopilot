@@ -3,9 +3,11 @@ package com.boxcopilot.backend.service;
 import com.boxcopilot.backend.domain.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.authentication.AccountStatusException;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.core.GrantedAuthority;
@@ -20,7 +22,8 @@ import java.util.Set;
 public class CustomOidcUserService extends OidcUserService {
 
     private static final Logger log = LoggerFactory.getLogger(CustomOidcUserService.class);
-    
+    private static final String ACCESS_DENIED_ERROR_CODE = "access_denied";
+
     private final UserService userService;
     
     public CustomOidcUserService(UserService userService) {
@@ -31,20 +34,26 @@ public class CustomOidcUserService extends OidcUserService {
     public OidcUser loadUser(OidcUserRequest userRequest) throws OAuth2AuthenticationException {
         log.debug("Loading OIDC user from identity provider");
         // Delegate to the default implementation for loading the user
-        OidcUser oidcUser = super.loadUser(userRequest);
+        return toLocalUser(super.loadUser(userRequest));
+    }
 
+    OidcUser toLocalUser(OidcUser oidcUser) {
         // Extract Nextcloud-specific claims
         Map<String, Object> claims = oidcUser.getClaims();
-        
-        // Log the user attributes for debugging
+
         String sub = oidcUser.getSubject();
         String email = (String) claims.get("email");
         String name = (String) claims.get("name");
         String preferredUsername = (String) claims.get("preferred_username");
 
-        // Create or update user in database
-        User user = userService.createOrUpdateOidcUser(sub, preferredUsername, name, email);
-        
+        // Create or update user in database; disabled or locked users are rejected
+        User user;
+        try {
+            user = userService.createOrUpdateOidcUser(sub, preferredUsername, name, email);
+        } catch (AccountStatusException ex) {
+            throw new OAuth2AuthenticationException(new OAuth2Error(ACCESS_DENIED_ERROR_CODE), ex);
+        }
+
         // Add role-based authorities
         Set<GrantedAuthority> authorities = new HashSet<>(oidcUser.getAuthorities());
         authorities.add(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));

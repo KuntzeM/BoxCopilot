@@ -2,6 +2,7 @@ package com.boxcopilot.backend.dto;
 
 import com.boxcopilot.backend.domain.AuthProvider;
 import com.boxcopilot.backend.domain.Role;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 public class UserPrincipalDTO {
     private Long id;
@@ -15,6 +16,20 @@ public class UserPrincipalDTO {
     private boolean isAdmin;
     private String csrfToken;
     private boolean authenticated;
+
+    /**
+     * Whether an MCP authorization is waiting to be resumed. Only set for authenticated callers; an anonymous
+     * caller must not learn that a pending authorization exists, so the field is left out of that response.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean mcpPending;
+
+    /**
+     * Whether this user may use MCP: the feature has to be switched on and the account has to be allowed to.
+     * Like {@code mcpPending} it is only set for authenticated callers; an anonymous one learns nothing.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean mcpAllowed;
 
     public UserPrincipalDTO() {
     }
@@ -123,6 +138,22 @@ public class UserPrincipalDTO {
         this.authProvider = authProvider;
     }
     
+    public Boolean getMcpPending() {
+        return mcpPending;
+    }
+
+    public void setMcpPending(Boolean mcpPending) {
+        this.mcpPending = mcpPending;
+    }
+
+    public Boolean getMcpAllowed() {
+        return mcpAllowed;
+    }
+
+    public void setMcpAllowed(Boolean mcpAllowed) {
+        this.mcpAllowed = mcpAllowed;
+    }
+
     public boolean isAdmin() {
         return isAdmin;
     }

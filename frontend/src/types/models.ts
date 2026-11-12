@@ -34,15 +34,13 @@ export interface BoxPreviewItem {
 export interface BoxPreview {
   id: number;
   uuid: string;
-  boxNumber: number;
+  boxNumber: number | null;
   currentRoom?: string;
   targetRoom?: string;
   description?: string;
   items: BoxPreviewItem[];
   isFragile?: boolean;
   noStack?: boolean;
-  isMovedToTarget?: boolean;
-  labelPrinted?: boolean;
 }
 
 export interface CreateBoxPayload {
@@ -86,9 +84,9 @@ export interface User {
   enabled: boolean;
   createdAt: string;
   lastLogin?: string;
-  failedLoginAttempts: number;
-  lockedUntil?: string;
+  // Backend UserDTO still sends failedLoginAttempts/lockedUntil, but the account lock is gone: ignored here.
   hasPassword?: boolean;
+  mcpAllowed: boolean;
   lastMagicLinkCreatedAt?: string;
   lastMagicLinkExpiresAt?: string;
   lastMagicLinkUsed?: boolean;
@@ -107,6 +105,7 @@ export interface UpdateUserPayload {
   name?: string;
   role?: Role;
   enabled?: boolean;
+  mcpAllowed?: boolean;
 }
 
 export interface SetPasswordPayload {
@@ -124,17 +123,27 @@ export interface MagicLinkResponse {
   used?: boolean;
 }
 
+export interface MagicLoginPayload {
+  token: string;
+}
+
 export interface UserPrincipal {
   id?: number;
   username?: string;
   name?: string;
   role?: Role;
   authProvider?: AuthProvider;
-  isAdmin: boolean;
+  admin: boolean;
   csrfToken?: string;
   authenticated: boolean;
+  mcpPending?: boolean;
+  mcpAllowed?: boolean;
   // Legacy OIDC fields (for backward compatibility)
   sub?: string;
   email?: string;
   preferredUsername?: string;
+}
+
+export interface McpClientInfo {
+  clientId: string;
 }

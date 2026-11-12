@@ -25,13 +25,12 @@ export const LabelGenerationProgress = ({
   return (
     <Dialog
       open={open}
-      disableEscapeKeyDown
       aria-labelledby="label-generation-progress-title"
       maxWidth="sm"
       fullWidth
     >
       <DialogTitle id="label-generation-progress-title">
-        {t('boxes.generatingLabels') || 'Generating Labels...'}
+        {t('boxes.generatingLabels')}
       </DialogTitle>
       <DialogContent>
         <Box sx={{ width: '100%', mt: 2 }}>
@@ -47,12 +46,12 @@ export const LabelGenerationProgress = ({
             {t('boxes.generatingLabelProgress', {
               current,
               total,
-            }) || `${current} of ${total} labels`}
+            })}
           </Typography>
 
           {/* Current Box */}
           <Typography variant="body2" color="text.secondary" align="center">
-            {t('boxes.currentBox') || 'Current box'}: <strong>Box {currentBoxNumber}</strong>
+            {t('boxes.currentBox')}: <strong>{t('boxes.boxNumber', { number: currentBoxNumber })}</strong>
           </Typography>
         </Box>
       </DialogContent>

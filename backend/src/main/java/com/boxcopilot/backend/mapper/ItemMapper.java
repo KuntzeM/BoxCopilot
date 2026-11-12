@@ -55,16 +55,24 @@ public class ItemMapper {
             boxTargetRoom
         );
         
-        // Set imageUrl if imagePath exists (with cache-busting timestamp)
-        if (entity.getImagePath() != null && !entity.getImagePath().isBlank() && entity.getImageToken() != null) {
-            String imageUrl = "/api/v1/public/items/" + entity.getImageToken() + "/image";
-            if (entity.getImageUpdatedAt() != null) {
-                imageUrl += "?t=" + entity.getImageUpdatedAt();
-            }
-            dto.setImageUrl(imageUrl);
-        }
+        dto.setImageUrl(publicImageUrl(entity));
         
         return dto;
+    }
+
+    /**
+     * Public, cache-busted image URL of an item, or null when it has no image.
+     * The single place that builds this URL.
+     */
+    public String publicImageUrl(Item item) {
+        if (item.getImagePath() == null || item.getImagePath().isBlank() || item.getImageToken() == null) {
+            return null;
+        }
+        String imageUrl = "/api/v1/public/items/" + item.getImageToken() + "/image";
+        if (item.getImageUpdatedAt() != null) {
+            imageUrl += "?t=" + item.getImageUpdatedAt();
+        }
+        return imageUrl;
     }
 
     /**

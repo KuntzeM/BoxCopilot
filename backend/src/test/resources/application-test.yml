@@ -1,0 +1,30 @@
+spring:
+  config:
+    activate:
+      on-profile: test
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
+    driverClassName: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+  autoconfigure:
+    exclude:
+      # No Spring Session at all (Boot 4 has no store-type=none): neither the servlet wiring nor either store
+      - org.springframework.boot.session.autoconfigure.SessionAutoConfiguration
+      - org.springframework.boot.session.jdbc.autoconfigure.JdbcSessionAutoConfiguration
+      - org.springframework.boot.session.data.redis.autoconfigure.SessionDataRedisAutoConfiguration
+
+# Image Storage for tests
+app:
+  image:
+    storage:
+      path: ${APP_IMAGE_STORAGE_PATH:./data/images}
+  admin:
+    password: test-admin-password
+
+# For test profile we use NoSecurityConfig which permits all requests (no auth)
+frontend:
+  url: ${FRONTEND_URL:http://localhost:3000}

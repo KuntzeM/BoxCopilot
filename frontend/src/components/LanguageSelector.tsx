@@ -17,7 +17,7 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({ variant = 'icon', l
   const open = Boolean(anchorEl);
 
   const buttonId = variant === 'icon' ? 'language-icon-button' : 'language-button';
-  const flagEmoji = useMemo(() => (language === 'de' ? '🇩🇪' : '🇬🇧'), [language]);
+  const code = language.toUpperCase();
   const labelText = useMemo(() => {
     if (label) return label;
     return language === 'de' ? t('language.german') : t('language.english');
@@ -48,21 +48,21 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({ variant = 'icon', l
           aria-haspopup="true"
           aria-expanded={open ? 'true' : undefined}
           size="medium"
-          sx={[{ ml: 1 }, buttonSx]}
+          sx={[{ ml: 1 }, ...(Array.isArray(buttonSx) ? buttonSx : [buttonSx])]}
         >
-          <span style={{ fontSize: '1.25rem' }}>{flagEmoji}</span>
+          <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>{code}</span>
         </IconButton>
       ) : (
         <Button
           id={buttonId}
           onClick={handleClick}
           color="inherit"
-          startIcon={<span style={{ fontSize: '1.25rem' }}>{flagEmoji}</span>}
+          startIcon={<span style={{ fontSize: '0.875rem', fontWeight: 600 }}>{code}</span>}
           aria-label={t('language.select')}
           aria-controls={open ? 'language-menu' : undefined}
           aria-haspopup="true"
           aria-expanded={open ? 'true' : undefined}
-          sx={[{ justifyContent: 'flex-start', width: '100%', textTransform: 'none' }, buttonSx]}
+          sx={[{ justifyContent: 'flex-start', width: '100%', textTransform: 'none' }, ...(Array.isArray(buttonSx) ? buttonSx : [buttonSx])]}
         >
           {labelText}
         </Button>
@@ -72,19 +72,19 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({ variant = 'icon', l
         anchorEl={anchorEl}
         open={open}
         onClose={handleClose}
-        MenuListProps={{
-          'aria-labelledby': buttonId,
+        slotProps={{
+          list: { 'aria-labelledby': buttonId },
         }}
       >
         <MenuItem onClick={() => handleLanguageChange('de')} selected={language === 'de'}>
           <ListItemIcon>
-            <span style={{ fontSize: '1.5rem' }}>🇩🇪</span>
+            <span style={{ fontWeight: 600 }}>DE</span>
           </ListItemIcon>
           <ListItemText>{t('language.german')}</ListItemText>
         </MenuItem>
         <MenuItem onClick={() => handleLanguageChange('en')} selected={language === 'en'}>
           <ListItemIcon>
-            <span style={{ fontSize: '1.5rem' }}>🇬🇧</span>
+            <span style={{ fontWeight: 600 }}>EN</span>
           </ListItemIcon>
           <ListItemText>{t('language.english')}</ListItemText>
         </MenuItem>

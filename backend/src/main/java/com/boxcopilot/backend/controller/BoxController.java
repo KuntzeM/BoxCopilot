@@ -79,6 +79,15 @@ public class BoxController {
     }
 
     /**
+     * Revokes the public share link: new box UUID and new image tokens (printed QR labels stop working).
+     */
+    @PostMapping("/{id}/rotate-share")
+    public ResponseEntity<BoxResponseDTO> rotateShare(@PathVariable Long id) {
+        log.info("Rotating share links of box with ID: {}", id);
+        return ResponseEntity.ok(boxService.rotateShareLinks(id));
+    }
+
+    /**
      * Deletes a box.
      */
     @DeleteMapping("/{id}")

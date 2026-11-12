@@ -1,0 +1,32 @@
+{
+  "request": {
+    "body": {
+      "name": "Wool blanket (grey)"
+    },
+    "method": "PUT",
+    "path": "/api/v1/items/2"
+  },
+  "response": {
+    "body": {
+      "boxCurrentRoom": "Cellar",
+      "boxId": 1,
+      "boxTargetRoom": "Kitchen",
+      "boxUuid": "<uuid>",
+      "id": 2,
+      "imageUrl": null,
+      "name": "Wool blanket (grey)"
+    },
+    "headers": {
+      "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+      "content-type": "application/json",
+      "expires": "0",
+      "pragma": "no-cache",
+      "vary": "Origin, Access-Control-Request-Method, Access-Control-Request-Headers",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-xss-protection": "0"
+    },
+    "set-cookie-attributes": [],
+    "status": 200
+  }
+}

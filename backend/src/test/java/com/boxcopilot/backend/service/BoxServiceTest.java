@@ -1,17 +1,34 @@
 package com.boxcopilot.backend.service;
 
+import com.boxcopilot.backend.domain.Box;
+import com.boxcopilot.backend.domain.Item;
+import com.boxcopilot.backend.dto.BoxPreviewDTO;
 import com.boxcopilot.backend.dto.BoxRequestDTO;
 import com.boxcopilot.backend.dto.BoxResponseDTO;
 import com.boxcopilot.backend.dto.BoxUpdateDTO;
 import com.boxcopilot.backend.repository.BoxRepository;
 import com.boxcopilot.backend.mapper.BoxMapper;
+import com.boxcopilot.backend.mapper.ItemMapper;
+import com.boxcopilot.backend.repository.ItemRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+import java.util.List;
+import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -226,5 +243,101 @@ class BoxServiceTest {
 
         // Then - box4 should reuse box2's number
         assertThat(box4.getBoxNumber()).isEqualTo(box2Number);
+    }
+
+    // --- image cleanup on delete (plain unit tests; the commit is simulated via the synchronization) ---
+
+    private Box boxWithImages(BoxRepository repo, String... paths) {
+        Box box = new Box("u-1", "Cellar", null, null);
+        box.setBoxNumber(7);
+        for (String path : paths) {
+            Item item = new Item(box, "i");
+            item.setImagePath(path);
+            box.getItems().add(item);
+        }
+        when(repo.findById(1L)).thenReturn(Optional.of(box));
+        return box;
+    }
+
+    /** Runs deleteBox and returns only the synchronizations it registered (the test tx has its own). */
+    private List<TransactionSynchronization> deleteAndCollect(BoxService service) {
+        List<TransactionSynchronization> before = List.copyOf(TransactionSynchronizationManager.getSynchronizations());
+        service.deleteBox(1L);
+        return TransactionSynchronizationManager.getSynchronizations().stream()
+                .filter(sync -> !before.contains(sync)).toList();
+    }
+
+    private BoxService unitService(BoxRepository repo, ImageStorageService images) {
+        return new BoxService(repo, boxMapper, mock(BoxNumberService.class), mock(ItemRepository.class),
+                new ItemMapper(), images);
+    }
+
+    @Test
+    void deleteBox_removesEachImageFileOnceAfterCommit() {
+        BoxRepository repo = mock(BoxRepository.class);
+        ImageStorageService images = mock(ImageStorageService.class);
+        boxWithImages(repo, "a_thumb.jpg", null, "", "b_thumb.jpg");
+        List<TransactionSynchronization> ours = deleteAndCollect(unitService(repo, images));
+        verify(images, never()).deleteImage(any());   // nothing before the commit
+        ours.forEach(TransactionSynchronization::afterCommit);
+        verify(images).deleteImage("a_thumb.jpg");
+        verify(images).deleteImage("b_thumb.jpg");
+        verify(images, org.mockito.Mockito.times(2)).deleteImage(any());
+    }
+
+    @Test
+    void deleteBox_keepsImageFilesOnRollback() {
+        BoxRepository repo = mock(BoxRepository.class);
+        ImageStorageService images = mock(ImageStorageService.class);
+        boxWithImages(repo, "a_thumb.jpg");
+        List<TransactionSynchronization> ours = deleteAndCollect(unitService(repo, images));
+        ours.forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+        verify(images, never()).deleteImage(any());
+    }
+
+    @Test
+    void deleteBox_failingFileDeleteIsSwallowedAndDoesNotStopTheRest() {
+        BoxRepository repo = mock(BoxRepository.class);
+        ImageStorageService images = mock(ImageStorageService.class);
+        boxWithImages(repo, "a_thumb.jpg", "b_thumb.jpg");
+        doThrow(new com.boxcopilot.backend.exception.FileStorageException("boom")).when(images).deleteImage("a_thumb.jpg");
+        List<TransactionSynchronization> ours = deleteAndCollect(unitService(repo, images));
+        ours.forEach(TransactionSynchronization::afterCommit);
+        verify(images).deleteImage("b_thumb.jpg");
+    }
+
+    // --- public preview ---
+
+    @Test
+    void getPublicPreview_mapsBoxAndItemsAndHidesMissingImage() {
+        BoxResponseDTO created = boxService.createBox(roomRequest("Hall"));
+        Box box = boxRepository.findById(created.getId()).orElseThrow();
+        Item withImage = new Item(box, "Lamp");
+        withImage.setImagePath("x_thumb.jpg");
+        withImage.setImageToken("tok");
+        withImage.setImageUpdatedAt(99L);
+        box.getItems().add(withImage);
+        box.getItems().add(new Item(box, "Book"));
+        boxRepository.saveAndFlush(box);
+
+        BoxPreviewDTO preview = boxService.getPublicPreview(box.getUuid());
+
+        assertThat(preview.getUuid()).isEqualTo(box.getUuid());
+        assertThat(preview.getBoxNumber()).isEqualTo(box.getBoxNumber());
+        assertThat(preview.getItems()).extracting(BoxPreviewDTO.ItemDTO::getName).containsExactly("Book", "Lamp");
+        assertThat(preview.getItems()).extracting(BoxPreviewDTO.ItemDTO::getImageUrl)
+                .containsExactly(null, "/api/v1/public/items/tok/image?t=99");
+    }
+
+    @Test
+    void getPublicPreview_unknownUuidThrowsNotFound() {
+        assertThatThrownBy(() -> boxService.getPublicPreview("nope"))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    private BoxRequestDTO roomRequest(String room) {
+        BoxRequestDTO r = new BoxRequestDTO();
+        r.setCurrentRoom(room);
+        return r;
     }
 }

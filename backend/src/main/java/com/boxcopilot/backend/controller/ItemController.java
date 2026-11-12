@@ -40,17 +40,6 @@ public class ItemController {
     }
 
     /**
-     * Lists all items.
-     */
-    @GetMapping
-    public ResponseEntity<List<ItemResponseDTO>> list() {
-        log.debug("Fetching all items");
-        List<ItemResponseDTO> items = itemService.getAllItems();
-        log.info("Retrieved {} items", items.size());
-        return ResponseEntity.ok(items);
-    }
-
-    /**
      * Lists items by box UUID.
      */
     @GetMapping("/box/{boxUuid}")

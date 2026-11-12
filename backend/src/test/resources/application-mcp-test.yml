@@ -1,0 +1,62 @@
+spring:
+  config:
+    activate:
+      on-profile: mcp-test
+  autoconfigure:
+    # Plain servlet sessions, so that a test can hand a session to the application chain; the redis entries
+    # repeat what the dev profile excludes, because this list replaces it rather than extending it.
+    exclude:
+      - org.springframework.boot.session.autoconfigure.SessionAutoConfiguration
+      - org.springframework.boot.session.jdbc.autoconfigure.JdbcSessionAutoConfiguration
+      - org.springframework.boot.session.data.redis.autoconfigure.SessionDataRedisAutoConfiguration
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisRepositoriesAutoConfiguration
+  jpa:
+    hibernate:
+      ddl-auto: none
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+# As in production: the issuer tests prove that the advertised metadata stays on the configured backend URL even
+# though forwarded headers are honoured for everything else.
+server:
+  forward-headers-strategy: framework
+
+# The MCP tests run the real chains, so they need the dev profile as well; these values replace the ones a
+# developer machine would supply. app.mcp.enabled is deliberately NOT set here: every test states the flag
+# itself, which keeps the flag-off tests honest under this very profile.
+app:
+  mcp:
+    backend-url: http://localhost
+    redirect-uris:
+      - https://claude.ai/api/mcp/auth_callback
+      # A fixed loopback port for Claude Code; the tests prove that no other port is accepted for it
+      - http://127.0.0.1:41000/callback
+    max-connection-age: 14d
+    # The whole suite calls from one address and reaches the endpoints far faster than any real client, so the
+    # limits are lifted out of the way here. McpRateLimitIntegrationTest sets tiny limits of its own, and
+    # FixedWindowRateLimiterTest proves the counter itself; the production defaults are asserted in McpStartupGuardTest.
+    rate-limit:
+      calls-per-minute: 1000000
+      image-calls-per-day: 1000000
+      authorization-requests-per-minute: 1000000
+      failed-token-lookups-per-minute: 1000000
+  image:
+    storage:
+      path: ./target/mcp-test-images
+  admin:
+    username: admin
+    password: mcp-test-admin-password
+    name: Administrator
+
+frontend:
+  url: http://localhost:3000
+
+nextcloud:
+  logout-url: http://localhost/logout
+
+logging:
+  level:
+    org.springframework.security: INFO
+    com.boxcopilot.backend: INFO

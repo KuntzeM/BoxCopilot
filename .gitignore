@@ -10,3 +10,5 @@ logs/
 images/
 pgdata/
 .DS_Store
+graphify-out/
+.superpowers/

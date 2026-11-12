@@ -16,6 +16,8 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
 
   useEffect(() => {
     Cookies.set('app-language', language, { expires: 365 });
+    document.documentElement.lang = language;
+    document.title = getTranslation(language, 'app.documentTitle');
   }, [language]);
 
   const setLanguage = useCallback((lang: Language) => {

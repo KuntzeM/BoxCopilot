@@ -5,12 +5,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -33,7 +38,7 @@ public class GlobalExceptionHandler {
         log.warn("Authentication failed: {}", ex.getMessage());
         ErrorResponse error = new ErrorResponse(
             HttpStatus.UNAUTHORIZED.value(),
-            "Authentication required: " + ex.getMessage(),
+            "Authentication required",
             Instant.now()
         );
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
@@ -47,7 +52,7 @@ public class GlobalExceptionHandler {
         log.warn("Access denied: {}", ex.getMessage());
         ErrorResponse error = new ErrorResponse(
             HttpStatus.FORBIDDEN.value(),
-            "Access denied: " + ex.getMessage(),
+            "Access denied",
             Instant.now()
         );
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
@@ -68,6 +73,42 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handles requests to paths no handler serves. Without this they fall into the catch-all below and answer
+     * 500, which hides a wrong URL - and a feature that is switched off - behind a server error.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResourceFound(NoResourceFoundException ex) {
+        log.debug("No handler for: {}", ex.getResourcePath());
+        ErrorResponse error = new ErrorResponse(
+            HttpStatus.NOT_FOUND.value(),
+            "Not found",
+            Instant.now()
+        );
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
+    /**
+     * Handles rejected uploads (user input, not a server fault); the message is written for users.
+     */
+    @ExceptionHandler(InvalidImageException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidImage(InvalidImageException ex) {
+        log.warn("Upload rejected: {}", ex.getMessage());
+        ErrorResponse error = new ErrorResponse(HttpStatus.BAD_REQUEST.value(), ex.getMessage(), Instant.now());
+        return ResponseEntity.badRequest().body(error);
+    }
+
+    /**
+     * Handles a busy image pipeline: temporary, so 503 with a retry hint rather than a server error.
+     */
+    @ExceptionHandler(UploadBusyException.class)
+    public ResponseEntity<ErrorResponse> handleUploadBusy(UploadBusyException ex) {
+        log.warn("Upload rejected, no free slot: {}", ex.getMessage());
+        ErrorResponse error = new ErrorResponse(HttpStatus.SERVICE_UNAVAILABLE.value(),
+                "The server is busy processing other images, please try again in a few seconds", Instant.now());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).header("Retry-After", "5").body(error);
+    }
+
+    /**
      * Handles file storage exceptions.
      */
     @ExceptionHandler(FileStorageException.class)
@@ -75,7 +116,7 @@ public class GlobalExceptionHandler {
         log.error("File storage error: {}", ex.getMessage(), ex);
         ErrorResponse error = new ErrorResponse(
             HttpStatus.INTERNAL_SERVER_ERROR.value(),
-            ex.getMessage(),
+            "File storage error",
             Instant.now()
         );
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
@@ -105,6 +146,58 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handles unreadable or missing request bodies.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadableBody(HttpMessageNotReadableException ex) {
+        ErrorResponse error = new ErrorResponse(
+            HttpStatus.BAD_REQUEST.value(),
+            "Malformed request body",
+            Instant.now()
+        );
+        return ResponseEntity.badRequest().body(error);
+    }
+
+    /**
+     * Handles requests using an HTTP method the endpoint does not support.
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleUnsupportedMethod(HttpRequestMethodNotSupportedException ex) {
+        ErrorResponse error = new ErrorResponse(
+            HttpStatus.METHOD_NOT_ALLOWED.value(),
+            "Method not allowed",
+            Instant.now()
+        );
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(error);
+    }
+
+    /**
+     * Handles uploads above the multipart limit.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleUploadTooLarge(MaxUploadSizeExceededException ex) {
+        ErrorResponse error = new ErrorResponse(
+            HttpStatus.PAYLOAD_TOO_LARGE.value(),
+            "Upload too large",
+            Instant.now()
+        );
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(error);
+    }
+
+    /**
+     * Handles request parameters / path variables of the wrong type (e.g. a non-numeric id).
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        ErrorResponse error = new ErrorResponse(
+            HttpStatus.BAD_REQUEST.value(),
+            "Invalid value for parameter '" + ex.getName() + "'",
+            Instant.now()
+        );
+        return ResponseEntity.badRequest().body(error);
+    }
+
+    /**
      * Handles all other exceptions.
      */
     @ExceptionHandler(Exception.class)
@@ -112,7 +205,7 @@ public class GlobalExceptionHandler {
         log.error("Unexpected error occurred: {}", ex.getMessage(), ex);
         ErrorResponse error = new ErrorResponse(
             HttpStatus.INTERNAL_SERVER_ERROR.value(),
-            "An unexpected error occurred: " + ex.getMessage(),
+            "An unexpected error occurred",
             Instant.now()
         );
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);

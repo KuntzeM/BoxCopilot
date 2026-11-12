@@ -1,0 +1,21 @@
+{
+  "request": {
+    "body": null,
+    "method": "DELETE",
+    "path": "/api/v1/admin/users/3"
+  },
+  "response": {
+    "body": "",
+    "headers": {
+      "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+      "expires": "0",
+      "pragma": "no-cache",
+      "vary": "Origin, Access-Control-Request-Method, Access-Control-Request-Headers",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-xss-protection": "0"
+    },
+    "set-cookie-attributes": [],
+    "status": 204
+  }
+}

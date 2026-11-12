@@ -51,7 +51,14 @@ public class User implements Serializable {
     
     @Column(name = "locked_until")
     private LocalDateTime lockedUntil;
-    
+
+    /** UTC marker of the last password reset; a session whose login-time snapshot differs from it is stale. */
+    @Column(name = "sessions_valid_after")
+    private LocalDateTime sessionsValidAfter;
+
+    @Column(name = "mcp_allowed", nullable = false, columnDefinition = "boolean not null default false")
+    private boolean mcpAllowed = false;
+
     public User() {
         this.createdAt = LocalDateTime.now();
     }
@@ -164,6 +171,32 @@ public class User implements Serializable {
         this.lockedUntil = lockedUntil;
     }
     
+    public boolean isMcpAllowed() {
+        return mcpAllowed;
+    }
+
+    public void setMcpAllowed(boolean mcpAllowed) {
+        this.mcpAllowed = mcpAllowed;
+    }
+
+    public LocalDateTime getSessionsValidAfter() {
+        return sessionsValidAfter;
+    }
+
+    public void setSessionsValidAfter(LocalDateTime sessionsValidAfter) {
+        this.sessionsValidAfter = sessionsValidAfter;
+    }
+
+    /**
+     * True if the password was reset since the session took {@code loginMarker} (the {@code sessionsValidAfter} at login).
+     * Compares the stored marker instead of timestamps against the session's creation time: that time survives
+     * {@code changeSessionId()} and also covers an anonymous session that predates the login, so it cannot tell a
+     * login after the reset from one before it.
+     */
+    public boolean passwordResetSince(LocalDateTime loginMarker) {
+        return !java.util.Objects.equals(sessionsValidAfter, loginMarker);
+    }
+
     /**
      * Check if the account is currently locked
      */
@@ -172,31 +205,5 @@ public class User implements Serializable {
             return false;
         }
         return LocalDateTime.now().isBefore(lockedUntil);
-    }
-    
-    /**
-     * Increment failed login attempts and lock account if threshold is reached
-     */
-    public void incrementFailedAttempts() {
-        this.failedLoginAttempts++;
-        if (this.failedLoginAttempts >= 5) {
-            this.lockedUntil = LocalDateTime.now().plusHours(1);
-        }
-    }
-    
-    /**
-     * Reset failed login attempts on successful login
-     */
-    public void resetFailedAttempts() {
-        this.failedLoginAttempts = 0;
-        this.lockedUntil = null;
-    }
-    
-    /**
-     * Manually unlock the account
-     */
-    public void unlock() {
-        this.failedLoginAttempts = 0;
-        this.lockedUntil = null;
     }
 }

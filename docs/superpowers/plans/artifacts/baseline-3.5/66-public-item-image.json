@@ -1,0 +1,25 @@
+{
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/v1/public/items/<token>/image"
+  },
+  "response": {
+    "body": {
+      "binary": true,
+      "bytes": 3700,
+      "magic": "ffd8ffe0",
+      "sha256": "e0070f6379cdf041a7abcb36b62eb95164e01551d13593f903be1e84f5a8e006"
+    },
+    "headers": {
+      "cache-control": "max-age=3600, must-revalidate",
+      "content-type": "image/jpeg",
+      "vary": "Origin, Access-Control-Request-Method, Access-Control-Request-Headers",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-xss-protection": "0"
+    },
+    "set-cookie-attributes": [],
+    "status": 200
+  }
+}

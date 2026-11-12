@@ -1,0 +1,54 @@
+{
+  "request": {
+    "body": {
+      "method": "initialize",
+      "params": {
+        "capabilities": {},
+        "clientInfo": {
+          "name": "baseline",
+          "version": "1.0"
+        },
+        "protocolVersion": "2025-06-18"
+      }
+    },
+    "method": "POST",
+    "path": "/mcp"
+  },
+  "response": {
+    "body": {
+      "id": 1,
+      "jsonrpc": "2.0",
+      "result": {
+        "capabilities": {
+          "completions": {},
+          "prompts": {
+            "listChanged": false
+          },
+          "resources": {
+            "listChanged": false,
+            "subscribe": false
+          },
+          "tools": {
+            "listChanged": false
+          }
+        },
+        "protocolVersion": "2025-06-18",
+        "serverInfo": {
+          "name": "boxpilot",
+          "version": "1.0.0"
+        }
+      }
+    },
+    "headers": {
+      "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+      "content-type": "application/json",
+      "expires": "0",
+      "pragma": "no-cache",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-xss-protection": "0"
+    },
+    "set-cookie-attributes": [],
+    "status": 200
+  }
+}

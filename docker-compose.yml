@@ -1,16 +1,17 @@
-version: '3.8'
-
 services:
   postgres:
-    image: postgres:15
+    image: postgres:15.19
     container_name: boxcopilot-postgres
-    env_file: .env
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - ./pgdata:/var/lib/postgresql/data
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    cpus: 1.0
     networks:
       - boxcopilot-network
     healthcheck:
@@ -20,12 +21,22 @@ services:
       retries: 5
 
   redis:
-    image: redis:latest
+    image: redis:7.4.11-alpine
     container_name: boxcopilot-redis
+    # the password is read from the environment so it does not appear in the process arguments
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\""]
+    environment:
+      # REDISCLI_AUTH lets redis-cli in the healthcheck authenticate
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
+      REDISCLI_AUTH: ${REDIS_PASSWORD}
     networks:
       - boxcopilot-network
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    cpus: 0.5
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -34,6 +45,15 @@ services:
     build: backend
     container_name: boxcopilot-backend
     working_dir: /app
+    # Runs as non-root uid 10001 (set in the Dockerfile). UPGRADE from a root-run install (one time, before `up`):
+    #   mkdir -p logs images && sudo chown -R 10001:10001 logs images
+    # ROLLBACK to root: uncomment the next line (add `cap_add: [DAC_OVERRIDE]` if the dirs belong to another uid).
+    # user: "0:0"
+    # Without the chown startup fails with a clear message (ImageStorageService requires a writable image directory;
+    # logback also cannot write log files); check `docker compose logs backend`.
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777   # Tomcat work dir, multipart temp files (up to 15 MB), Java tmp
     env_file: .env
     volumes:
       - ./logs:/app/logs
@@ -43,8 +63,10 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: 6379
+      # read by application-prod.yml (spring.data.redis.host/port); the single source for the Redis address
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
       CLIENT_ID: ${CLIENT_ID}
       CLIENT_SECRET: ${CLIENT_SECRET}
       NEXTCLOUD_URL: ${NEXTCLOUD_URL}
@@ -52,6 +74,12 @@ services:
       FRONTEND_URL: ${FRONTEND_URL}
       VITE_API_BASE_URL: ${VITE_API_BASE_URL}
       APP_IMAGE_STORAGE_PATH: /var/boxcopilot/images
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 1g
+    cpus: 2.0
     networks:
       - boxcopilot-network
       - traefik-proxy
@@ -70,6 +98,14 @@ services:
       - "traefik.docker.network=traefik-proxy"
 
 
+    healthcheck:
+      # GET /actuator/health via bash /dev/tcp (no curl in the image); healthy only on "status":"UP" (DB + Redis).
+      # start_period covers Flyway + startup.
+      test: ["CMD", "timeout", "4", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8080; printf "GET /actuator/health HTTP/1.0\r\n\r\n" >&3; grep -q status.:.UP <&3']
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
     depends_on:
       postgres:
         condition: service_healthy
@@ -81,8 +117,26 @@ services:
       context: frontend
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL}
-    env_file: .env
     container_name: boxcopilot-frontend
+    environment:
+      # rendered into the nginx CSP (connect-src/img-src); must be a bare origin (scheme://host[:port], no path)
+      API_ORIGIN: ${VITE_API_BASE_URL}
+      # report = Content-Security-Policy-Report-Only, enforce = Content-Security-Policy
+      CSP_MODE: ${CSP_MODE:-report}
+      # production sits behind Traefik TLS; the e2e overlay (plain http) turns this off
+      HSTS_ENABLED: ${HSTS_ENABLED:-true}
+    security_opt:
+      - no-new-privileges:true
+    # nginx (root master, setuid workers, port 80) needs these
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - NET_BIND_SERVICE
+    mem_limit: 128m
+    cpus: 0.5
     networks:
       - boxcopilot-network
       - traefik-proxy
@@ -101,12 +155,8 @@ services:
       - "traefik.docker.network=traefik-proxy"
 
     depends_on:
-      - backend
-
-volumes:
-  pgdata:
-  backend-logs:
-  boxcopilot-images:
+      backend:
+        condition: service_healthy
 
 networks:
   boxcopilot-network:

@@ -9,12 +9,28 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
-  jackson:
-    serialization:
-      write-dates-as-timestamps: false
-  session:
-    store-type: none
+    show-sql: false
+    properties:
+      hibernate:
+        # Lazy collections/associations of a result list are loaded in batches instead of one select per row
+        # (the box list reads items of every box for its count).
+        default_batch_fetch_size: 100
+    # No persistence context spanning the whole request. It would hold a connection for the duration of every
+    # request and, worse, serve a second read of a row from the first-level cache of the first one: a check
+    # that reloads the user on purpose - as the MCP access policy does - would then decide on state that was
+    # read before the request even reached it. Every lazy association of this application is dereferenced
+    # inside its service transaction, so nothing depends on the open view.
+    open-in-view: false
+  ai:
+    mcp:
+      server:
+        # The starter's auto-configuration follows the same flag (otherwise it would register /mcp regardless)
+        enabled: ${app.mcp.enabled:false}
+        protocol: STATELESS
+        name: boxpilot
+        version: 1.0.0
+        streamable-http:
+          mcp-endpoint: /mcp
   servlet:
     multipart:
       max-file-size: 15MB
@@ -31,15 +47,55 @@ nextcloud:
 # Image Storage
 app:
   image:
+    max-concurrent-uploads: ${APP_IMAGE_MAX_CONCURRENT_UPLOADS:2}
     storage:
       path: ${APP_IMAGE_STORAGE_PATH:/var/boxcopilot/images}
   admin:
     username: ${ADMIN_USERNAME:admin}
-    password: ${ADMIN_PASSWORD:admin}
+    password: ${ADMIN_PASSWORD:}
     name: ${ADMIN_NAME:Administrator}
+  # Failed-login throttling, counted in this process (one replica, reset on restart). Overridable for deterministic E2E.
+  security:
+    login-throttle:
+      ip-limit: ${APP_LOGIN_THROTTLE_IP_LIMIT:10}
+      ip-user-limit: ${APP_LOGIN_THROTTLE_IP_USER_LIMIT:5}
+      window: ${APP_LOGIN_THROTTLE_WINDOW:15m}
   magiclink:
     default-valid-hours: ${MAGIC_LINK_VALID_HOURS:24}
-    backend-base-url: ${BACKEND_URL:}
+  # Read-only MCP server for AI agents. Off by default: without the flag there are no MCP beans and no /mcp endpoint.
+  mcp:
+    enabled: ${APP_MCP_ENABLED:false}
+    backend-url: ${BACKEND_URL:}
+    # Origin of the SPA's API (VITE_API_BASE_URL); empty when the SPA is served from the backend's own origin
+    spa-api-base-url: ${VITE_API_BASE_URL:}
+    redirect-uris:
+      - https://claude.ai/api/mcp/auth_callback
+    max-connection-age: 14d
+    # Daily removal of authorizations that are expired, too old or were never completed.
+    cleanup-cron: ${APP_MCP_CLEANUP_CRON:0 0 3 * * *}
+    # Abuse protection, counted in this process. The two per-minute call limits are keyed by the token subject,
+    # the other two by the client address, which is trustworthy only behind the internal proxies (M4).
+    rate-limit:
+      calls-per-minute: ${APP_MCP_CALLS_PER_MINUTE:60}
+      image-calls-per-day: ${APP_MCP_IMAGE_CALLS_PER_DAY:200}
+      authorization-requests-per-minute: ${APP_MCP_AUTHORIZATION_REQUESTS_PER_MINUTE:30}
+      failed-token-lookups-per-minute: ${APP_MCP_FAILED_TOKEN_LOOKUPS_PER_MINUTE:30}
+
+# Actuator: only /actuator/health is reachable, anonymously (OAuth2SecurityConfig permits exactly that path).
+# It answers {"status":"UP"} / {"status":"DOWN"} (HTTP 200 / 503) without component details. The status is the
+# aggregate of the auto-configured contributors: db (DataSource), redis (prod only; excluded in dev), diskSpace, ping.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+      # No liveness/readiness groups: they would add a "groups" array to the otherwise bare {"status":...} body
+      probes:
+        enabled: false
 
 logging:
   level:

@@ -1,0 +1,42 @@
+{
+  "request": {
+    "body": {
+      "method": "tools/call",
+      "params": {
+        "arguments": {
+          "limit": 10,
+          "query": "Cellar"
+        },
+        "name": "search_boxes"
+      }
+    },
+    "method": "POST",
+    "path": "/mcp"
+  },
+  "response": {
+    "body": {
+      "id": 1,
+      "jsonrpc": "2.0",
+      "result": {
+        "content": [
+          {
+            "text": "{\"boxes\":[{\"boxNumber\":1,\"rooms\":[\"Cellar\",\"Kitchen\"],\"flags\":[\"fragile\",\"no_stack\",\"label_printed\"],\"itemCount\":1}]}",
+            "type": "text"
+          }
+        ],
+        "isError": false
+      }
+    },
+    "headers": {
+      "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+      "content-type": "application/json",
+      "expires": "0",
+      "pragma": "no-cache",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-xss-protection": "0"
+    },
+    "set-cookie-attributes": [],
+    "status": 200
+  }
+}

@@ -12,8 +12,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -25,18 +23,28 @@ public class MagicLoginTokenService {
     
     private static final Logger log = LoggerFactory.getLogger(MagicLoginTokenService.class);
     
+    static final int MAX_VALID_HOURS = 72;
+
+    private static final String MAGIC_LINK_PATH = "/magic#t=";
+
     private final MagicLoginTokenRepository tokenRepository;
     private final UserRepository userRepository;
-    
-    @Value("${app.magiclink.default-valid-hours:24}")
-    private int defaultValidHours;
-    
-    @Value("${app.magiclink.backend-base-url:}")
-    private String backendBaseUrl;
-    
-    public MagicLoginTokenService(MagicLoginTokenRepository tokenRepository, UserRepository userRepository) {
+    private final String frontendBaseUrl;
+    private final int defaultValidHours;
+
+    public MagicLoginTokenService(MagicLoginTokenRepository tokenRepository,
+                                  UserRepository userRepository,
+                                  @Value("${frontend.url}") String frontendUrl,
+                                  @Value("${app.magiclink.default-valid-hours:24}") int defaultValidHours) {
+        if (!StringUtils.hasText(frontendUrl)) {
+            throw new IllegalStateException("frontend.url (FRONTEND_URL) must be configured to build magic links");
+        }
         this.tokenRepository = tokenRepository;
         this.userRepository = userRepository;
+        this.frontendBaseUrl = frontendUrl.endsWith("/")
+                ? frontendUrl.substring(0, frontendUrl.length() - 1)
+                : frontendUrl;
+        this.defaultValidHours = defaultValidHours;
     }
     
     /**
@@ -51,6 +59,9 @@ public class MagicLoginTokenService {
         int validHours = (request != null && request.getExpiresInHours() != null) 
                 ? request.getExpiresInHours() 
                 : defaultValidHours;
+        if (validHours < 1 || validHours > MAX_VALID_HOURS) {
+            throw new IllegalArgumentException("Magic link validity must be between 1 and " + MAX_VALID_HOURS + " hours");
+        }
         
         // Invalidate any existing active tokens for this user
         invalidateActiveTokensForUser(user);
@@ -60,14 +71,8 @@ public class MagicLoginTokenService {
         MagicLoginToken token = new MagicLoginToken(tokenString, user, validHours);
         MagicLoginToken savedToken = tokenRepository.save(token);
         
-        // Build the magic login URL against backend, so the session can be created server-side
-        String magicLoginUrl = UriComponentsBuilder
-            .fromUriString(resolveBaseUrl())
-            .path("/api/v1/auth/magic-login")
-            .queryParam("token", tokenString)
-            .build()
-            .toUriString();
-        
+        String magicLoginUrl = frontendBaseUrl + MAGIC_LINK_PATH + tokenString;
+
         log.info("Admin '{}' generated magic login link for user '{}' (id: {}), token id: {}, expires at: {}", 
                 adminUsername, user.getUsername(), userId, savedToken.getId(), savedToken.getExpiryDate());
         
@@ -75,61 +80,33 @@ public class MagicLoginTokenService {
     }
 
     /**
-     * Determine the base URL for constructing the magic login link.
-     * Prefers explicit configuration, otherwise derives from the current request context.
-     */
-    private String resolveBaseUrl() {
-        if (StringUtils.hasText(backendBaseUrl)) {
-            return backendBaseUrl.endsWith("/")
-                    ? backendBaseUrl.substring(0, backendBaseUrl.length() - 1)
-                    : backendBaseUrl;
-        }
-
-        // Fall back to the current request context (works inside MVC request lifecycle)
-        return ServletUriComponentsBuilder.fromCurrentContextPath()
-            .build()
-            .toUriString();
-    }
-    
-    /**
-     * Validate a magic login token and return the associated user
+     * Redeem a magic login token and return the associated user.
+     * The user is checked before the token is consumed, so a disabled or locked user never burns the token.
+     * Consumption is a single conditional UPDATE, so concurrent redemptions succeed at most once.
      */
     @Transactional
-    public Optional<User> validateToken(String tokenString) {
-        log.debug("Validating magic login token: {}", tokenString.substring(0, Math.min(8, tokenString.length())) + "...");
-        
+    public Optional<User> consumeToken(String tokenString) {
         Optional<MagicLoginToken> tokenOpt = tokenRepository.findByToken(tokenString);
-        
         if (tokenOpt.isEmpty()) {
-            log.warn("Magic login token not found: {}", tokenString.substring(0, Math.min(8, tokenString.length())) + "...");
+            log.warn("Magic login rejected: unknown token");
             return Optional.empty();
         }
-        
-        MagicLoginToken token = tokenOpt.get();
 
-        // Disallow reuse
-        if (Boolean.TRUE.equals(token.getUsed())) {
-            log.warn("Magic login token already used for user '{}': token id {}", token.getUser().getUsername(), token.getId());
+        MagicLoginToken token = tokenOpt.get();
+        User user = token.getUser();
+
+        if (!Boolean.TRUE.equals(user.getEnabled())) {
+            log.warn("Magic login rejected: user '{}' is disabled", user.getUsername());
             return Optional.empty();
         }
-        
-        // Check if token is expired
-        if (token.isExpired()) {
-            log.warn("Magic login token expired for user '{}': expires at {}", 
-                    token.getUser().getUsername(), token.getExpiryDate());
+
+        if (tokenRepository.consume(tokenString, LocalDateTime.now()) != 1) {
+            log.warn("Magic login rejected: token of user '{}' is used or expired", user.getUsername());
             return Optional.empty();
         }
-        
-        // Check if user is enabled
-        if (!token.getUser().getEnabled()) {
-            log.warn("Magic login attempted for disabled user: {}", token.getUser().getUsername());
-            return Optional.empty();
-        }
-        
-        log.info("Magic login successful for user '{}' (id: {})", 
-                token.getUser().getUsername(), token.getUser().getId());
-        
-        return Optional.of(token.getUser());
+
+        log.info("Magic login token redeemed for user '{}' (id: {})", user.getUsername(), user.getId());
+        return Optional.of(user);
     }
     
     /**

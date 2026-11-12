@@ -1,0 +1,34 @@
+{
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/v1/me"
+  },
+  "response": {
+    "body": {
+      "admin": false,
+      "authProvider": null,
+      "authenticated": false,
+      "csrfToken": "<redacted>",
+      "email": null,
+      "id": null,
+      "name": null,
+      "preferredUsername": null,
+      "role": null,
+      "sub": null,
+      "username": null
+    },
+    "headers": {
+      "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+      "content-type": "application/json",
+      "expires": "0",
+      "pragma": "no-cache",
+      "vary": "Origin, Access-Control-Request-Method, Access-Control-Request-Headers",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-xss-protection": "0"
+    },
+    "set-cookie-attributes": [],
+    "status": 200
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "boxpilot-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node smoke.mjs" },
+  "dependencies": { "playwright": "^1.50.0" }
+}

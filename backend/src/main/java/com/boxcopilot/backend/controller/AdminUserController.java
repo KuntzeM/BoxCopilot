@@ -91,7 +91,7 @@ public class AdminUserController {
     @PutMapping("/{id}")
     public ResponseEntity<UserDTO> updateUser(
             @PathVariable Long id,
-            @RequestBody UpdateUserDTO updateUserDTO) {
+            @Valid @RequestBody UpdateUserDTO updateUserDTO) {
         
         log.info("Updating user with id: {}", id);
         
@@ -124,23 +124,13 @@ public class AdminUserController {
     }
     
     /**
-     * Unlock user account
-     */
-    @PutMapping("/{id}/unlock")
-    public ResponseEntity<Void> unlockUser(@PathVariable Long id) {
-        log.info("Unlocking user with id: {}", id);
-        userService.unlockUser(id);
-        return ResponseEntity.ok().build();
-    }
-    
-    /**
      * Generate magic login link for a user
      * Admin-only endpoint
      */
     @PostMapping("/{id}/magic-link")
     public ResponseEntity<MagicLinkResponseDTO> generateMagicLink(
             @PathVariable Long id,
-            @RequestBody(required = false) CreateMagicLinkRequestDTO request,
+            @Valid @RequestBody(required = false) CreateMagicLinkRequestDTO request,
             @AuthenticationPrincipal Object principal) {
         
         log.info("Generating magic link for user with id: {}", id);

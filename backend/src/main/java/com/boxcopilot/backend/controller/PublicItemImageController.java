@@ -39,9 +39,9 @@ public class PublicItemImageController {
 
         return ResponseEntity.ok()
             .contentType(MediaType.IMAGE_JPEG)
-            .header(HttpHeaders.CACHE_CONTROL, "max-age=3600, must-revalidate")
+            .header(HttpHeaders.CACHE_CONTROL, "public, max-age=31536000, immutable")
             .header(HttpHeaders.ETAG, eTag)
-            .header(HttpHeaders.LAST_MODIFIED, String.valueOf(lastModified))
+            .lastModified(lastModified)
             .body(image);
     }
 
@@ -59,9 +59,9 @@ public class PublicItemImageController {
 
         return ResponseEntity.ok()
             .contentType(MediaType.IMAGE_JPEG)
-            .header(HttpHeaders.CACHE_CONTROL, "max-age=3600, must-revalidate")
+            .header(HttpHeaders.CACHE_CONTROL, "public, max-age=31536000, immutable")
             .header(HttpHeaders.ETAG, eTag)
-            .header(HttpHeaders.LAST_MODIFIED, String.valueOf(lastModified))
+            .lastModified(lastModified)
             .body(image);
     }
 }
