@@ -1,5 +1,6 @@
 package com.boxcopilot.backend.service;
 
+import org.springframework.transaction.support.TransactionTemplate;
 import com.boxcopilot.backend.domain.Box;
 import com.boxcopilot.backend.domain.Item;
 import com.boxcopilot.backend.mapper.ItemMapper;
@@ -33,7 +34,7 @@ class ItemServiceTest {
         items = mock(ItemRepository.class);
         boxes = mock(BoxRepository.class);
         storage = mock(ImageStorageService.class);
-        service = new ItemService(items, boxes, mock(ItemMapper.class), storage);
+        service = new ItemService(items, boxes, mock(ItemMapper.class), storage, new TransactionTemplate());
         when(items.save(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 

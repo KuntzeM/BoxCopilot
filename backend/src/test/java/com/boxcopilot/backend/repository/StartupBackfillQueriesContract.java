@@ -35,15 +35,15 @@ abstract class StartupBackfillQueriesContract {
     @Test
     void findsNullEmptyAndBlankTokensOnly() {
         Box box = box(em, 1, "Kitchen", "Kitchen", null);
-        itemWithToken(box, "null", null);
-        itemWithToken(box, "empty", "");
-        itemWithToken(box, "blank", "   ");
+        Item nul = itemWithToken(box, "null", null);
+        Item empty = itemWithToken(box, "empty", "");
+        Item blank = itemWithToken(box, "blank", "   ");
         itemWithToken(box, "set", UUID.randomUUID().toString());
         em.flush();
         em.clear();
 
-        assertThat(itemRepository.findWithoutImageToken()).extracting(Item::getName)
-                .containsExactlyInAnyOrder("null", "empty", "blank");
+        assertThat(itemRepository.findIdsWithoutImageToken())
+                .containsExactlyInAnyOrder(nul.getId(), empty.getId(), blank.getId());
     }
 
     @Test
@@ -54,7 +54,7 @@ abstract class StartupBackfillQueriesContract {
         em.flush();
         em.clear();
 
-        assertThat(itemRepository.findWithoutImageToken()).isEmpty();
+        assertThat(itemRepository.findIdsWithoutImageToken()).isEmpty();
     }
 
     @Test
@@ -72,7 +72,7 @@ abstract class StartupBackfillQueriesContract {
 
     @Test
     void emptyTablesYieldNothing() {
-        assertThat(itemRepository.findWithoutImageToken()).isEmpty();
+        assertThat(itemRepository.findIdsWithoutImageToken()).isEmpty();
         assertThat(boxRepository.findByBoxNumberIsNull()).isEmpty();
         assertThat(boxRepository.findByBoxNumberIsNotNull()).isEmpty();
     }

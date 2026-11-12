@@ -4,6 +4,7 @@ import com.boxcopilot.backend.domain.Item;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -22,9 +23,13 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
 	List<Item> findByBox_UuidOrderByNameAsc(String boxUuid);
 	Optional<Item> findByImageToken(String imageToken);
 
-	/** Legacy items whose image token is NULL or blank (startup backfill). */
-	@Query("select i from Item i where i.imageToken is null or trim(i.imageToken) = ''")
-	List<Item> findWithoutImageToken();
+	/** Ids of legacy items whose image token is NULL or blank (startup backfill); ids only, so no box (LOB) is read. */
+	@Query("select i.id from Item i where i.imageToken is null or trim(i.imageToken) = ''")
+	List<Long> findIdsWithoutImageToken();
+
+	@Modifying
+	@Query("update Item i set i.imageToken = :token where i.id = :id")
+	void updateImageToken(@Param("id") Long id, @Param("token") String token);
 
 	/** Bounded name search that loads each item's box in the same statement. */
 	@EntityGraph(attributePaths = "box")

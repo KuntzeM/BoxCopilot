@@ -1,5 +1,6 @@
 package com.boxcopilot.backend.service;
 
+import org.springframework.transaction.support.TransactionTemplate;
 import com.boxcopilot.backend.domain.Item;
 import com.boxcopilot.backend.exception.InvalidImageException;
 import com.boxcopilot.backend.mapper.ItemMapper;
@@ -24,7 +25,7 @@ class ItemServiceUploadTest {
     void rejectedUploadLeavesTheExistingImageAndItemUntouched() {
         ItemRepository items = mock(ItemRepository.class);
         ImageStorageService storage = mock(ImageStorageService.class);
-        ItemService service = new ItemService(items, mock(BoxRepository.class), mock(ItemMapper.class), storage);
+        ItemService service = new ItemService(items, mock(BoxRepository.class), mock(ItemMapper.class), storage, new TransactionTemplate());
         Item item = new Item();
         item.setImagePath("1_thumb.jpg");
         when(items.findById(1L)).thenReturn(Optional.of(item));

@@ -14,6 +14,7 @@ import jakarta.annotation.PostConstruct;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -33,9 +34,12 @@ public class ItemService {
     private final BoxRepository boxRepository;
     private final ItemMapper itemMapper;
     private final ImageStorageService imageStorageService;
+    private final TransactionTemplate transactionTemplate;
 
     public ItemService(ItemRepository itemRepository, BoxRepository boxRepository, 
-                      ItemMapper itemMapper, ImageStorageService imageStorageService) {
+                      ItemMapper itemMapper, ImageStorageService imageStorageService,
+                      TransactionTemplate transactionTemplate) {
+        this.transactionTemplate = transactionTemplate;
         this.itemRepository = itemRepository;
         this.boxRepository = boxRepository;
         this.itemMapper = itemMapper;
@@ -44,7 +48,8 @@ public class ItemService {
 
     @PostConstruct
     public void initImageTokens() {
-        ensureImageTokens();
+        // @PostConstruct bypasses the @Transactional proxy; Postgres needs a transaction for the Box @Lob.
+        transactionTemplate.executeWithoutResult(status -> ensureImageTokens());
     }
 
     /**
@@ -296,15 +301,12 @@ public class ItemService {
      */
     @Transactional
     public void ensureImageTokens() {
-        List<Item> items = itemRepository.findWithoutImageToken();
-        if (items.isEmpty()) {
-            return;
+        List<Long> ids = itemRepository.findIdsWithoutImageToken();
+        for (Long id : ids) {
+            itemRepository.updateImageToken(id, UUID.randomUUID().toString());
         }
-        for (Item item : items) {
-            item.setImageToken(UUID.randomUUID().toString());
+        if (!ids.isEmpty()) {
+            log.info("Backfilled image tokens for {} items", ids.size());
         }
-        itemRepository.saveAll(items);
-        log.info("Backfilled image tokens for {} items", items.size());
     }
 }
-
