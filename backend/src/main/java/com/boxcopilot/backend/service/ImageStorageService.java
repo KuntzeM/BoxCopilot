@@ -2,6 +2,7 @@ package com.boxcopilot.backend.service;
 
 import com.boxcopilot.backend.exception.FileStorageException;
 import com.boxcopilot.backend.exception.InvalidImageException;
+import com.boxcopilot.backend.exception.UploadBusyException;
 import net.coobird.thumbnailator.Thumbnails;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,6 +19,8 @@ import javax.imageio.stream.ImageInputStream;
 import java.awt.image.BufferedImage;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -36,24 +39,33 @@ public class ImageStorageService {
     private static final Logger log = LoggerFactory.getLogger(ImageStorageService.class);
     private static final int THUMBNAIL_SIZE = 200;
     private static final int LARGE_SIZE = 1024;
-    private static final long MAX_PIXELS = 40_000_000L;
+    private static final long MAX_PIXELS = 25_000_000L;
     private static final String THUMBNAIL_SUFFIX = "_thumb.jpg";
     private static final String LARGE_SUFFIX = "_large.jpg";
     
     @Value("${app.image.storage.path}")
     private String storagePath;
     
+    @Value("${app.image.max-concurrent-uploads:2}")
+    private int maxConcurrentUploads = 2;
+
     private Path storageLocation;
+    private Semaphore uploadSlots = new Semaphore(2);
+    private long slotWaitMillis = 5_000;
 
     @PostConstruct
     public void init() {
         try {
+            this.uploadSlots = new Semaphore(Math.max(1, maxConcurrentUploads));
             this.storageLocation = Paths.get(storagePath).toAbsolutePath().normalize();
             Files.createDirectories(this.storageLocation);
+            Path probe = Files.createTempFile(this.storageLocation, ".write-check", null);
+            Files.delete(probe);
             log.info("Image storage initialized at: {}", this.storageLocation);
         } catch (IOException e) {
-            log.error("Failed to create image storage directory", e);
-            throw new FileStorageException("Failed to create image storage directory", e);
+            log.error("Image storage directory is not writable", e);
+            throw new FileStorageException("Image storage directory " + storagePath + " is not writable ("
+                    + e + "). Fix: chown -R 10001:10001 <host dir of the image volume>", e);
         }
     }
 
@@ -65,6 +77,25 @@ public class ImageStorageService {
      * @return The relative path to the stored thumbnail
      */
     public String saveImage(Long itemId, MultipartFile file) {
+        // Bound concurrent decodes (memory); a busy server answers 503 + Retry-After.
+        boolean acquired;
+        try {
+            acquired = uploadSlots.tryAcquire(slotWaitMillis, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new FileStorageException("Image processing interrupted", e);
+        }
+        if (!acquired) {
+            throw new UploadBusyException("Server is busy processing other images, please try again shortly");
+        }
+        try {
+            return store(itemId, file);
+        } finally {
+            uploadSlots.release();
+        }
+    }
+
+    private String store(Long itemId, MultipartFile file) {
         log.info("Saving image for item ID: {}", itemId);
         
         if (file.isEmpty()) {
@@ -134,7 +165,7 @@ public class ImageStorageService {
             try {
                 reader.setInput(in, true, true);
                 if ((long) reader.getWidth(0) * reader.getHeight(0) > MAX_PIXELS) {
-                    throw new InvalidImageException("Image is too large (max 40 megapixels)");
+                    throw new InvalidImageException("Image is too large (max 25 megapixels)");
                 }
             } finally {
                 reader.dispose();

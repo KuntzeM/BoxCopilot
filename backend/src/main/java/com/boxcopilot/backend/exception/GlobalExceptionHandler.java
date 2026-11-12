@@ -98,6 +98,17 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handles a busy image pipeline: temporary, so 503 with a retry hint rather than a server error.
+     */
+    @ExceptionHandler(UploadBusyException.class)
+    public ResponseEntity<ErrorResponse> handleUploadBusy(UploadBusyException ex) {
+        log.warn("Upload rejected, no free slot: {}", ex.getMessage());
+        ErrorResponse error = new ErrorResponse(HttpStatus.SERVICE_UNAVAILABLE.value(),
+                "The server is busy processing other images, please try again in a few seconds", Instant.now());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).header("Retry-After", "5").body(error);
+    }
+
+    /**
      * Handles file storage exceptions.
      */
     @ExceptionHandler(FileStorageException.class)

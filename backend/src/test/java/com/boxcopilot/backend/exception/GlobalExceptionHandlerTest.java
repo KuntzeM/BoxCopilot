@@ -129,4 +129,15 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody().getMessage()).isEqualTo("Invalid value for parameter 'id'");
     }
+
+    @Test
+    void busyUploadReturns503WithRetryAfter() {
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
+                handler.handleUploadBusy(new UploadBusyException("internal detail"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(response.getHeaders().getFirst("Retry-After")).isEqualTo("5");
+        assertThat(response.getBody().getStatus()).isEqualTo(503);
+        assertThat(response.getBody().getMessage()).contains("try again").doesNotContain("internal");
+    }
 }

@@ -1,5 +1,6 @@
 package com.boxcopilot.backend.service;
 
+import com.boxcopilot.backend.exception.FileStorageException;
 import com.boxcopilot.backend.exception.InvalidImageException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,8 +40,8 @@ class ImageStorageServiceTest {
     }
 
     @Test
-    void rejectsImagesAboveFortyMegapixels() throws Exception {
-        MockMultipartFile bomb = png(8000, 5001);
+    void rejectsImagesAboveTwentyFiveMegapixels() throws Exception {
+        MockMultipartFile bomb = png(6000, 5000);
 
         assertThatThrownBy(() -> service.saveImage(1L, bomb))
                 .isInstanceOf(InvalidImageException.class).hasMessageContaining("too large");
@@ -66,5 +67,50 @@ class ImageStorageServiceTest {
 
         assertThat(ImageIO.read(dir.resolve("2_large.jpg").toFile()).getWidth()).isEqualTo(1024);
         assertThat(ImageIO.read(dir.resolve("2_thumb.jpg").toFile()).getWidth()).isEqualTo(200);
+    }
+
+    @Test
+    void acceptsTwelveMegapixelPhoto() throws Exception {
+        service.saveImage(3L, png(4000, 3000));
+
+        assertThat(dir.resolve("3_thumb.jpg")).exists();
+    }
+
+    @Test
+    void permitsAreReleasedAfterFailuresAndBusyServerIsRejected() throws Exception {
+        ReflectionTestUtils.setField(service, "slotWaitMillis", 50L);
+        MockMultipartFile garbage = new MockMultipartFile("file", "x.png", "image/png", "nope".getBytes());
+        for (int i = 0; i < 5; i++) {
+            assertThatThrownBy(() -> service.saveImage(1L, garbage)).isInstanceOf(InvalidImageException.class);
+        }
+        service.saveImage(4L, png(100, 100));
+        service.saveImage(5L, png(100, 100));
+
+        java.util.concurrent.Semaphore slots = (java.util.concurrent.Semaphore) ReflectionTestUtils.getField(service, "uploadSlots");
+        assertThat(slots.availablePermits()).isEqualTo(2);
+        slots.acquire(2);
+        assertThatThrownBy(() -> service.saveImage(6L, png(100, 100)))
+                .isInstanceOf(com.boxcopilot.backend.exception.UploadBusyException.class).hasMessageContaining("busy");
+        slots.release(2);
+        service.saveImage(6L, png(100, 100));
+    }
+
+    @Test
+    void initLeavesWritableDirectoryEmpty() throws Exception {
+        try (var files = java.nio.file.Files.list(dir)) {
+            assertThat(files).isEmpty();
+        }
+    }
+
+    @Test
+    void initFailsWithFixHintWhenStoragePathIsBeneathAFile() throws Exception {
+        java.nio.file.Path file = java.nio.file.Files.createFile(dir.resolve("not-a-dir"));
+        ImageStorageService broken = new ImageStorageService();
+        ReflectionTestUtils.setField(broken, "storagePath", file.resolve("images").toString());
+
+        assertThatThrownBy(broken::init).isInstanceOf(FileStorageException.class)
+                .hasMessageContaining("not-a-dir")
+                .hasMessageContaining("not writable")
+                .hasMessageContaining("chown -R 10001:10001");
     }
 }
