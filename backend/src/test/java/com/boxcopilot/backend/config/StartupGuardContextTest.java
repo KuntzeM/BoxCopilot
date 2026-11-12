@@ -15,9 +15,9 @@ class StartupGuardContextTest {
         runner.withInitializer(context -> context.getEnvironment().setActiveProfiles("test", "prod"))
                 .run(context -> {
                     assertThat(context).hasFailed();
+                    // StartupGuard.Early fails the context before any bean exists, so the failure is not wrapped
                     assertThat(context.getStartupFailure())
-                            .hasRootCauseInstanceOf(IllegalStateException.class)
-                            .rootCause()
+                            .isInstanceOf(IllegalStateException.class)
                             .hasMessageContaining("test")
                             .hasMessageContaining("prod");
                 });

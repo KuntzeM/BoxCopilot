@@ -57,7 +57,65 @@ class StartupGuardTest {
 
     @Test
     void allowsProdProfileWithPostgresDatasource() {
-        MockEnvironment environment = environment(POSTGRES_URL, "prod");
+        MockEnvironment environment = completeProd();
+
+        assertThatCode(() -> new StartupGuard(environment).afterPropertiesSet())
+                .doesNotThrowAnyException();
+    }
+
+    private static final String[] PROD_KEYS = {
+            "spring.datasource.url", "spring.datasource.username", "spring.datasource.password",
+            "spring.data.redis.host", "spring.data.redis.port", "spring.data.redis.password",
+            "spring.security.oauth2.client.registration.nextcloud.client-id",
+            "spring.security.oauth2.client.registration.nextcloud.client-secret",
+            "spring.security.oauth2.client.registration.nextcloud.redirect-uri",
+            "spring.security.oauth2.client.provider.nextcloud.issuer-uri",
+            "nextcloud.logout-url", "frontend.url"};
+
+    private static MockEnvironment completeProd() {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("prod");
+        for (String key : PROD_KEYS) {
+            environment.setProperty(key, "x");
+        }
+        environment.setProperty("spring.datasource.url", POSTGRES_URL);
+        return environment;
+    }
+
+    @Test
+    void prodReportsAllMissingSettingsInOneMessage() {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("prod");
+        // application-prod.yml leaves an unresolvable placeholder behind when the variable is unset
+        environment.setProperty("spring.data.redis.password", "${REDIS_PASSWORD}");
+        environment.setProperty("frontend.url", "http://front");
+
+        assertThatThrownBy(() -> new StartupGuard(environment).afterPropertiesSet())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("SPRING_DATASOURCE_URL")
+                .hasMessageContaining("REDIS_PASSWORD")
+                .hasMessageContaining("CLIENT_ID")
+                .hasMessageContaining("CLIENT_SECRET")
+                .hasMessageContaining("NEXTCLOUD_URL")
+                .hasMessageContaining("NEXTCLOUD_LOGOUT_URL")
+                .hasMessageContaining("VITE_API_BASE_URL")
+                .hasMessageNotContaining("FRONTEND_URL");
+    }
+
+    @Test
+    void prodNamesASingleMissingSetting() {
+        MockEnvironment environment = completeProd();
+        environment.setProperty("nextcloud.logout-url", "${NEXTCLOUD_LOGOUT_URL}");
+
+        assertThatThrownBy(() -> new StartupGuard(environment).afterPropertiesSet())
+                .hasMessageContaining("NEXTCLOUD_LOGOUT_URL")
+                .hasMessageNotContaining("CLIENT_ID");
+    }
+
+    @Test
+    void devIgnoresTheProdRequirements() {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("dev");
 
         assertThatCode(() -> new StartupGuard(environment).afterPropertiesSet())
                 .doesNotThrowAnyException();

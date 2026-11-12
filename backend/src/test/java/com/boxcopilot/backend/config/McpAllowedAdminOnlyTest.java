@@ -3,7 +3,6 @@ package com.boxcopilot.backend.config;
 import com.boxcopilot.backend.controller.AdminUserController;
 import com.boxcopilot.backend.controller.AuthController;
 import com.boxcopilot.backend.controller.BoxController;
-import com.boxcopilot.backend.controller.BoxNumberController;
 import com.boxcopilot.backend.controller.ItemController;
 import com.boxcopilot.backend.controller.MagicLoginController;
 import com.boxcopilot.backend.controller.PublicItemImageController;
@@ -178,7 +177,6 @@ class McpAllowedAdminOnlyTest {
                 AdminUserController.class,
                 AuthController.class,
                 MagicLoginController.class,
-                BoxNumberController.class,
                 PublicItemImageController.class,
                 PublicPreviewController.class,
                 BoxController.class,
@@ -196,6 +194,12 @@ class McpAllowedAdminOnlyTest {
     @Configuration
     @EnableWebMvc
     static class SupportConfig {
+
+        @Bean
+        com.boxcopilot.backend.security.LoginThrottle loginThrottle() {
+            return new com.boxcopilot.backend.security.LoginThrottle(java.time.Clock.systemUTC(),
+                    new com.boxcopilot.backend.security.LoginThrottleProperties(10, 5, java.time.Duration.ofMinutes(15)));
+        }
 
         @Bean
         ClientRegistrationRepository clientRegistrationRepository() {

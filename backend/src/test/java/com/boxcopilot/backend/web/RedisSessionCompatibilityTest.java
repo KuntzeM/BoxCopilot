@@ -50,7 +50,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "frontend.url=http://localhost:3000",
         "nextcloud.logout-url=http://localhost/logout",
         "app.image.storage.path=target/web-runtime-images",
-        "app.admin.password=redis-session-test-pw"})
+        "app.admin.password=redis-session-test-password"})
 @ActiveProfiles("prod")
 class RedisSessionCompatibilityTest {
 
@@ -117,31 +117,31 @@ class RedisSessionCompatibilityTest {
         }
     }
 
-    /** The security context (principal, authorities) written by 3.5 deserializes under Spring Security 7. */
+    /**
+     * The slimmed principal has a new serialVersionUID, so a security context written by the old build (3.5 or the
+     * fat principal with the User entity and hash) is not half-read: it fails to deserialize and the tolerant
+     * serializer treats the attribute as absent. The session itself still exists, the user is anonymous and signs in again.
+     */
     @Test
-    void the35SessionLoadsWithItsPrincipal() throws Exception {
+    void anOldShapePrincipalSessionIsAnonymousNotHalfRead() throws Exception {
         loadThe35Session(true);
 
         Session session = sessions.findById(sessionId);
 
         assertThat(session).isNotNull();
-        assertThat(session.getAttributeNames()).containsExactly("SPRING_SECURITY_CONTEXT");
-        SecurityContext context = session.getAttribute("SPRING_SECURITY_CONTEXT");
-        assertThat(context.getAuthentication().getName()).isEqualTo("admin");
-        assertThat(context.getAuthentication().isAuthenticated()).isTrue();
-        assertThat(context.getAuthentication().getAuthorities()).extracting(Object::toString).contains("ROLE_ADMIN");
+        assertThat((Object) session.getAttribute("SPRING_SECURITY_CONTEXT")).isNull();
     }
 
     @Test
-    void aRequestCarryingThe35CookieIsStillSignedIn() throws Exception {
+    void aRequestCarryingAnOldShapeCookieMustSignInAgain() throws Exception {
         loadThe35Session(true);
 
-        RealTomcat.Reply reply = new RealTomcat.Client(port).send("GET", "/api/v1/me", null, null,
-                "Cookie", sessionCookie());
+        RealTomcat.Reply me = new RealTomcat.Client(port).send("GET", "/api/v1/me", null, null, "Cookie", sessionCookie());
+        RealTomcat.Reply protectedApi = new RealTomcat.Client(port).send("GET", "/api/v1/boxes", null, null, "Cookie", sessionCookie());
 
-        assertThat(reply.status()).as(reply.body()).isEqualTo(200);
-        assertThat(reply.body()).contains("\"authenticated\":true").contains("\"username\":\"admin\"")
-                .contains("\"role\":\"ADMIN\"").contains("\"csrfToken\"");
+        assertThat(me.status()).as(me.body()).isEqualTo(200);
+        assertThat(me.body()).contains("\"authenticated\":false");
+        assertThat(protectedApi.status()).as(protectedApi.body()).isEqualTo(401);
     }
 
     /** The capture as committed has long expired: that is the "user signs in again" outcome, never a 5xx. */

@@ -84,6 +84,8 @@ server:
   servlet:
     session:
       cookie:
-        same-site: none
+        # 'none' lets a SPA on another site send the cookie. Use 'lax' when SPA and API share a site
+        # (e.g. app.example.com and api.example.com); 'strict' would break the OIDC redirect back to the API.
+        same-site: ${SESSION_COOKIE_SAME_SITE:none}
         secure: true
 

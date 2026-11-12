@@ -215,6 +215,35 @@ class McpStartupGuardTest {
                 .isEqualTo(new McpProperties.RateLimit(60, 200, 30, 30));
     }
 
+    private static McpStartupGuard guardWithSpa(String backendUrl, String spaUrl) {
+        McpProperties p = new McpProperties(true, backendUrl, REDIRECT_URIS, null, null, null, null, spaUrl);
+        return guard(p, new MockEnvironment(), "dev");
+    }
+
+    @Test
+    void acceptsSameOriginIgnoringDefaultPortPathAndCase() {
+        assertThatCode(guardWithSpa("https://Box.example.com", "https://box.example.com:443/api/v1")::afterPropertiesSet)
+                .doesNotThrowAnyException();
+        assertThatCode(guardWithSpa("http://localhost:8080/", "http://localhost:8080")::afterPropertiesSet)
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void skipsTheOriginCheckWhenTheSpaUrlIsBlank() {
+        assertThatCode(guardWithSpa("https://box.example.com", "  ")::afterPropertiesSet).doesNotThrowAnyException();
+        assertThatCode(guardWithSpa("https://box.example.com", null)::afterPropertiesSet).doesNotThrowAnyException();
+    }
+
+    @Test
+    void rejectsDifferentHostOrPortNamingBothValues() {
+        assertThatThrownBy(guardWithSpa("https://box.example.com", "https://other.example.com")::afterPropertiesSet)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("VITE_API_BASE_URL (https://other.example.com)")
+                .hasMessageContaining("BACKEND_URL (https://box.example.com)");
+        assertThatThrownBy(guardWithSpa("https://box.example.com", "https://box.example.com:8443")::afterPropertiesSet)
+                .isInstanceOf(IllegalStateException.class);
+    }
+
     @Test
     void theCleanupCronDefaultsToNightlyAtThree() {
         assertThat(properties("https://x", List.of(), null).cleanupCron()).isEqualTo("0 0 3 * * *");

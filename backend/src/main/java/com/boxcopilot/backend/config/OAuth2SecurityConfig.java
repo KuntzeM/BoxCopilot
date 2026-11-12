@@ -3,10 +3,6 @@ package com.boxcopilot.backend.config;
 import com.boxcopilot.backend.repository.UserRepository;
 import com.boxcopilot.backend.security.LoginThrottle;
 import com.boxcopilot.backend.security.LoginThrottleFilter;
-import com.boxcopilot.backend.security.LoginThrottleProperties;
-import org.springframework.beans.factory.ObjectProvider;
-import java.time.Clock;
-import java.time.Duration;
 import com.boxcopilot.backend.service.CustomOidcUserService;
 import com.boxcopilot.backend.service.CustomUserDetailsService;
 import org.springframework.beans.factory.annotation.Value;
@@ -70,24 +66,6 @@ public class OAuth2SecurityConfig {
         this.customOidcUserService = customOidcUserService;
     }
     
-    private LoginThrottle fallbackThrottle;
-
-    /**
-     * The application always provides the {@link LoginThrottle} bean (SecurityBeansConfiguration); the default-limit
-     * fallback only keeps slices that load this class alone working, and is shared by the filter and the handler.
-     */
-    private synchronized LoginThrottle throttle(ObjectProvider<LoginThrottle> provider) {
-        LoginThrottle bean = provider.getIfAvailable();
-        if (bean != null) {
-            return bean;
-        }
-        if (fallbackThrottle == null) {
-            fallbackThrottle = new LoginThrottle(Clock.systemUTC(),
-                    new LoginThrottleProperties(10, 5, Duration.ofMinutes(15)));
-        }
-        return fallbackThrottle;
-    }
-
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -105,13 +83,13 @@ public class OAuth2SecurityConfig {
                                            AuthenticationFailureHandler authenticationFailureHandler,
                                            SecurityContextRepository securityContextRepository,
                                            UserRepository userRepository,
-                                           ObjectProvider<LoginThrottle> loginThrottle) throws Exception {
+                                           LoginThrottle loginThrottle) throws Exception {
 
         http
             .securityContext(context -> context.securityContextRepository(securityContextRepository))
             .addFilterAfter(new SessionRevalidationFilter(userRepository), SecurityContextHolderFilter.class)
             // After the CSRF filter, before form login: answers 429 before any DB/bcrypt work
-            .addFilterBefore(new LoginThrottleFilter(throttle(loginThrottle)), UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(new LoginThrottleFilter(loginThrottle), UsernamePasswordAuthenticationFilter.class)
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
@@ -130,6 +108,10 @@ public class OAuth2SecurityConfig {
                 // the frontend instead of a 401 in a top-level navigation; the handler requires authentication
                 // itself. The literal keeps this configuration free of any dependency on the mcp package.
                 .requestMatchers(HttpMethod.GET, "/api/v1/mcp/continue").permitAll()
+                // Readiness probe for the container healthcheck. Only "health" is exposed (management.endpoints.web.
+                // exposure.include) and it shows no details; every other /actuator path is not exposed and falls
+                // through to authenticated(). A GET is exempt from CSRF and creates no session.
+                .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
                 .requestMatchers("/login/**", "/oauth2/authorization/**", "/error").permitAll()
                 // All other API endpoints require authentication
                 .requestMatchers("/api/**").authenticated()
@@ -225,7 +207,7 @@ public class OAuth2SecurityConfig {
             if (authentication.getPrincipal() instanceof CustomUserDetailsService.CustomUserPrincipal) {
                 CustomUserDetailsService.CustomUserPrincipal principal = 
                     (CustomUserDetailsService.CustomUserPrincipal) authentication.getPrincipal();
-                userService.updateLastLogin(principal.getUser());
+                userService.findByUsername(principal.getUsername()).ifPresent(userService::updateLastLogin);
             }
             
             response.setStatus(HttpServletResponse.SC_OK);
@@ -239,8 +221,7 @@ public class OAuth2SecurityConfig {
      * Injected into SecurityFilterChain to avoid circular dependency
      */
     @Bean
-    AuthenticationFailureHandler authenticationFailureHandler(ObjectProvider<LoginThrottle> loginThrottle) {
-        LoginThrottle throttle = throttle(loginThrottle);
+    AuthenticationFailureHandler authenticationFailureHandler(LoginThrottle throttle) {
         return (request, response, exception) -> {
             LoginThrottleFilter.recordFailure(throttle, request, request.getParameter("username"));
             // One generic answer for wrong password, unknown user and disabled account (no account enumeration)

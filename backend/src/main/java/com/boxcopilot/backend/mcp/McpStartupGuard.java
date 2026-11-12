@@ -43,6 +43,7 @@ class McpStartupGuard implements InitializingBean {
                     "app.mcp.backend-url must start with https:// in the '" + PROD_PROFILE + "' profile");
         }
         requireUsableBaseUrl(backendUrl);
+        requireSameOriginAsSpa(backendUrl, properties.spaApiBaseUrl());
         if (properties.redirectUris().isEmpty() || properties.redirectUris().stream().anyMatch(String::isBlank)) {
             throw new IllegalStateException(
                     "app.mcp.enabled=true requires at least one non-blank redirect URI (app.mcp.redirect-uris)");
@@ -83,6 +84,23 @@ class McpStartupGuard implements InitializingBean {
         if (!McpEndpoints.MCP.equals(configured)) {
             throw new IllegalStateException(McpEndpoints.ENDPOINT_PROPERTY + " must be '" + McpEndpoints.MCP
                     + "'; the MCP resource server chain only protects that path");
+        }
+    }
+
+    /** A SPA that calls another origin than the MCP issuer loops forever in the connect flow. */
+    private static void requireSameOriginAsSpa(String backendUrl, String spaApiBaseUrl) {
+        if (spaApiBaseUrl == null || spaApiBaseUrl.isBlank()) {
+            return;
+        }
+        String spaOrigin;
+        try {
+            spaOrigin = McpUrls.origin(spaApiBaseUrl);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("VITE_API_BASE_URL (app.mcp.spa-api-base-url) is not a valid URL", e);
+        }
+        if (!spaOrigin.equals(McpUrls.origin(backendUrl))) {
+            throw new IllegalStateException("VITE_API_BASE_URL (" + spaApiBaseUrl + ") and BACKEND_URL ("
+                    + backendUrl + ") must have the same origin (scheme, host, port) when MCP is enabled");
         }
     }
 

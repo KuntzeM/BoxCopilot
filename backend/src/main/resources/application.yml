@@ -47,6 +47,7 @@ nextcloud:
 # Image Storage
 app:
   image:
+    max-concurrent-uploads: ${APP_IMAGE_MAX_CONCURRENT_UPLOADS:2}
     storage:
       path: ${APP_IMAGE_STORAGE_PATH:/var/boxcopilot/images}
   admin:
@@ -79,6 +80,22 @@ app:
       image-calls-per-day: ${APP_MCP_IMAGE_CALLS_PER_DAY:200}
       authorization-requests-per-minute: ${APP_MCP_AUTHORIZATION_REQUESTS_PER_MINUTE:30}
       failed-token-lookups-per-minute: ${APP_MCP_FAILED_TOKEN_LOOKUPS_PER_MINUTE:30}
+
+# Actuator: only /actuator/health is reachable, anonymously (OAuth2SecurityConfig permits exactly that path).
+# It answers {"status":"UP"} / {"status":"DOWN"} (HTTP 200 / 503) without component details. The status is the
+# aggregate of the auto-configured contributors: db (DataSource), redis (prod only; excluded in dev), diskSpace, ping.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+      # No liveness/readiness groups: they would add a "groups" array to the otherwise bare {"status":...} body
+      probes:
+        enabled: false
 
 logging:
   level:

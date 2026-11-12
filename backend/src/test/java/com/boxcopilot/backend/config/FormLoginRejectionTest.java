@@ -131,6 +131,12 @@ class FormLoginRejectionTest {
         }
 
         @Bean
+        com.boxcopilot.backend.security.LoginThrottle loginThrottle() {
+            return new com.boxcopilot.backend.security.LoginThrottle(java.time.Clock.systemUTC(),
+                    new com.boxcopilot.backend.security.LoginThrottleProperties(10, 5, java.time.Duration.ofMinutes(15)));
+        }
+
+        @Bean
         ClientRegistrationRepository clientRegistrationRepository() {
             return new InMemoryClientRegistrationRepository(ClientRegistration.withRegistrationId("nextcloud")
                     .clientId("client").clientSecret("secret")

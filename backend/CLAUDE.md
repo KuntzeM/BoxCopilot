@@ -10,6 +10,7 @@ BoxCopilot backend is Java 21 with Spring Boot 4.1 and Maven. The application en
 - `repository/`: Spring Data persistence and Testcontainers support.
 - `domain/`: JPA entities and enums.
 - `dto/` and `mapper/`: API contracts and entity conversion.
+- `security/`: login throttling (`LoginThrottle`, `LoginThrottleFilter`) and the shared `FixedWindowRateLimiter`, in-process (one replica, reset on restart). `mcp/` may depend on it; nothing outside `mcp/` may depend on `mcp/`.
 - `mcp/`: optional MCP transport, OAuth2, authorization, tools, consent, and abuse controls.
 - `exception/` and `event/`: shared error handling and application events.
 
@@ -20,7 +21,7 @@ BoxCopilot backend is Java 21 with Spring Boot 4.1 and Maven. The application en
 - `test`: isolated test configuration.
 - `mcp-test`: layered test profile for real MCP chains; it uses PostgreSQL Testcontainers.
 
-MCP is off unless `app.mcp.enabled` / `APP_MCP_ENABLED` is true. Production must have a non-default `ADMIN_PASSWORD` and a Redis password.
+MCP is off unless `app.mcp.enabled` / `APP_MCP_ENABLED` is true. Production must have an `ADMIN_PASSWORD` of at least 12 characters that is not `admin`, and a Redis password; `StartupGuard` lists all missing required variables in one message.
 
 ## Commands
 

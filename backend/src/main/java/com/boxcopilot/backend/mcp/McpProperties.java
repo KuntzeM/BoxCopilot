@@ -1,6 +1,7 @@
 package com.boxcopilot.backend.mcp;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 
 import java.time.Duration;
 import java.util.List;
@@ -20,11 +21,19 @@ import java.util.List;
  * @param rateLimit        the abuse limits; absent means the documented defaults
  * @param cleanupCron      cron expression of the daily authorization cleanup; blank means
  *                         {@link #DEFAULT_CLEANUP_CRON}
+ * @param spaApiBaseUrl    the API base URL the SPA was built with ({@code VITE_API_BASE_URL}); optional, when
+ *                         set its origin must equal the one of {@code backendUrl}
  */
 @ConfigurationProperties(prefix = "app.mcp")
 public record McpProperties(boolean enabled, String backendUrl, List<String> redirectUris,
                             Duration maxConnectionAge, String cookieSameSite, RateLimit rateLimit,
-                            String cleanupCron) {
+                            String cleanupCron, String spaApiBaseUrl) {
+
+    /** Convenience for callers that do not set the SPA API base URL. */
+    public McpProperties(boolean enabled, String backendUrl, List<String> redirectUris, Duration maxConnectionAge,
+                         String cookieSameSite, RateLimit rateLimit, String cleanupCron) {
+        this(enabled, backendUrl, redirectUris, maxConnectionAge, cookieSameSite, rateLimit, cleanupCron, null);
+    }
 
     /** 14 days, as specified; kept in sync with the value in {@code application.yml}. */
     public static final Duration DEFAULT_MAX_CONNECTION_AGE = Duration.ofDays(14);
@@ -32,6 +41,7 @@ public record McpProperties(boolean enabled, String backendUrl, List<String> red
     /** Every night at 03:00 local time, outside the hours anybody uses the inventory. */
     public static final String DEFAULT_CLEANUP_CRON = "0 0 3 * * *";
 
+    @ConstructorBinding
     public McpProperties {
         redirectUris = redirectUris == null ? List.of() : List.copyOf(redirectUris);
         backendUrl = McpUrls.withoutTrailingSlash(backendUrl);

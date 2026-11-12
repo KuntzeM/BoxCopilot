@@ -4,7 +4,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.springframework.ai.mcp.customizer.McpStatelessSyncServerCustomizer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -47,14 +46,13 @@ class McpConfiguration {
     }
 
     /**
-     * A registry for the MCP counters. Micrometer is on the classpath, but Actuator is not, so nothing
-     * auto-configures a {@code MeterRegistry} today and the counters would otherwise have nowhere to go. The
-     * specification asks for no new endpoint and no new dependency, so this is a plain in-process registry; as
-     * soon as Actuator is added it configures its own and this one steps aside.
+     * A registry for the MCP counters: a plain in-process registry, so the counters have somewhere to go even in a
+     * context without Actuator's metrics auto-configuration. This configuration is processed before the
+     * auto-configurations, so with Actuator on the classpath this is the one registry and Boot's own simple
+     * registry steps aside (it is {@code @ConditionalOnMissingBean}); no metrics endpoint is exposed either way.
      */
     @Bean
     @ConditionalOnMissingBean(MeterRegistry.class)
-    @ConditionalOnMissingClass("org.springframework.boot.micrometer.metrics.autoconfigure.MetricsAutoConfiguration")
     MeterRegistry mcpMeterRegistry() {
         return new SimpleMeterRegistry();
     }

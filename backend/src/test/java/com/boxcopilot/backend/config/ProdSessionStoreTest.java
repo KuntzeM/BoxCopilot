@@ -47,7 +47,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "spring.data.redis.password=",
         "frontend.url=http://localhost:3000",
         "nextcloud.logout-url=http://localhost/logout",
-        "app.admin.password=prod-session-test-pw"})
+        "app.admin.password=prod-session-test-password"})
 @ActiveProfiles("prod")
 class ProdSessionStoreTest {
     // ponytail: with the exclusion removed the bean assertions still pass today (Redis wins the ordering), so
