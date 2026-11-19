@@ -54,6 +54,9 @@ app:
     username: ${ADMIN_USERNAME:admin}
     password: ${ADMIN_PASSWORD:}
     name: ${ADMIN_NAME:Administrator}
+  # false: a first-time Nextcloud login creates a disabled account that an admin must enable
+  oidc:
+    auto-provision: ${APP_OIDC_AUTO_PROVISION:false}
   # Failed-login throttling, counted in this process (one replica, reset on restart). Overridable for deterministic E2E.
   security:
     login-throttle:
