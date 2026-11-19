@@ -83,6 +83,23 @@ public class StartupGuard implements InitializingBean {
         }
     }
 
+    /** A leaked dev profile or default would otherwise run production on an H2 file with the well-known admin password. */
+    private void rejectDevSettingsInProd() {
+        if (environment.acceptsProfiles(Profiles.of("dev"))) {
+            throw new IllegalStateException("Profile 'dev' must not be active together with '" + PROD_PROFILE + "'");
+        }
+        String url = environment.getProperty("spring.datasource.url", "");
+        String lower = url.toLowerCase(Locale.ROOT);
+        // in-memory H2 persists nothing (the prod-profile web tests use it); a file database is the real risk
+        if (lower.startsWith("jdbc:h2:") && !lower.startsWith("jdbc:h2:mem:")) {
+            throw new IllegalStateException("Profile '" + PROD_PROFILE + "' must not use a file-based H2 datasource");
+        }
+        if ("admin".equals(environment.getProperty("app.admin.password"))) {
+            throw new IllegalStateException(
+                    "Profile '" + PROD_PROFILE + "' must not use the default admin password (set ADMIN_PASSWORD)");
+        }
+    }
+
     @Override
     public void afterPropertiesSet() {
         if (environment.acceptsProfiles(Profiles.of(PROD_PROFILE))) {
@@ -101,6 +118,9 @@ public class StartupGuard implements InitializingBean {
             if (!missing.isEmpty() && !environment.acceptsProfiles(Profiles.of(TEST_PROFILE))) {
                 throw new IllegalStateException(
                         "Missing required configuration for profile 'prod': " + String.join(", ", missing));
+            }
+            if (!environment.acceptsProfiles(Profiles.of(TEST_PROFILE))) {
+                rejectDevSettingsInProd();
             }
         }
         if (!environment.acceptsProfiles(Profiles.of(TEST_PROFILE))) {
