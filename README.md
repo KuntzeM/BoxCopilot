@@ -221,7 +221,7 @@ Back up the database and the `images` directory together: [`docs/ops/backup-rest
 - **In-process, one replica.** The counters live in the backend process: they reset on restart and are not shared between
   replicas. Run a single backend replica.
 - **`TRUSTED_PROXY_PATTERN` must be right.** The client IP comes from `X-Forwarded-For`, which Tomcat trusts only from
-  addresses matching this Java regular expression (not CIDR). The default covers Docker's default address pool (172.16.0.0/12) and loopback, the peer being the frontend nginx container, which overwrites `X-Forwarded-For` with the client IP it resolves from Traefik (`REAL_IP_FROM`, default 172.16.0.0/12); a blank
+  addresses matching this Java regular expression (not CIDR). The default covers Docker's default address pool (172.16.0.0/12) and loopback. The backend's direct peer for API traffic is Traefik on the external `traefik-proxy` network, so the pattern must match that subnet; the frontend nginx overwrites `X-Forwarded-For` with the client IP it resolves from the Traefik/edge peer (`REAL_IP_FROM`, default 172.16.0.0/12, must match that peer); a blank
   value is treated like an unset one, and the backend logs the pattern in effect at startup (`Trusted proxy pattern
   (default|custom from TRUSTED_PROXY_PATTERN): ...`). If your proxy is outside the range, or the pattern is wrong, all
   clients appear as the proxy and share one login throttle counter, so a few failed logins block everybody.

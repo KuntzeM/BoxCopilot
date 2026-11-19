@@ -1,5 +1,6 @@
 package com.boxcopilot.backend.exception;
 
+import com.boxcopilot.backend.security.LogSanitizer;
 import com.boxcopilot.backend.service.ResourceNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -149,6 +150,16 @@ public class GlobalExceptionHandler {
             errors
         );
         return ResponseEntity.badRequest().body(response);
+    }
+
+    /**
+     * Service-level input validation (e.g. search query too long) is a client error, not a server fault.
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
+        log.warn("Invalid request: {}", LogSanitizer.clean(ex.getMessage()));
+        ErrorResponse error = new ErrorResponse(HttpStatus.BAD_REQUEST.value(), ex.getMessage(), Instant.now());
+        return ResponseEntity.badRequest().body(error);
     }
 
     /**

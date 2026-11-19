@@ -381,7 +381,7 @@ class UserServiceTest {
         testUser.setRole(Role.ADMIN);
         testUser.setEnabled(true);
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
-        when(userRepository.countByRoleAndEnabled(Role.ADMIN, true)).thenReturn(1L);
+        when(userRepository.lockEnabledIdsByRole(Role.ADMIN)).thenReturn(java.util.List.of(1L));
     }
 
     @Test
@@ -402,7 +402,7 @@ class UserServiceTest {
     @Test
     void testAdminCanBeDemotedWhenAnotherEnabledAdminExists() {
         stubLastAdmin();
-        when(userRepository.countByRoleAndEnabled(Role.ADMIN, true)).thenReturn(2L);
+        when(userRepository.lockEnabledIdsByRole(Role.ADMIN)).thenReturn(java.util.List.of(1L, 2L));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
         UpdateUserDTO demote = new UpdateUserDTO();
         demote.setRole(Role.USER);

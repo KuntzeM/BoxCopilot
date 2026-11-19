@@ -231,7 +231,7 @@ public class UserService {
     /** Refuses changes that would leave the system without any enabled admin. */
     private void requireAnotherEnabledAdmin(User user) {
         if (user.getRole() == Role.ADMIN && Boolean.TRUE.equals(user.getEnabled())
-                && userRepository.countByRoleAndEnabled(Role.ADMIN, true) <= 1) {
+                && userRepository.lockEnabledIdsByRole(Role.ADMIN).size() <= 1) {
             throw new IllegalArgumentException("Cannot demote, disable or delete the last enabled admin");
         }
     }
