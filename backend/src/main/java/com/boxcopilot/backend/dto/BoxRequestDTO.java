@@ -14,6 +14,7 @@ public class BoxRequestDTO {
     @Size(max = 255, message = "Target room must be at most 255 characters")
     private String targetRoom;
     
+    @Size(max = 5000, message = "Description must be at most 5000 characters")
     private String description;
     
     private Boolean isFragile = false;

@@ -121,8 +121,10 @@ services:
     environment:
       # rendered into the nginx CSP (connect-src/img-src); must be a bare origin (scheme://host[:port], no path)
       API_ORIGIN: ${VITE_API_BASE_URL}
-      # report = Content-Security-Policy-Report-Only, enforce = Content-Security-Policy
-      CSP_MODE: ${CSP_MODE:-report}
+      # enforce = Content-Security-Policy (default), report = Content-Security-Policy-Report-Only
+      CSP_MODE: ${CSP_MODE:-enforce}
+      # peers whose X-Forwarded-For nginx trusts (CIDR; the Traefik network). Default: Docker's default address pool.
+      REAL_IP_FROM: ${REAL_IP_FROM:-172.16.0.0/12}
       # production sits behind Traefik TLS; the e2e overlay (plain http) turns this off
       HSTS_ENABLED: ${HSTS_ENABLED:-true}
     security_opt:

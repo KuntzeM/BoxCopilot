@@ -1,5 +1,7 @@
 package com.boxcopilot.backend.service;
 
+import com.boxcopilot.backend.security.LogSanitizer;
+
 import com.boxcopilot.backend.domain.AuthProvider;
 import com.boxcopilot.backend.domain.Role;
 import com.boxcopilot.backend.domain.User;
@@ -36,7 +38,7 @@ public class CustomUserDetailsService implements UserDetailsService {
     
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        log.debug("Loading user by username: {}", username);
+        log.debug("Loading user by username: {}", LogSanitizer.clean(username));
         
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));

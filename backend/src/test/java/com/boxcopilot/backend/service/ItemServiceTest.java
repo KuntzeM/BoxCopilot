@@ -107,6 +107,37 @@ class ItemServiceTest {
     }
 
     @Test
+    void imageTokenIsRotatedOnDeleteReplaceAndMove() {
+        Item item = itemWithImage(1L, "1_old.jpg");
+        item.setImageToken("t0");
+        MockMultipartFile file = new MockMultipartFile("file", "x.png", "image/png", new byte[]{1});
+        when(storage.saveImage(1L, file)).thenReturn("1_new.jpg");
+        when(boxes.findById(2L)).thenReturn(Optional.of(new Box()));
+
+        service.uploadImage(1L, file);
+        String afterUpload = item.getImageToken();
+        service.moveItem(1L, 2L);
+        String afterMove = item.getImageToken();
+        service.deleteImage(1L);
+
+        assertThat(afterUpload).isNotEqualTo("t0");
+        assertThat(afterMove).isNotEqualTo(afterUpload);
+        assertThat(item.getImageToken()).isNotEqualTo(afterMove);
+    }
+
+    @Test
+    void searchRejectsOverlongQueryAndCapsResults() {
+        assertThatThrownBy(() -> service.searchItems("x".repeat(ItemService.MAX_SEARCH_QUERY_LENGTH + 1), null))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        List<Item> many = java.util.stream.IntStream.range(0, ItemService.MAX_SEARCH_RESULTS + 50)
+                .mapToObj(i -> new Item()).toList();
+        when(items.findByNameContainingIgnoreCaseOrderByNameAsc("a")).thenReturn(many);
+        // ItemMapper is a mock, so each mapped element is null; the size is what matters
+        assertThat(service.searchItems("a", null)).hasSize(ItemService.MAX_SEARCH_RESULTS);
+    }
+
+    @Test
     void deleteImageWithoutImageTouchesNoFile() {
         Item item = itemWithImage(1L, null);
 

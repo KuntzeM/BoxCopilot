@@ -47,6 +47,7 @@ class MagicLoginTokenServiceTest {
 
     private User testUser;
     private MagicLoginToken testToken;
+    private String rawToken;
 
     @BeforeEach
     void setUp() {
@@ -62,7 +63,8 @@ class MagicLoginTokenServiceTest {
         testUser.setId(1L);
         testUser.setEnabled(true);
 
-        testToken = new MagicLoginToken(UUID.randomUUID().toString(), testUser, 24);
+        rawToken = UUID.randomUUID().toString();
+        testToken = new MagicLoginToken(MagicLoginTokenService.hash(rawToken), testUser, 24);
         testToken.setId(1L);
     }
 
@@ -173,9 +175,9 @@ class MagicLoginTokenServiceTest {
 
     @Test
     void consumeReturnsUserAfterAtomicConsume() {
-        String tokenString = testToken.getToken();
-        when(tokenRepository.findByToken(tokenString)).thenReturn(Optional.of(testToken));
-        when(tokenRepository.consume(eq(tokenString), any(LocalDateTime.class))).thenReturn(1);
+        String tokenString = rawToken;
+        when(tokenRepository.findByToken(MagicLoginTokenService.hash(tokenString))).thenReturn(Optional.of(testToken));
+        when(tokenRepository.consume(eq(MagicLoginTokenService.hash(tokenString)), any(LocalDateTime.class))).thenReturn(1);
 
         Optional<User> result = magicLoginTokenService.consumeToken(tokenString);
 
@@ -189,12 +191,12 @@ class MagicLoginTokenServiceTest {
         when(tokenRepository.findByToken(testToken.getToken())).thenReturn(Optional.of(testToken));
         when(tokenRepository.consume(eq(testToken.getToken()), any(LocalDateTime.class))).thenReturn(0);
 
-        assertFalse(magicLoginTokenService.consumeToken(testToken.getToken()).isPresent());
+        assertFalse(magicLoginTokenService.consumeToken(rawToken).isPresent());
     }
 
     @Test
     void consumeIsDeniedForUnknownToken() {
-        when(tokenRepository.findByToken("nonexistent-token")).thenReturn(Optional.empty());
+        when(tokenRepository.findByToken(MagicLoginTokenService.hash("nonexistent-token"))).thenReturn(Optional.empty());
 
         assertFalse(magicLoginTokenService.consumeToken("nonexistent-token").isPresent());
         verify(tokenRepository, never()).consume(anyString(), any(LocalDateTime.class));
@@ -202,12 +204,13 @@ class MagicLoginTokenServiceTest {
 
     @Test
     void consumeIsDeniedForExpiredTokenByConsumeResult() {
-        MagicLoginToken expiredToken = new MagicLoginToken(UUID.randomUUID().toString(), testUser, 24);
+        String expiredRaw = UUID.randomUUID().toString();
+        MagicLoginToken expiredToken = new MagicLoginToken(MagicLoginTokenService.hash(expiredRaw), testUser, 24);
         expiredToken.setExpiryDate(LocalDateTime.now().minusHours(1));
         when(tokenRepository.findByToken(expiredToken.getToken())).thenReturn(Optional.of(expiredToken));
         when(tokenRepository.consume(eq(expiredToken.getToken()), any(LocalDateTime.class))).thenReturn(0);
 
-        assertFalse(magicLoginTokenService.consumeToken(expiredToken.getToken()).isPresent());
+        assertFalse(magicLoginTokenService.consumeToken(expiredRaw).isPresent());
     }
 
     @Test
@@ -215,17 +218,17 @@ class MagicLoginTokenServiceTest {
         testUser.setEnabled(false);
         when(tokenRepository.findByToken(testToken.getToken())).thenReturn(Optional.of(testToken));
 
-        assertFalse(magicLoginTokenService.consumeToken(testToken.getToken()).isPresent());
+        assertFalse(magicLoginTokenService.consumeToken(rawToken).isPresent());
         verify(tokenRepository, never()).consume(anyString(), any(LocalDateTime.class));
     }
 
     @Test
     void logsNeverContainTheTokenOrItsPrefix() {
-        String tokenString = testToken.getToken();
+        String tokenString = rawToken;
         String prefix = tokenString.substring(0, 8);
-        when(tokenRepository.findByToken(tokenString)).thenReturn(Optional.of(testToken));
-        when(tokenRepository.consume(eq(tokenString), any(LocalDateTime.class))).thenReturn(1, 0);
-        when(tokenRepository.findByToken("unknown-" + tokenString)).thenReturn(Optional.empty());
+        when(tokenRepository.findByToken(MagicLoginTokenService.hash(tokenString))).thenReturn(Optional.of(testToken));
+        when(tokenRepository.consume(eq(MagicLoginTokenService.hash(tokenString)), any(LocalDateTime.class))).thenReturn(1, 0);
+        when(tokenRepository.findByToken(MagicLoginTokenService.hash("unknown-" + tokenString))).thenReturn(Optional.empty());
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(tokenRepository.findByUserAndExpiryDateAfter(eq(testUser), any(LocalDateTime.class)))
             .thenReturn(new ArrayList<>());
@@ -247,6 +250,21 @@ class MagicLoginTokenServiceTest {
             assertFalse(message.contains(generated.getToken()), message);
             assertFalse(message.contains(generated.getToken().substring(0, 8)), message);
         }
+    }
+
+    @Test
+    void generateStoresOnlyHashOfReturnedToken() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(tokenRepository.findByUserAndExpiryDateAfter(eq(testUser), any(LocalDateTime.class)))
+            .thenReturn(new ArrayList<>());
+        when(tokenRepository.save(any(MagicLoginToken.class))).thenAnswer(i -> i.getArgument(0));
+
+        MagicLinkResponseDTO result = magicLoginTokenService.generateMagicLink(1L, null, "admin");
+
+        org.mockito.ArgumentCaptor<MagicLoginToken> captor = org.mockito.ArgumentCaptor.forClass(MagicLoginToken.class);
+        verify(tokenRepository).save(captor.capture());
+        assertEquals(MagicLoginTokenService.hash(result.getToken()), captor.getValue().getToken());
+        assertNotEquals(result.getToken(), captor.getValue().getToken());
     }
 
     @Test

@@ -1,5 +1,7 @@
 package com.boxcopilot.backend.mcp.observability;
 
+import com.boxcopilot.backend.security.LogSanitizer;
+
 import com.boxcopilot.backend.mcp.abuse.McpClientAddress;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,7 +35,7 @@ public class McpAuditLogger {
      */
     public void toolCall(String tool, Long subject, String clientAddress, McpToolResult result, int hits) {
         log.info("MCP tool call sub={} tool={} result={} hits={} ip={}",
-                subject == null ? NO_SUBJECT : subject, tool, result.tag(), hits,
+                subject == null ? NO_SUBJECT : subject, LogSanitizer.clean(tool), result.tag(), hits,
                 clientAddress == null ? McpClientAddress.UNKNOWN : clientAddress);
     }
 }
