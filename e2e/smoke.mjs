@@ -208,7 +208,7 @@ try {
     await shot(page, '03-box-created');
   });
 
-  await step('4 add item + upload photo (thumbnail loads, immutable cache)', async () => {
+  await step('4 add item + upload photo (thumbnail loads, short-lived public cache)', async () => {
     await page.goto(editUrl());
     await page.getByRole('button', { name: 'Neues Item hinzufügen' }).click();
     const dlg = page.getByRole('dialog');
@@ -231,7 +231,7 @@ try {
     const r = await page.request.get(src);
     ok(r.status() === 200, `thumbnail GET ${r.status()}`);
     const cc = r.headers()['cache-control'] || '';
-    ok(/immutable/i.test(cc), `Cache-Control lacks immutable: "${cc}"`);
+    ok(/max-age=3600\b/.test(cc) && !/immutable/i.test(cc), `Cache-Control should be public, max-age=3600 without immutable: "${cc}"`);
     await shot(page, '04-thumbnail');
   });
 
