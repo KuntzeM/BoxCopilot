@@ -1,5 +1,7 @@
 package com.boxcopilot.backend.service;
 
+import com.boxcopilot.backend.security.LogSanitizer;
+
 import com.boxcopilot.backend.domain.Box;
 import com.boxcopilot.backend.domain.Item;
 import com.boxcopilot.backend.dto.ItemRequestDTO;
@@ -152,7 +154,7 @@ public class ItemService {
             throw new IllegalArgumentException("Search query must be at most " + MAX_SEARCH_QUERY_LENGTH + " characters");
         }
 
-        log.debug("Service: Searching items with query: '{}', boxUuid: {}", query, boxUuid);
+        log.debug("Service: Searching items with query: '{}', boxUuid: {}", LogSanitizer.clean(query), boxUuid);
         List<Item> items;
         if (boxUuid != null && !boxUuid.isBlank()) {
             items = itemRepository.findByBox_UuidAndNameContainingIgnoreCaseOrderByNameAsc(boxUuid, query);

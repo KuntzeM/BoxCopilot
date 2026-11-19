@@ -15,6 +15,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PublicItemImageControllerTest {
 
     @Test
+    void tokenWithoutImageFileIs404() throws Exception {
+        ItemService items = mock(ItemService.class);
+        when(items.getImageByToken("t")).thenThrow(new com.boxcopilot.backend.exception.ImageNotFoundException("Image not found"));
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new PublicItemImageController(items))
+                .setControllerAdvice(new com.boxcopilot.backend.exception.GlobalExceptionHandler()).build();
+
+        mvc.perform(get("/api/v1/public/items/t/image")).andExpect(status().isNotFound());
+    }
+
+    @Test
     void imagesAreBrieflyCachedAndCarryAnHttpDate() throws Exception {
         ItemService items = mock(ItemService.class);
         when(items.getImageByToken("t")).thenReturn(new ByteArrayResource(new byte[]{1}));

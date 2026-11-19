@@ -1,5 +1,7 @@
 package com.boxcopilot.backend.controller;
 
+import com.boxcopilot.backend.security.LogSanitizer;
+
 import com.boxcopilot.backend.dto.BulkMoveItemsDTO;
 import com.boxcopilot.backend.dto.ItemRequestDTO;
 import com.boxcopilot.backend.dto.ItemResponseDTO;
@@ -58,9 +60,9 @@ public class ItemController {
     public ResponseEntity<List<ItemResponseDTO>> search(
             @RequestParam String q,
             @RequestParam(required = false) String boxUuid) {
-        log.debug("Searching items with query: '{}', boxUuid: {}", q, boxUuid);
+        log.debug("Searching items with query: '{}', boxUuid: {}", LogSanitizer.clean(q), boxUuid);
         List<ItemResponseDTO> items = itemService.searchItems(q, boxUuid);
-        log.info("Search found {} items for query: '{}'", items.size(), q);
+        log.info("Search found {} items for query: '{}'", items.size(), LogSanitizer.clean(q));
         return ResponseEntity.ok(items);
     }
 

@@ -1,5 +1,7 @@
 package com.boxcopilot.backend.service;
 
+import com.boxcopilot.backend.exception.ImageNotFoundException;
+
 import com.boxcopilot.backend.exception.FileStorageException;
 import com.boxcopilot.backend.exception.InvalidImageException;
 import com.boxcopilot.backend.exception.UploadBusyException;
@@ -195,7 +197,7 @@ public class ImageStorageService {
                 return resource;
             } else {
                 log.warn("Thumbnail not found for item ID: {}", itemId);
-                throw new FileStorageException("Image not found");
+                throw new ImageNotFoundException("Image not found");
             }
         } catch (IOException e) {
             log.error("Failed to retrieve thumbnail for item ID: {}", itemId, e);
@@ -225,7 +227,7 @@ public class ImageStorageService {
                 return resource;
             } else {
                 log.warn("Large image not found for item ID: {}", itemId);
-                throw new FileStorageException("Large image not found");
+                throw new ImageNotFoundException("Large image not found");
             }
         } catch (IOException e) {
             log.error("Failed to retrieve large image for item ID: {}", itemId, e);

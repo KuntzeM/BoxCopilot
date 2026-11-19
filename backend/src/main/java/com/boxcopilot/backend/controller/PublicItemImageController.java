@@ -1,5 +1,7 @@
 package com.boxcopilot.backend.controller;
 
+import com.boxcopilot.backend.security.LogSanitizer;
+
 import com.boxcopilot.backend.service.ItemService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,7 +30,7 @@ public class PublicItemImageController {
     @GetMapping("/{token}/image")
     public ResponseEntity<Resource> getImageByToken(@PathVariable String token,
                                                     @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch) {
-        log.debug("Retrieving thumbnail for image token: {}", token);
+        log.debug("Retrieving thumbnail for image token: {}", LogSanitizer.clean(token));
         Resource image = itemService.getImageByToken(token);
         long lastModified = itemService.getImageLastModifiedByToken(token);
         String eTag = "\"" + token + "-" + lastModified + "\"";
@@ -48,7 +50,7 @@ public class PublicItemImageController {
     @GetMapping("/{token}/image/large")
     public ResponseEntity<Resource> getLargeImageByToken(@PathVariable String token,
                                                          @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch) {
-        log.debug("Retrieving large image for token: {}", token);
+        log.debug("Retrieving large image for token: {}", LogSanitizer.clean(token));
         Resource image = itemService.getLargeImageByToken(token);
         long lastModified = itemService.getLargeImageLastModifiedByToken(token);
         String eTag = "\"" + token + "-large-" + lastModified + "\"";
