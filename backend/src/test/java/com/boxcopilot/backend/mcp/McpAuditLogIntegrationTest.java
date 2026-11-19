@@ -54,6 +54,8 @@ class McpAuditLogIntegrationTest extends McpIntegrationTestBase {
         originalLevel = rootLogger.getLevel();
         rootLogger.setLevel(Level.TRACE);
         logAppender = new ListAppender<>();
+        // Root-level capture also receives events from pool and driver threads; the default ArrayList is not safe to read meanwhile.
+        logAppender.list = new java.util.concurrent.CopyOnWriteArrayList<>();
         logAppender.start();
         rootLogger.addAppender(logAppender);
     }
