@@ -10,7 +10,11 @@ ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 
 RUN npm run build
 
-FROM nginx:1.30-alpine
+# 1.30 is the current stable line (stable-alpine resolves to it); alpine3.24 pins the Alpine release so a rebuild
+# cannot silently fall back to a cached older base. apk upgrade pulls OS-package fixes (curl, brotli, libxml2, ...)
+# published after the base image was built.
+FROM nginx:1.30-alpine3.24
+RUN apk upgrade --no-cache
 WORKDIR /usr/share/nginx/html
 COPY --from=builder /app/dist ./
 # The image entrypoint renders /etc/nginx/templates/*.template into /etc/nginx/conf.d/ (suffix stripped) at start.
