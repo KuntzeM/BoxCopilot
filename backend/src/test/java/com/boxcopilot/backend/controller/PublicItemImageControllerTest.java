@@ -15,7 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PublicItemImageControllerTest {
 
     @Test
-    void imagesAreImmutablyCachedAndCarryAnHttpDate() throws Exception {
+    void imagesAreBrieflyCachedAndCarryAnHttpDate() throws Exception {
         ItemService items = mock(ItemService.class);
         when(items.getImageByToken("t")).thenReturn(new ByteArrayResource(new byte[]{1}));
         when(items.getImageLastModifiedByToken("t")).thenReturn(1_700_000_000_000L);
@@ -26,7 +26,7 @@ class PublicItemImageControllerTest {
         for (String path : new String[]{"/api/v1/public/items/t/image", "/api/v1/public/items/t/image/large"}) {
             mvc.perform(get(path))
                     .andExpect(status().isOk())
-                    .andExpect(header().string("Cache-Control", "public, max-age=31536000, immutable"))
+                    .andExpect(header().string("Cache-Control", "public, max-age=3600"))
                     .andExpect(header().string("Last-Modified", "Tue, 14 Nov 2023 22:13:20 GMT"));
         }
     }

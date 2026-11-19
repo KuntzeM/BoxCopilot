@@ -376,6 +376,42 @@ class UserServiceTest {
         verifyNoInteractions(eventPublisher);
     }
 
+    private void stubLastAdmin() {
+        testUser.setId(1L);
+        testUser.setRole(Role.ADMIN);
+        testUser.setEnabled(true);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(userRepository.countByRoleAndEnabled(Role.ADMIN, true)).thenReturn(1L);
+    }
+
+    @Test
+    void testLastAdminCannotBeDemotedDisabledOrDeleted() {
+        stubLastAdmin();
+        UpdateUserDTO demote = new UpdateUserDTO();
+        demote.setRole(Role.USER);
+        UpdateUserDTO disable = new UpdateUserDTO();
+        disable.setEnabled(false);
+
+        assertThrows(IllegalArgumentException.class, () -> userService.updateUser(1L, demote));
+        assertThrows(IllegalArgumentException.class, () -> userService.updateUser(1L, disable));
+        assertThrows(IllegalArgumentException.class, () -> userService.deleteUser(1L, "someone-else"));
+        verify(userRepository, never()).save(any());
+        verify(userRepository, never()).delete(any());
+    }
+
+    @Test
+    void testAdminCanBeDemotedWhenAnotherEnabledAdminExists() {
+        stubLastAdmin();
+        when(userRepository.countByRoleAndEnabled(Role.ADMIN, true)).thenReturn(2L);
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+        UpdateUserDTO demote = new UpdateUserDTO();
+        demote.setRole(Role.USER);
+
+        userService.updateUser(1L, demote);
+
+        assertEquals(Role.USER, testUser.getRole());
+    }
+
     private void stubStoredUser(boolean mcpAllowed) {
         testUser.setId(1L);
         testUser.setMcpAllowed(mcpAllowed);

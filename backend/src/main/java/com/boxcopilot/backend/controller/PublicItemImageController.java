@@ -39,7 +39,7 @@ public class PublicItemImageController {
 
         return ResponseEntity.ok()
             .contentType(MediaType.IMAGE_JPEG)
-            .header(HttpHeaders.CACHE_CONTROL, "public, max-age=31536000, immutable")
+            .header(HttpHeaders.CACHE_CONTROL, "public, max-age=3600")
             .header(HttpHeaders.ETAG, eTag)
             .lastModified(lastModified)
             .body(image);
@@ -59,7 +59,7 @@ public class PublicItemImageController {
 
         return ResponseEntity.ok()
             .contentType(MediaType.IMAGE_JPEG)
-            .header(HttpHeaders.CACHE_CONTROL, "public, max-age=31536000, immutable")
+            .header(HttpHeaders.CACHE_CONTROL, "public, max-age=3600")
             .header(HttpHeaders.ETAG, eTag)
             .lastModified(lastModified)
             .body(image);

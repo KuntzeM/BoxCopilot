@@ -2,6 +2,7 @@ package com.boxcopilot.backend.controller;
 
 import com.boxcopilot.backend.domain.AuthProvider;
 import com.boxcopilot.backend.domain.MagicLoginToken;
+import com.boxcopilot.backend.service.MagicLoginTokenService;
 import com.boxcopilot.backend.domain.Role;
 import com.boxcopilot.backend.domain.User;
 import com.boxcopilot.backend.repository.MagicLoginTokenRepository;
@@ -64,7 +65,7 @@ class MagicLoginControllerTest {
     @BeforeEach
     void setUp() {
         user = userRepository.save(new User("magic-user", "Magic User", AuthProvider.LOCAL, Role.USER));
-        tokenRepository.save(new MagicLoginToken(TOKEN, user, 24));
+        tokenRepository.save(new MagicLoginToken(MagicLoginTokenService.hash(TOKEN), user, 24));
     }
 
     @AfterEach
@@ -80,7 +81,7 @@ class MagicLoginControllerTest {
     }
 
     private boolean tokenIsUsed() {
-        return tokenRepository.findByToken(TOKEN).orElseThrow().getUsed();
+        return tokenRepository.findByToken(MagicLoginTokenService.hash(TOKEN)).orElseThrow().getUsed();
     }
 
     @Test
@@ -142,7 +143,7 @@ class MagicLoginControllerTest {
 
     @Test
     void expiredTokenIsUnauthorizedWithSameBodyAsUnknown() throws Exception {
-        MagicLoginToken token = tokenRepository.findByToken(TOKEN).orElseThrow();
+        MagicLoginToken token = tokenRepository.findByToken(MagicLoginTokenService.hash(TOKEN)).orElseThrow();
         token.setExpiryDate(LocalDateTime.now().minusMinutes(1));
         tokenRepository.save(token);
 

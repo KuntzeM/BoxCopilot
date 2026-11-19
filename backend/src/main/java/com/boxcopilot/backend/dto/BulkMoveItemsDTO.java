@@ -10,6 +10,7 @@ import java.util.List;
 public class BulkMoveItemsDTO {
     
     @NotEmpty(message = "Item IDs list cannot be empty")
+    @jakarta.validation.constraints.Size(max = 500, message = "At most 500 items can be moved at once")
     private List<Long> itemIds;
     
     @NotNull(message = "Target box ID is required")

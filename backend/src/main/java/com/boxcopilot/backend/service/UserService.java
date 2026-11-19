@@ -190,6 +190,12 @@ public class UserService {
             user.setName(updateUserDTO.getName());
         }
         
+        boolean losesAdmin = (updateUserDTO.getRole() != null && updateUserDTO.getRole() != Role.ADMIN)
+                || (updateUserDTO.getEnabled() != null && !updateUserDTO.getEnabled());
+        if (losesAdmin) {
+            requireAnotherEnabledAdmin(user);
+        }
+
         if (updateUserDTO.getRole() != null) {
             user.setRole(updateUserDTO.getRole());
         }
@@ -222,6 +228,14 @@ public class UserService {
         return convertToDTO(updatedUser);
     }
     
+    /** Refuses changes that would leave the system without any enabled admin. */
+    private void requireAnotherEnabledAdmin(User user) {
+        if (user.getRole() == Role.ADMIN && Boolean.TRUE.equals(user.getEnabled())
+                && userRepository.countByRoleAndEnabled(Role.ADMIN, true) <= 1) {
+            throw new IllegalArgumentException("Cannot demote, disable or delete the last enabled admin");
+        }
+    }
+
     /**
      * Set user password (admin only)
      */
@@ -260,6 +274,8 @@ public class UserService {
             throw new IllegalArgumentException("Cannot delete currently logged-in user");
         }
         
+        requireAnotherEnabledAdmin(user);
+
         // Invalidate all magic login tokens for this user
         if (magicLoginTokenService != null) {
             magicLoginTokenService.invalidateAllTokensForUser(user);

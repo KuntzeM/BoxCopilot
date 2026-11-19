@@ -47,6 +47,17 @@ public class MagicLoginTokenService {
         this.defaultValidHours = defaultValidHours;
     }
     
+    /** Only the SHA-256 hex digest is stored; the raw token exists solely in the link. */
+    public static String hash(String rawToken) {
+        try {
+            return java.util.HexFormat.of().formatHex(
+                    java.security.MessageDigest.getInstance("SHA-256")
+                            .digest(rawToken.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     /**
      * Generate a magic login link for a user
      * Invalidates any existing active tokens for the user
@@ -68,7 +79,7 @@ public class MagicLoginTokenService {
         
         // Generate new token
         String tokenString = UUID.randomUUID().toString();
-        MagicLoginToken token = new MagicLoginToken(tokenString, user, validHours);
+        MagicLoginToken token = new MagicLoginToken(hash(tokenString), user, validHours);
         MagicLoginToken savedToken = tokenRepository.save(token);
         
         String magicLoginUrl = frontendBaseUrl + MAGIC_LINK_PATH + tokenString;
@@ -86,7 +97,7 @@ public class MagicLoginTokenService {
      */
     @Transactional
     public Optional<User> consumeToken(String tokenString) {
-        Optional<MagicLoginToken> tokenOpt = tokenRepository.findByToken(tokenString);
+        Optional<MagicLoginToken> tokenOpt = tokenRepository.findByToken(hash(tokenString));
         if (tokenOpt.isEmpty()) {
             log.warn("Magic login rejected: unknown token");
             return Optional.empty();
@@ -100,7 +111,7 @@ public class MagicLoginTokenService {
             return Optional.empty();
         }
 
-        if (tokenRepository.consume(tokenString, LocalDateTime.now()) != 1) {
+        if (tokenRepository.consume(hash(tokenString), LocalDateTime.now()) != 1) {
             log.warn("Magic login rejected: token of user '{}' is used or expired", user.getUsername());
             return Optional.empty();
         }
