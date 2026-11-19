@@ -2,19 +2,85 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-**Keep your moving organized.** BoxCopilot helps families stay sane during moves by tracking what's packed in each box and where it should go. No more opening 20 boxes to find your coffee maker.
+**Keep your move organized.** BoxCopilot tracks what is packed in each moving box and where it has to go. Label every box with a QR code, let helpers scan it without an account, and find the coffee maker without opening 20 boxes.
 
-![Dashboard Overview](docs/screenshots/dashboard.png)
-*Main dashboard showing all boxes with search and room filtering*
+![Dashboard](docs/screenshots/dashboard.png)
 
-![Box Details & Items](docs/screenshots/box-details.png)
-*Manage box contents and assign rooms*
+## Contents
 
-![Public QR Code Preview](docs/screenshots/public-preview.png)
-*Share box contents with family members via QR code - no login required*
+- [Tour](#tour)
+- [Features](#features)
+- [Quick start (development)](#quick-start-development)
+- [Configuration](#configuration)
+- [API](#api)
+- [Production deployment](#production-deployment)
+- [Security](#security)
+- [Upgrading](#upgrading)
+- [Testing](#testing)
+- [Further documentation](#further-documentation)
+- [Technology stack](#technology-stack)
+- [License](#license)
 
-![Label Printing](docs/screenshots/label-printing.png)
-*Print labels with QR codes for easy scanning*
+## Tour
+
+### Sign in
+
+Local username/password login and Nextcloud (OIDC) login. Admins can also hand out one-time magic links.
+
+![Login](docs/screenshots/login.png)
+
+### Boxes at a glance
+
+The dashboard lists all boxes with current room, target room, description and handling badges (Fragile, Do not stack). Expand a box to preview its items with photos. Select several boxes for bulk updates or label printing.
+
+![Expanded boxes](docs/screenshots/boxes-expanded.png)
+
+Search by item name, filter by target room and, under *Advanced filters*, by fragile, non-stackable, moved or label-printed boxes.
+
+![Search](docs/screenshots/search.png)
+
+### Create and edit boxes
+
+![Create box](docs/screenshots/create-box.png)
+
+The box page edits room, description, transport notes and status, shows the public link (regenerable) and lists the items. Items can be edited, moved to another box or deleted.
+
+![Box details](docs/screenshots/box-details.png)
+
+### Add items with photos
+
+Add an item by name and attach a photo from the in-app camera or the gallery. *Save and next* keeps the dialog open for the next item.
+
+![Add item](docs/screenshots/item-dialog.png)
+
+### Labels with QR codes
+
+Select boxes and print labels. The result is an A4 PDF with three labels per page: box number, handling badges, target room, description and a QR code that points to the public page.
+
+![Print dialog](docs/screenshots/print-dialog.png)
+
+![Label PDF](docs/screenshots/label-printing.png)
+
+### Public preview (no login)
+
+Scanning the QR code opens a read-only page with the box content and photos. Rotating the link in the box page invalidates the old link and every printed label.
+
+![Public preview](docs/screenshots/public-preview.png)
+
+### Administration
+
+Manage users, roles, passwords and magic links.
+
+![Administration](docs/screenshots/admin.png)
+
+### Mobile and dark mode
+
+The UI is responsive and offers a dark theme. German and English are built in.
+
+<p>
+  <img src="docs/screenshots/mobile.png" alt="Mobile view" width="260">
+  <img src="docs/screenshots/dark-mode.png" alt="Dark mode" width="620">
+</p>
 
 ## Features
 
@@ -52,57 +118,76 @@
   - The dialog also offers "Neu erzeugen" (regenerate the client ID, invalidating the old one) and "Alle Verbindungen widerrufen" (revoke every active connection for that user).
   - Operations, security posture, the kill-switch and environment variables: see [`docs/ops/mcp-server.md`](docs/ops/mcp-server.md).
 
-## Development
+## Quick start (development)
 
 ### Prerequisites
 - Java 21
-- Node.js 20+
+- Node.js 20+ (22 works)
 - Maven 3.9+
 
-### Backend
+The `dev` profile uses a file-based H2 database and JDBC sessions; no PostgreSQL or Redis is needed.
 
-**Required Environment Variables:**
-```powershell
-# PowerShell
-$env:FRONTEND_URL = 'http://localhost:3000'
-$env:CLIENT_ID = 'your-nextcloud-client-id'
-$env:CLIENT_SECRET = 'your-nextcloud-client-secret'
-$env:NEXTCLOUD_URL = 'https://cloud.example.com'
-$env:NEXTCLOUD_LOGOUT_URL = 'https://cloud.example.com/index.php/logout'
-$env:SPRING_PROFILES_ACTIVE = 'dev'
-```
+### 1. Backend
 
-**Run Backend (Maven ONLY - never execute JAR directly):**
+The backend resolves the OIDC issuer on startup, so `NEXTCLOUD_URL` must point to a reachable OIDC provider
+(a real Nextcloud or a mock, see [Testing](#testing)).
+
 ```bash
 cd backend
+export SPRING_PROFILES_ACTIVE=dev
+export FRONTEND_URL=http://localhost:5173
+export CLIENT_ID=your-client-id CLIENT_SECRET=your-client-secret
+export NEXTCLOUD_URL=https://cloud.example.com
+export NEXTCLOUD_LOGOUT_URL=https://cloud.example.com/index.php/logout
 mvn spring-boot:run
 ```
-Runs on port 8080 with H2 file-based database at `./data/boxcopilot-dev`.
 
-**Default Admin User:**  
-On first startup, a default admin account is created from `ADMIN_USERNAME` / `ADMIN_PASSWORD`:
-- Username: `admin` (default)
-- Password: `admin` in the `dev` profile only (override with `ADMIN_PASSWORD`)
-- Role: `ADMIN`
+Runs on port 8080. Run it with Maven, not as a JAR. Data goes to `./data/boxcopilot-dev`.
 
-**Important:** In the `prod` profile `ADMIN_PASSWORD` has no default. Startup fails if it is empty, `admin` or shorter than 12 characters, or if an existing ADMIN account still has the password `admin`. Passwords set in the Admin Panel are 12 to 128 characters. Set `REDIS_PASSWORD` as well (Redis runs with `requirepass`).
+**Default admin.** On first start an admin is created from `ADMIN_USERNAME` / `ADMIN_PASSWORD`:
+username `admin`, password `admin` (dev profile only), role `ADMIN`.
+In `prod`, `ADMIN_PASSWORD` has no default: startup fails if it is empty, `admin` or shorter than 12 characters,
+or if an existing ADMIN account still has the password `admin`. Set `REDIS_PASSWORD` as well.
 
-### Frontend
+### 2. Frontend
+
 ```bash
 cd frontend
 npm install
-npm run dev
+VITE_API_BASE_URL=http://localhost:8080 npm run dev
 ```
-Runs on port 5173 with Vite dev server. API calls are proxied to `http://localhost:8080`.
 
-### Configuration Profiles
-- `dev` - H2 file database, JDBC sessions, OIDC enabled, dual authentication
-- `prod` - PostgreSQL, Redis sessions, OIDC enabled, dual authentication
-- `test` - H2 in-memory, security disabled for testing
+Runs on http://localhost:5173. Set `VITE_API_BASE_URL` (for example in `frontend/.env.local`): the SPA then calls the backend
+cross-origin, as in production. Without it the SPA uses the Vite proxy (`/api`, `/oauth2`, `/login`), and axios sends
+the raw `XSRF-TOKEN` cookie as CSRF header, which the backend rejects: the form login answers 403.
 
-See [application-*.yml](backend/src/main/resources/) for profile configurations.
+Open http://localhost:5173 and sign in with `admin` / `admin`.
 
-### API Endpoints
+### Configuration profiles
+
+- `dev`: H2 file database, JDBC sessions, OIDC enabled, dual authentication
+- `prod`: PostgreSQL, Redis sessions, OIDC enabled, dual authentication
+- `test`: H2 in-memory, security disabled for testing
+
+See [application-*.yml](backend/src/main/resources/) for the profile settings and [`.env.example`](.env.example) for every environment variable.
+
+## Configuration
+
+| Variable | Purpose |
+|---|---|
+| `SPRING_PROFILES_ACTIVE` | `dev` or `prod` |
+| `FRONTEND_URL` | Frontend origin (CORS, redirects) |
+| `VITE_API_BASE_URL` | Backend origin the SPA calls; baked into the frontend bundle at build time |
+| `CLIENT_ID`, `CLIENT_SECRET` | OAuth2/OIDC client of your Nextcloud |
+| `NEXTCLOUD_URL`, `NEXTCLOUD_LOGOUT_URL` | OIDC issuer and logout URL |
+| `ADMIN_USERNAME`, `ADMIN_PASSWORD` | Bootstrap admin (`prod`: at least 12 characters) |
+| `POSTGRES_*`, `REDIS_PASSWORD` | Database and session store (`prod`) |
+| `APP_MCP_ENABLED` | Claude / MCP server, off by default |
+
+All other options (login throttling, cookie `SameSite`, CSP/HSTS, upload concurrency, MCP) are listed in [`.env.example`](.env.example).
+
+
+## API
 
 **Authentication:**
 - `POST /api/auth/login` - Form-based login (`username` + `password`, form-encoded, with CSRF token); 429 + `Retry-After` when throttled
@@ -155,7 +240,8 @@ See [application-*.yml](backend/src/main/resources/) for profile configurations.
 - `DELETE /api/v1/me/mcp-connections` - Revoke all of the caller's MCP connections
 - `POST /mcp` - MCP endpoint (OAuth 2.1 bearer token required); see [`docs/ops/mcp-server.md`](docs/ops/mcp-server.md)
 
-## Production Deployment
+
+## Production deployment
 
 ### Prerequisites
 - Docker & Docker Compose
@@ -210,6 +296,23 @@ Health: `docker compose ps` shows the backend as healthy once `GET /actuator/hea
 
 Back up the database and the `images` directory together: [`docs/ops/backup-restore.md`](docs/ops/backup-restore.md).
 
+### Nextcloud OIDC setup
+
+Register OAuth2/OIDC client in Nextcloud:
+- **Redirect URI**: `https://boxes-api.example.com/login/oauth2/code/nextcloud`
+- **Grant Type**: Authorization Code
+- **Scopes**: `openid`, `profile`, `email`
+
+Use the generated `client_id` and `client_secret` in your `.env` file.
+
+
+### Reverse proxy (Traefik)
+
+BoxCopilot requires an **external** Traefik instance that shares the `traefik-proxy` Docker network. Frontend and backend carry the Traefik labels
+(HTTP to HTTPS redirect, Let's Encrypt, host-based routing). A complete example and the network configuration are in
+[`docs/ops/traefik.md`](docs/ops/traefik.md). Traefik forwards `X-Forwarded-For`; the backend trusts it only from addresses matching
+`TRUSTED_PROXY_PATTERN`, see [Security](#security).
+
 ### Security
 
 - **Login throttling.** Failed logins are counted per client IP and per IP + username. By default an IP may fail 10 logins
@@ -242,227 +345,44 @@ Back up the database and the `images` directory together: [`docs/ops/backup-rest
 - **MCP.** With `APP_MCP_ENABLED=true` the backend refuses to start unless `VITE_API_BASE_URL` and `BACKEND_URL` have the
   same origin. See [`docs/ops/mcp-server.md`](docs/ops/mcp-server.md).
 
-### Upgrading to 0.2.0
 
-Read [`docs/releases/0.2.0.md`](docs/releases/0.2.0.md) first. It lists the upgrade steps in order (backup, `ADMIN_PASSWORD`
-of at least 12 characters, `chown` for the non-root backend, `TRUSTED_PROXY_PATTERN`, new variables, everyone signs in
-again, switching the CSP from report-only to enforce), the migrations V15 and V16, and the rollback procedure.
+## Upgrading
 
-### Upgrading from the Spring Boot 3.5 build
+- **0.2.0:** read [`docs/releases/0.2.0.md`](docs/releases/0.2.0.md) first. It lists the upgrade steps in order (backup, `ADMIN_PASSWORD`
+  of at least 12 characters, `chown` for the non-root backend, `TRUSTED_PROXY_PATTERN`, new variables, everyone signs in
+  again, switching the CSP from report-only to enforce), the migrations V15 and V16, and the rollback procedure.
+- **From the Spring Boot 3.5 build:** the backend runs on Spring Boot 4.1. Preparation, changes, rollback and known issues are in
+  [`docs/releases/spring-boot-4-upgrade.md`](docs/releases/spring-boot-4-upgrade.md).
+- **Security hardening (2026-11):** [`docs/releases/security-hardening-2026-11.md`](docs/releases/security-hardening-2026-11.md).
 
-The backend now runs on Spring Boot 4.1 (Spring Framework 7, Spring Security 7, Hibernate 7, Jackson 3, Spring AI 2).
-Spring Boot 3.5 open-source support ended on 2026-06-30; 4.1.x is supported until 2027-07-31 (endoflife.date). The
-upgrade was rehearsed against a dump of a 3.5 installation (see `docs/superpowers/plans/artifacts/verification-boot4.md`).
 
-**Before you upgrade**
-- Take a database dump, e.g. `docker exec boxcopilot-postgres pg_dump -U <POSTGRES_USER> <POSTGRES_DB> > boxpilot-3.5.sql`.
-  The upgrade adds no Flyway migration (the schema stays at V14) and Flyway reports "up to date", so the dump is only
-  needed if you want to discard data written by 4.1 later.
-- The backend has a healthcheck on `GET /actuator/health` (`start_period` 120s) and the frontend waits for it to be healthy
-  (`depends_on: condition: service_healthy`). If the backend never becomes healthy, `docker compose up -d` reports the
-  failed dependency and the frontend stays down.
-- The backend image sets `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75`, which raises the heap ceiling from the JVM
-  default (25%) to 75% of the memory the container sees. The compose file sets `mem_limit: 1g` for the backend; if you
-  raise or remove it, adjust the percentage.
-- Postgres is now pinned to `postgres:15.19` (Debian 13 / trixie); the previous `postgres:15` was already a moving
-  tag. Before upgrading run `docker exec boxcopilot-postgres cat /etc/os-release`. If the running image is Debian 12
-  (bookworm), either pin `postgres:15.19-bookworm` or `REINDEX` your text indexes after the swap (glibc collation
-  changes).
-- *Non-root backend:* since 0.2.0 the backend runs as uid/gid 10001 with a read-only root filesystem. See the
-  [0.2.0 release notes](docs/releases/0.2.0.md) for the one-time `chown` of `logs` and `images` and how to go back to root.
 
-**What carries over unchanged**
-- Users usually stay logged in: Redis sessions written by 3.5 are normally still read by 4.1. A stored session value
-  that 4.1 cannot deserialize (Spring Security 6 vs 7 class differences) is treated as no session: the request is
-  anonymous (401 / login page), the user signs in again, and one WARN is logged per backend start. It is never a 500.
-- MCP access and refresh tokens issued by 3.5 stay valid, and so do unredeemed magic links.
-- `Box.description` is still stored as a PostgreSQL large object (the column holds the OID as text), exactly as before.
+## Testing
 
-**What changes**
-- JSON object keys in REST and MCP response bodies are now in alphabetical order (Jackson 3 default). The order has no
-  meaning and the frontend reads by key, but anything that compares response text byte for byte will see a difference.
-  The MCP `tools/list` schemas also gain a `$schema` entry; tool names are unchanged.
-- Cookies that the server clears (`XSRF-TOKEN`, `JSESSIONID`) carry `Expires=Thu, 01 Jan 1970 ...` but no longer
-  `Max-Age=0` (Tomcat 11). Browsers still delete them.
-- The `/mcp` Host/Origin check is derived from `BACKEND_URL`. The `Host` header must equal the host (and port, if
-  `BACKEND_URL` names one) of `BACKEND_URL`, otherwise the answer is 421. An `Origin` header, if present, must equal
-  the origin of `BACKEND_URL`, otherwise 403; clients that send no `Origin` pass. A default port in
-  `BACKEND_URL` (`:443` for https, `:80` for http) is ignored for this check, since clients send `Host` without
-  it; a non-default port must appear in `Host`. Traefik must pass the original `Host` through.
-- `APP_MCP_ENABLED` is the only MCP master switch. `SPRING_AI_MCP_SERVER_ENABLED=true` on its own no longer
-  enables anything while `APP_MCP_ENABLED` is not `true`.
-- Sessions expire 30 minutes after last use (1800 s, set by `@EnableRedisHttpSession` in `RedisConfig`). The dead
-  `spring.session.timeout: 122400s` key was removed from `application-prod.yml`; the effective lifetime is unchanged.
-
-#### Rolling back to the 3.5 build
-
-1. Stop the 4.1 backend (`docker compose stop backend`), so it cannot write new sessions.
-2. Delete the Redis session keys. Spring Security 7 stores a `FactorGrantedAuthority` in every session; Boot 3.5
-   cannot deserialize it and answers **500 on every request that carries a session cookie written by 4.1**
-   (`ClassNotFoundException ... FactorGrantedAuthority`) until that session expires (at most 30 minutes after its
-   last use) or is removed. With the compose
-   file's Redis (it sets `REDISCLI_AUTH` from `REDIS_PASSWORD`, so `redis-cli` inside the container authenticates):
-   ```bash
-   docker exec boxcopilot-redis sh -c "redis-cli --scan --pattern 'spring:session:*' | xargs -r redis-cli del"
-   ```
-   Afterwards the stale cookies are treated as anonymous and users log in again.
-3. Start the previous (3.5) backend and frontend images.
-4. Data written by 4.1 (descriptions, items, images, MCP authorizations, magic links) is readable by 3.5, so the
-   dump does not need to be restored. Restore it only if you want to discard everything written since the upgrade.
-
-#### Known issues (not caused by the migration)
-
-Found during the Boot 4 verification; each also occurs on the 3.5 build, except where noted. Rejected uploads no longer remove the stored image, and over-size uploads and wrong content types get a 4xx since 0.2.0.
-- A missing request parameter or a missing multipart part is answered with 500 by the catch-all handler instead of a 4xx.
-- Redeeming a magic link can race the SPA's own `/api/v1/me` call for the `XSRF-TOKEN` cookie, so a valid link can
-  show "invalid" without being consumed; loading the link again normally works. In testing this happened more often
-  on 4.1 (7 of 8 cold loads) than on 3.5 (4 of 8).
-- The public image URL of an item whose image was deleted answers 500 instead of 404.
-- MCP tool calls with arguments of the wrong type (e.g. a string for a number) return the library's raw message and
-  write no audit line. Missing or out-of-range arguments are handled and audited.
-- The frontend base image `nginx:1.30-alpine` showed OS-package CVEs in `docker scout` at test time (8 critical,
-  18 high: curl, brotli, libxml2). Consider rebuilding on a newer base; the backend image showed none.
-
-### Nextcloud OIDC Setup
-
-Register OAuth2/OIDC client in Nextcloud:
-- **Redirect URI**: `https://boxes-api.example.com/login/oauth2/code/nextcloud`
-- **Grant Type**: Authorization Code
-- **Scopes**: `openid`, `profile`, `email`
-
-Use the generated `client_id` and `client_secret` in your `.env` file.
-
-### Reverse Proxy (Traefik)
-
-**Important:** BoxCopilot requires Traefik to be running **externally** before starting the application. The services connect to an existing Traefik instance via the `traefik-proxy` Docker network.
-
-#### Complete Traefik Setup Example
-
-If you don't have Traefik running yet, create a separate `traefik-compose.yml`:
-
-```yaml
-version: '3.8'
-
-services:
-  traefik:
-    image: traefik:v2.10
-    container_name: traefik
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    networks:
-      - traefik-proxy
-    ports:
-      - "80:80"
-      - "443:443"
-    environment:
-      - CLOUDFLARE_EMAIL=${CLOUDFLARE_EMAIL}     # Optional: for DNS challenge
-      - CLOUDFLARE_API_KEY=${CLOUDFLARE_API_KEY}   # Optional: for DNS challenge
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik/traefik.yml:/traefik.yml:ro
-      - ./traefik/acme.json:/acme.json
-      - ./traefik/config.yml:/config.yml:ro
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.traefik.entrypoints=http"
-      - "traefik.http.routers.traefik.rule=Host(`traefik.example.com`)"
-      - "traefik.http.middlewares.traefik-https-redirect.redirectscheme.scheme=https"
-      - "traefik.http.middlewares.sslheader.headers.customrequestheaders.X-Forwarded-Proto=https"
-      - "traefik.http.routers.traefik.middlewares=traefik-https-redirect"
-      - "traefik.http.routers.traefik-secure.entrypoints=https"
-      - "traefik.http.routers.traefik-secure.rule=Host(`traefik.example.com`)"
-      - "traefik.http.routers.traefik-secure.tls=true"
-      - "traefik.http.routers.traefik-secure.tls.certresolver=http"
-      - "traefik.http.routers.traefik-secure.service=api@internal"
-
-networks:
-  traefik-proxy:
-    # fixed name: BoxCopilot's docker-compose.yml joins this network as external "traefik-proxy"
-    name: traefik-proxy
-```
-
-The `traefik.example.com` dashboard router above has no authentication middleware. Remove it (and `api.dashboard`) or protect it before exposing Traefik to the internet.
-
-Create `traefik/traefik.yml`:
-```yaml
-api:
-  dashboard: true
-  debug: true
-
-entryPoints:
-  http:
-    address: ":80"
-    http:
-      redirections:
-        entryPoint:
-          to: https
-          scheme: https
-  https:
-    address: ":443"
-
-serversTransport:
-  insecureSkipVerify: true
-
-providers:
-  docker:
-    endpoint: "unix:///var/run/docker.sock"
-    exposedByDefault: false
-  file:
-    filename: /config.yml
-
-certificatesResolvers:
-  # The name must match the tls.certresolver label in docker-compose.yml ("http").
-  http:
-    acme:
-      email: your-email@example.com
-      storage: acme.json
-      # Use HTTP challenge for Let's Encrypt:
-      # httpChallenge:
-      #   entryPoint: http
-      # Or DNS challenge (example with Cloudflare):
-      dnsChallenge:
-        provider: cloudflare
-        resolvers:
-          - "1.1.1.1:53"
-          - "1.0.0.1:53"
-```
-
-Create empty `traefik/acme.json` with correct permissions:
 ```bash
-mkdir -p traefik
-touch traefik/acme.json
-chmod 600 traefik/acme.json
+# backend (from backend/)
+mvn test
+mvn -Dtest=SomeTest test
+
+# frontend (from frontend/)
+npm test -- --run
+npm run build
 ```
 
-Start Traefik:
-```bash
-docker-compose -f traefik-compose.yml up -d
-```
+**Browser end-to-end test.** `e2e/smoke.mjs` drives a real headless Chromium against the full Docker bundle
+(`docker-compose.e2e.yml`, including a mock OIDC provider standing in for Nextcloud): login, boxes, items, photo upload,
+public link, admin, throttling, OIDC, logout. See [`e2e/README.md`](e2e/README.md).
 
-Verify the `traefik-proxy` network exists:
-```bash
-docker network ls | grep traefik-proxy
-```
 
-Then start BoxCopilot services with the main `docker-compose.yml`.
 
-#### Network Configuration
+## Further documentation
 
-BoxCopilot's `docker-compose.yml` connects to the external `traefik-proxy` network:
-```yaml
-networks:
-  traefik-proxy:
-    external: true
-```
+- [`docs/ops/backup-restore.md`](docs/ops/backup-restore.md): back up and restore database and images
+- [`docs/ops/mcp-server.md`](docs/ops/mcp-server.md): Claude / MCP operations, security and kill-switch
+- [`docs/ops/traefik.md`](docs/ops/traefik.md): complete Traefik setup and network configuration
+- [`docs/releases/`](docs/releases/): release notes and upgrade guides
+- [`docs/security-audit-2026-11-19.md`](docs/security-audit-2026-11-19.md): security audit
 
-Both frontend and backend services include Traefik labels (certificate resolver `http`, entrypoints `http` and `https`) for:
-- HTTP → HTTPS redirect
-- TLS certificate provisioning (Let's Encrypt)
-- Host-based routing
-
-Traefik forwards `X-Forwarded-For`; the backend uses it for login throttling only for requests that arrive from an address matching `TRUSTED_PROXY_PATTERN` (default: Docker's default address pool 172.16.0.0/12 and loopback; set it if your compose network uses another range). Check the pattern if Traefik runs on a different network, see [Security](#security).
 
 ## Technology Stack
 
@@ -491,3 +411,4 @@ This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**
 This ensures that BoxCopilot and all its derivatives remain free and open source software forever.
 
 See [LICENSE](LICENSE) for full details or visit https://www.gnu.org/licenses/gpl-3.0.html
+
