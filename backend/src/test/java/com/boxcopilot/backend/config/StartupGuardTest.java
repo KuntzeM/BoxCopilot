@@ -63,6 +63,33 @@ class StartupGuardTest {
                 .doesNotThrowAnyException();
     }
 
+    @Test
+    void prodRejectsDevProfile() {
+        MockEnvironment environment = completeProd();
+        environment.setActiveProfiles("prod", "dev");
+
+        assertThatThrownBy(() -> new StartupGuard(environment).afterPropertiesSet())
+                .hasMessageContaining("dev");
+    }
+
+    @Test
+    void prodRejectsH2Datasource() {
+        MockEnvironment environment = completeProd();
+        environment.setProperty("spring.datasource.url", "jdbc:h2:file:./data/boxcopilot");
+
+        assertThatThrownBy(() -> new StartupGuard(environment).afterPropertiesSet())
+                .hasMessageContaining("H2");
+    }
+
+    @Test
+    void prodRejectsDefaultAdminPassword() {
+        MockEnvironment environment = completeProd();
+        environment.setProperty("app.admin.password", "admin");
+
+        assertThatThrownBy(() -> new StartupGuard(environment).afterPropertiesSet())
+                .hasMessageContaining("admin password");
+    }
+
     private static final String[] PROD_KEYS = {
             "spring.datasource.url", "spring.datasource.username", "spring.datasource.password",
             "spring.data.redis.host", "spring.data.redis.port", "spring.data.redis.password",

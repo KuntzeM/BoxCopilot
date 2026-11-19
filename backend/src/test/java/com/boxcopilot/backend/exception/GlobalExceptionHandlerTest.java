@@ -37,6 +37,15 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void illegalArgumentReturnsBadRequest() {
+        ResponseEntity<GlobalExceptionHandler.ErrorResponse> response =
+                handler.handleIllegalArgument(new IllegalArgumentException("Search query must be at most 100 characters"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().getMessage()).contains("at most 100");
+    }
+
+    @Test
     void unreadableBodyReturnsBadRequest() {
         ResponseEntity<GlobalExceptionHandler.ErrorResponse> response = handler.handleUnreadableBody(
                 new HttpMessageNotReadableException(INTERNAL_DETAIL, new MockHttpInputMessage(new byte[0])));

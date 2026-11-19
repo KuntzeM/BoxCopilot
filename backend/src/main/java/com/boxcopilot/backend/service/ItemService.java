@@ -1,5 +1,7 @@
 package com.boxcopilot.backend.service;
 
+import com.boxcopilot.backend.security.LogSanitizer;
+
 import com.boxcopilot.backend.domain.Box;
 import com.boxcopilot.backend.domain.Item;
 import com.boxcopilot.backend.dto.ItemRequestDTO;
@@ -138,6 +140,9 @@ public class ItemService {
     /**
      * Searches items by partial name. Optionally filters by box UUID.
      */
+    static final int MAX_SEARCH_QUERY_LENGTH = 100;
+    static final int MAX_SEARCH_RESULTS = 200;
+
     @Transactional(readOnly = true)
     public List<ItemResponseDTO> searchItems(String query, String boxUuid) {
         if (query == null || query.isBlank()) {
@@ -145,7 +150,11 @@ public class ItemService {
             return List.of();
         }
 
-        log.debug("Service: Searching items with query: '{}', boxUuid: {}", query, boxUuid);
+        if (query.length() > MAX_SEARCH_QUERY_LENGTH) {
+            throw new IllegalArgumentException("Search query must be at most " + MAX_SEARCH_QUERY_LENGTH + " characters");
+        }
+
+        log.debug("Service: Searching items with query: '{}', boxUuid: {}", LogSanitizer.clean(query), boxUuid);
         List<Item> items;
         if (boxUuid != null && !boxUuid.isBlank()) {
             items = itemRepository.findByBox_UuidAndNameContainingIgnoreCaseOrderByNameAsc(boxUuid, query);
@@ -154,6 +163,7 @@ public class ItemService {
         }
 
         List<ItemResponseDTO> result = items.stream()
+            .limit(MAX_SEARCH_RESULTS) // ponytail: in-memory cap; push into the query (Pageable) if result sets get large
             .map(itemMapper::toResponseDTO)
             .collect(Collectors.toList());
         log.debug("Service: Search found {} items", result.size());
@@ -183,6 +193,7 @@ public class ItemService {
         }
         item.setImagePath(imagePath);
         item.setImageUpdatedAt(System.currentTimeMillis());
+        item.setImageToken(UUID.randomUUID().toString()); // revoke previously shared public URL
         Item savedItem = itemRepository.save(item);
         
         log.info("Service: Image uploaded successfully for item ID: {}", itemId);
@@ -204,6 +215,7 @@ public class ItemService {
             imageStorageService.deleteImage(item.getImagePath());
             item.setImagePath(null);
             item.setImageUpdatedAt(null);
+            item.setImageToken(UUID.randomUUID().toString());
             Item savedItem = itemRepository.save(item);
             log.info("Service: Image deleted successfully for item ID: {}", itemId);
             return itemMapper.toResponseDTO(savedItem);
@@ -231,6 +243,7 @@ public class ItemService {
             });
         
         item.setBox(targetBox);
+        item.setImageToken(UUID.randomUUID().toString());
         Item savedItem = itemRepository.save(item);
         log.info("Service: Item ID: {} moved to box ID: {}", itemId, targetBoxId);
         return itemMapper.toResponseDTO(savedItem);
@@ -253,6 +266,7 @@ public class ItemService {
                 Item item = itemRepository.findById(itemId)
                     .orElseThrow(() -> new ResourceNotFoundException("Item not found with ID: " + itemId));
                 item.setBox(targetBox);
+                item.setImageToken(UUID.randomUUID().toString());
                 itemRepository.save(item);
                 movedCount++;
             } catch (Exception e) {

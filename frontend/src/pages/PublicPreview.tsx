@@ -6,6 +6,7 @@ import axios from '../services/axiosConfig';
 import { fetchPublicPreview } from '../services/publicPreviewService';
 import { BoxPreview } from '../types/models';
 import { truncateToFirstLine } from '../utils/textUtils';
+import { resolveImagePath } from '../utils/imageUrl';
 import { LanguageProvider } from '../context/LanguageContext';
 import { CookieThemeProvider, useThemeContext } from '../context/ThemeContext';
 import { useTranslation } from '../hooks/useTranslation';
@@ -28,11 +29,7 @@ function PublicPreviewContent() {
   const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
   const withApiBase = (path: string) =>
     apiBase ? `${apiBase}${path.startsWith('/') ? path : `/${path}`}` : path;
-  const resolveImageUrl = (url?: string) => {
-    if (!url) return undefined;
-    if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    return withApiBase(url.startsWith('/') ? url : `/${url}`);
-  };
+  const resolveImageUrl = (url?: string) => resolveImagePath(url, withApiBase);
 
   // Check if user is authenticated
   useEffect(() => {
