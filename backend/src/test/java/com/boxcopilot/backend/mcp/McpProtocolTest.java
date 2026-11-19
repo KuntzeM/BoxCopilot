@@ -104,6 +104,8 @@ class McpProtocolTest {
     private McpReadService readService;
     @MockitoBean
     private McpUserGate userGate;
+    @Autowired
+    private io.micrometer.core.instrument.MeterRegistry meterRegistry;
 
     /** The transport only trusts a bearer token, so the tests authenticate the way the resource server does. */
     private static BearerTokenAuthentication bearerToken(String subject) {
@@ -256,5 +258,44 @@ class McpProtocolTest {
         assertThat(toolThread.get()).isSameAs(Thread.currentThread());
         assertThat(toolAuthentication.get()).isNotNull();
         verify(userGate).requireActiveUser(42L);
+    }
+
+    private double counted(String tool, String result) {
+        return meterRegistry.find(McpToolMetrics.COUNTER)
+                .tag(McpToolMetrics.TOOL_TAG, tool).tag(McpToolMetrics.RESULT_TAG, result)
+                .counters().stream().mapToDouble(counter -> counter.count()).sum();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource(delimiter = '|', value = {
+            "search_items|{\"query\":\"lamp\",\"limit\":\"many\"}",
+            "search_items|{\"query\":{\"a\":1}}",
+            "get_item_image|{\"itemId\":\"abc\"}",
+            "get_item_image|{\"itemId\":9,\"size\":5}",
+            "search_boxes|{\"query\":\"x\",\"limit\":\"many\"}",
+            "get_box_contents|{\"boxNumber\":\"seven\"}",
+            "get_box_contents|{\"boxNumber\":{\"a\":1}}"})
+    void argumentsOfTheWrongTypeAreAnsweredWithTheFixedInvalidInputTextAndAuditedOnce(String tool, String arguments)
+            throws Exception {
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(McpAuditLogger.class);
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        double before = counted(tool, "error");
+        try {
+            JsonNode response = rpcJson("42", call(tool, arguments));
+
+            assertThat(response.at("/result/isError").asBoolean()).isTrue();
+            assertThat(response.at("/result/content/0/text").asString())
+                    .isEqualTo(BoxPilotMcpTools.INVALID_INPUT_ERROR);
+            assertThat(response.toString()).doesNotContain("Jackson", "Cannot deserialize", "java.lang");
+            assertThat(appender.list).singleElement().satisfies(event ->
+                    assertThat(event.getFormattedMessage())
+                            .contains("sub=42", "tool=" + tool, "result=error"));
+            assertThat(counted(tool, "error")).isEqualTo(before + 1);
+            verifyNoInteractions(readService);
+        } finally {
+            logger.detachAppender(appender);
+        }
     }
 }

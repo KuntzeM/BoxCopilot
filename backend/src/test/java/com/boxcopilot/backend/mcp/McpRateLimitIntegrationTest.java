@@ -54,6 +54,8 @@ class McpRateLimitIntegrationTest extends McpIntegrationTestBase {
     void captureAuditLines() {
         rootLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
         logAppender = new ListAppender<>();
+        // Root-level capture also receives events from pool and driver threads; the default ArrayList is not safe to read meanwhile.
+        logAppender.list = new java.util.concurrent.CopyOnWriteArrayList<>();
         logAppender.start();
         rootLogger.addAppender(logAppender);
     }

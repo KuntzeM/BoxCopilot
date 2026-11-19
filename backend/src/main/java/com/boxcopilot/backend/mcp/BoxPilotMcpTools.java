@@ -188,6 +188,29 @@ public class BoxPilotMcpTools {
     }
 
     /**
+     * Called for every answer the tool framework produced around {@link #execute}. The framework converts the
+     * arguments to the parameter types before the tool method runs; when that fails (a string for a number,
+     * say) it answers with its own error text - the raw conversion message - and the call never reaches
+     * {@code execute}. Such a call is a malformed request like any other: it is audited and counted once as an
+     * error and answered with the fixed invalid-input text. An answer that {@code execute} itself produced
+     * (recognised by its fixed error texts) or a success passes through untouched.
+     */
+    CallToolResult screenFrameworkFailure(String tool, McpTransportContext context, CallToolResult result) {
+        if (result == null || !Boolean.TRUE.equals(result.isError()) || isOwnError(result)) {
+            return result;
+        }
+        log.info("MCP tool {} rejected its arguments before execution", tool);
+        return record(tool, subject(context), clientAddress(context), McpToolResult.ERROR, 0,
+                error(INVALID_INPUT_ERROR));
+    }
+
+    private static boolean isOwnError(CallToolResult result) {
+        return result.content().size() == 1 && result.content().get(0) instanceof TextContent text
+                && (GENERIC_ERROR.equals(text.text()) || INVALID_INPUT_ERROR.equals(text.text())
+                || RATE_LIMIT_ERROR.equals(text.text()));
+    }
+
+    /**
      * Only {@code get_item_image} has a daily quota: a large base64 answer is the expensive one. The limit is
      * enforced here rather than in an HTTP filter because the filter sees one POST to {@code /mcp} and not
      * which tool it carries, and the client gets the tool's own generic error result rather than an HTTP status

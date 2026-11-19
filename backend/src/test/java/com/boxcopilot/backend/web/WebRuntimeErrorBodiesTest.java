@@ -104,14 +104,14 @@ class WebRuntimeErrorBodiesTest {
     @Test
     void missingRequestParameter_59() throws Exception {
         assertError(loggedIn().send("GET", "/api/v1/items/search", null, null),
-                500, "An unexpected error occurred");
+                400, "Missing required parameter 'q'");
     }
 
     @Test
     void missingMultipartPart_70() throws Exception {
         long id = itemWithImage();
         assertError(loggedIn().upload("/api/v1/items/" + id + "/image", "other", "a.png", "image/png", png()),
-                500, "An unexpected error occurred");
+                400, "Missing required part 'file'");
         // rejected before the service ran: the stored image is untouched
         assertThat(IMAGES.resolve(id + "_thumb.jpg")).exists();
         assertThat(IMAGES.resolve(id + "_large.jpg")).exists();

@@ -10,7 +10,12 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
+import io.modelcontextprotocol.server.McpStatelessServerFeatures.SyncToolSpecification;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.config.BeanPostProcessor;
+
 import java.time.Clock;
+import java.util.List;
 
 /**
  * Root of the MCP configuration; nothing in it exists unless {@code app.mcp.enabled=true}.
@@ -43,6 +48,29 @@ class McpConfiguration {
     @Bean
     McpStatelessSyncServerCustomizer toolsValidateTheirOwnInput() {
         return spec -> spec.validateToolInputs(false);
+    }
+
+    /**
+     * The tool framework converts the arguments to the parameter types before a tool runs, and answers a failed
+     * conversion with the library's raw message, without the call ever reaching {@link BoxPilotMcpTools}. This
+     * wraps the call handler of the {@link BoxPilotMcpTools} tools so that such an answer is replaced by the
+     * fixed invalid-input text and audited and counted like every other call.
+     */
+    @Bean
+    static BeanPostProcessor toolsAnswerMalformedArgumentsThemselves(ObjectProvider<BoxPilotMcpTools> tools) {
+        return new BeanPostProcessor() {
+            @Override
+            public Object postProcessAfterInitialization(Object bean, String beanName) {
+                if (!(bean instanceof List<?> list) || list.isEmpty()
+                        || !list.stream().allMatch(SyncToolSpecification.class::isInstance)) {
+                    return bean;
+                }
+                return list.stream().map(SyncToolSpecification.class::cast).map(spec -> new SyncToolSpecification(
+                        spec.tool(), (context, request) -> tools.getObject().screenFrameworkFailure(
+                                spec.tool().name(), context, spec.callHandler().apply(context, request))))
+                        .toList();
+            }
+        };
     }
 
     /**
