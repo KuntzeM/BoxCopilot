@@ -1,4 +1,4 @@
-FROM maven:3.9-eclipse-temurin-26 AS build
+FROM maven:3.9.12-eclipse-temurin-21 AS build
 WORKDIR /workspace
 # Dependencies first: this layer is only rebuilt when pom.xml changes.
 COPY pom.xml ./
@@ -6,7 +6,7 @@ RUN mvn -B -q dependency:go-offline
 COPY src ./src
 RUN mvn -B -DskipTests package
 
-FROM eclipse-temurin:24.0.2_12-jre
+FROM eclipse-temurin:21.0.13_9-jre
 WORKDIR /app
 # Runs as uid/gid 10001 (non-root). Bind mounts from older root-run installs need a one-time chown, see docker-compose.yml.
 RUN groupadd --gid 10001 boxpilot \

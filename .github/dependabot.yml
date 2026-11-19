@@ -12,6 +12,12 @@ updates:
   - package-ecosystem: docker
     directory: /backend
     schedule: { interval: weekly }
+    # Java is pinned to 21 (pom.xml, CI, Dockerfile); do not auto-bump the JDK major.
+    ignore:
+      - dependency-name: maven
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: eclipse-temurin
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: docker
     directory: /frontend
     schedule: { interval: weekly }
