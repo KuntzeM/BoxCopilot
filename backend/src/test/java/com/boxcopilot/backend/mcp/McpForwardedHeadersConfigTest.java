@@ -70,7 +70,7 @@ class McpForwardedHeadersConfigTest {
 
     /** The override is a regular expression, and its name says so: CIDR notation would match nothing. */
     @Test
-    void theTrustedProxyRangeIsConfigurableAndDefaultsToThePrivateAddressSpace() {
+    void theTrustedProxyRangeIsConfigurableAndDefaultsToTheDockerAddressPool() {
         assertThat(production.getProperty(INTERNAL_PROXIES, String.class))
                 .isNotBlank();
 
@@ -83,14 +83,14 @@ class McpForwardedHeadersConfigTest {
 
     @Test
     void aForwardedHeaderFromTheInternalProxyNetworkNamesTheClient() throws Exception {
-        for (String proxy : List.of("172.18.0.5", "10.0.0.9", "192.168.1.4", "127.0.0.1")) {
+        for (String proxy : List.of("172.18.0.5", "127.0.0.1")) {
             assertThat(resolve(proxy, CLIENT).getRemoteAddr()).as("proxy %s", proxy).isEqualTo(CLIENT);
         }
     }
 
     @Test
     void aForwardedHeaderFromOutsideTheInternalProxyNetworkIsIgnored() throws Exception {
-        for (String caller : List.of("198.51.100.23", "8.8.8.8", "172.32.0.1")) {
+        for (String caller : List.of("198.51.100.23", "8.8.8.8", "172.32.0.1", "10.0.0.9", "192.168.1.4")) {
             assertThat(resolve(caller, CLIENT).getRemoteAddr()).as("caller %s", caller).isEqualTo(caller);
         }
     }

@@ -5,6 +5,7 @@ import { fetchBoxes, createBox, deleteBox } from '../services/boxService';
 import { fetchItemsByBoxUuid, searchItems } from '../services/itemService';
 import { useTranslation } from './useTranslation';
 import { generateLabelPdf } from '../utils/labelPdf';
+import { resolveImagePath } from '../utils/imageUrl';
 
 type SnackbarState = { open: boolean; message: string; severity: 'success' | 'error' | 'info' };
 
@@ -85,11 +86,7 @@ export const useBoxListLogic = () => {
   const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
   const withApiBase = (path: string) =>
     apiBase ? `${apiBase}${path.startsWith('/') ? path : `/${path}`}` : path;
-  const resolveImageUrl = (url?: string) => {
-    if (!url) return undefined;
-    if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    return withApiBase(url.startsWith('/') ? url : `/${url}`);
-  };
+  const resolveImageUrl = (url?: string) => resolveImagePath(url, withApiBase);
 
   // === Effects ===
   useEffect(() => {

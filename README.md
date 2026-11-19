@@ -221,7 +221,7 @@ Back up the database and the `images` directory together: [`docs/ops/backup-rest
 - **In-process, one replica.** The counters live in the backend process: they reset on restart and are not shared between
   replicas. Run a single backend replica.
 - **`TRUSTED_PROXY_PATTERN` must be right.** The client IP comes from `X-Forwarded-For`, which Tomcat trusts only from
-  addresses matching this Java regular expression (not CIDR). The default covers private ranges and loopback; a blank
+  addresses matching this Java regular expression (not CIDR). The default covers Docker's default address pool (172.16.0.0/12) and loopback, the peer being the frontend nginx container, which overwrites `X-Forwarded-For` with the client IP it resolves from Traefik (`REAL_IP_FROM`, default 172.16.0.0/12); a blank
   value is treated like an unset one, and the backend logs the pattern in effect at startup (`Trusted proxy pattern
   (default|custom from TRUSTED_PROXY_PATTERN): ...`). If your proxy is outside the range, or the pattern is wrong, all
   clients appear as the proxy and share one login throttle counter, so a few failed logins block everybody.
@@ -231,9 +231,8 @@ Back up the database and the `images` directory together: [`docs/ops/backup-rest
 - **Session cookie.** `SESSION_COOKIE_SAME_SITE` defaults to `none` (needed when the SPA runs on another site than the API).
   Set `lax` when frontend and API share a site, e.g. `app.example.com` and `api.example.com`; `strict` breaks the OIDC
   redirect back to the backend.
-- **Frontend headers.** The frontend nginx sends `Content-Security-Policy` (report-only by default, `CSP_MODE=enforce` to
-  enforce; verified with the browser suite in both modes, switch after watching the browser console for the first
-  days), `Strict-Transport-Security` (`HSTS_ENABLED`, on by default in `docker-compose.yml`, set `false` for plain http),
+- **Frontend headers.** The frontend nginx sends `Content-Security-Policy` (enforced by default; `CSP_MODE=report` for
+  report-only while debugging; verified with the browser suite in both modes), `Strict-Transport-Security` (`HSTS_ENABLED`, on by default in `docker-compose.yml`, set `false` for plain http),
   `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`. The CSP allows the
   origin of `VITE_API_BASE_URL` (derived automatically as `API_ORIGIN`).
 - **Containers.** The backend runs as uid 10001 with a read-only root filesystem, no extra capabilities and a memory limit;
@@ -463,7 +462,7 @@ Both frontend and backend services include Traefik labels (certificate resolver 
 - TLS certificate provisioning (Let's Encrypt)
 - Host-based routing
 
-Traefik forwards `X-Forwarded-For`; the backend uses it for login throttling only for requests that arrive from an address matching `TRUSTED_PROXY_PATTERN` (default: private ranges and loopback, which covers the compose network). Check the pattern if Traefik runs on a different network, see [Security](#security).
+Traefik forwards `X-Forwarded-For`; the backend uses it for login throttling only for requests that arrive from an address matching `TRUSTED_PROXY_PATTERN` (default: Docker's default address pool 172.16.0.0/12 and loopback; set it if your compose network uses another range). Check the pattern if Traefik runs on a different network, see [Security](#security).
 
 ## Technology Stack
 

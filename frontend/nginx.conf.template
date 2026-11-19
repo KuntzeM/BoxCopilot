@@ -1,4 +1,4 @@
-# Rendered by the nginx image's envsubst step (only API_ORIGIN, CSP_MODE, HSTS_ENABLED; see NGINX_ENVSUBST_FILTER
+# Rendered by the nginx image's envsubst step (only API_ORIGIN, CSP_MODE, HSTS_ENABLED, REAL_IP_FROM; see NGINX_ENVSUBST_FILTER
 # in the Dockerfile), so nginx's own $variables stay untouched. This file is included in the http context.
 # add_header with an empty value is skipped, so each map yields either the header value or "".
 # CSP additions for lazy @react-pdf/renderer (label PDFs): 'wasm-unsafe-eval' = compile its WebAssembly (no JS eval);
@@ -16,6 +16,18 @@ map "${CSP_MODE}" $csp_report {
 map "${HSTS_ENABLED}" $hsts {
     default "";
     true "max-age=31536000; includeSubDomains";
+}
+
+# Client address: X-Forwarded-For is honoured only when the peer is in REAL_IP_FROM (the Traefik network); from any
+# other peer it is ignored and $remote_addr is the client. The backend only ever receives the single resolved address.
+set_real_ip_from ${REAL_IP_FROM};
+real_ip_header X-Forwarded-For;
+real_ip_recursive on;
+# X-Forwarded-Proto: only http/https is passed on, anything else falls back to the real scheme
+map $http_x_forwarded_proto $fwd_proto {
+    default $scheme;
+    https https;
+    http http;
 }
 
 server {
@@ -54,7 +66,8 @@ server {
         proxy_pass http://backend:8080;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        # overwrite, never append: a client-supplied X-Forwarded-For must not reach the backend
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $fwd_proto;
     }
 }

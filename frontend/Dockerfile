@@ -1,7 +1,7 @@
 FROM node:24-alpine AS builder
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci || npm install
+RUN npm ci
 COPY . .
 
 # Build-time environment variable for Vite
@@ -17,6 +17,6 @@ COPY --from=builder /app/dist ./
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY security-headers.inc.template /etc/nginx/templates/security-headers.inc.template
 # Substitute only these; nginx's own $uri, $host, ... must survive. Defaults are the safe ones; compose overrides.
-ENV NGINX_ENVSUBST_FILTER="^(API_ORIGIN|CSP_MODE|HSTS_ENABLED)$"     API_ORIGIN="" CSP_MODE=report HSTS_ENABLED=false
+ENV NGINX_ENVSUBST_FILTER="^(API_ORIGIN|CSP_MODE|HSTS_ENABLED|REAL_IP_FROM)$"     API_ORIGIN="" CSP_MODE=enforce HSTS_ENABLED=false REAL_IP_FROM=127.0.0.1
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

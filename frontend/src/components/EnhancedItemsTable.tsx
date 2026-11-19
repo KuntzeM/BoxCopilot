@@ -33,6 +33,7 @@ import {
 } from '@mui/icons-material';
 import { Item, UpdateItemPayload } from '../types/models';
 import { useTranslation } from '../hooks/useTranslation';
+import { resolveImagePath } from '../utils/imageUrl';
 import ItemMoveDialog from './ItemMoveDialog';
 import { ItemForm, getItemFormRef } from './ItemForm';
 
@@ -79,11 +80,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
   const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
   const withApiBase = (path: string) =>
     apiBase ? `${apiBase}${path.startsWith('/') ? path : `/${path}`}` : path;
-  const resolveImageUrl = (url?: string) => {
-    if (!url) return undefined;
-    if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    return withApiBase(url.startsWith('/') ? url : `/${url}`);
-  };
+  const resolveImageUrl = (url?: string) => resolveImagePath(url, withApiBase);
 
   const handleEditClick = (item: Item) => {
     const formRef = getItemFormRef();
