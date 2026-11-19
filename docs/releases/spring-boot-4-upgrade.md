@@ -64,13 +64,13 @@ upgrade was rehearsed against a dump of a 3.5 installation (see `docs/superpower
 ## Known issues (not caused by the migration)
 
 Found during the Boot 4 verification; each also occurs on the 3.5 build, except where noted. Rejected uploads no longer remove the stored image, and over-size uploads and wrong content types get a 4xx since 0.2.0.
-- A missing request parameter or a missing multipart part is answered with 500 by the catch-all handler instead of a 4xx.
+- (Fixed: now 400.) A missing request parameter or a missing multipart part was answered with 500 by the catch-all handler instead of a 4xx.
 - (Fixed in the frontend: `redeemMagicLink` now sends a per-request CSRF header and retries once on 403.) Redeeming a magic link can race the SPA's own `/api/v1/me` call for the `XSRF-TOKEN` cookie, so a valid link can
   show "invalid" without being consumed; loading the link again normally works. In testing this happened more often
   on 4.1 (7 of 8 cold loads) than on 3.5 (4 of 8).
-- The public image URL of an item whose image was deleted answers 500 instead of 404.
-- MCP tool calls with arguments of the wrong type (e.g. a string for a number) return the library's raw message and
-  write no audit line. Missing or out-of-range arguments are handled and audited.
+- (Fixed: now 404 with a JSON body.) The public image URL of an item whose image was deleted answered 500 instead of 404, because an `Accept: image/*` request could not be given the JSON error body.
+- (Fixed: fixed error text, one audit line, result `error`; the user gate and image quota are not consulted for such calls.) MCP tool calls with arguments of the wrong type (e.g. a string for a number) returned the library's raw message and
+  wrote no audit line. Missing or out-of-range arguments are handled and audited.
 - The frontend base image `nginx:1.30-alpine` showed OS-package CVEs in `docker scout` at test time (8 critical,
   18 high: curl, brotli, libxml2). The frontend image now builds on `nginx:1.30-alpine3.24` (1.30.7, the newest
   stable line) and runs `apk upgrade --no-cache`; rescan with `docker scout` after rebuilding. The backend image

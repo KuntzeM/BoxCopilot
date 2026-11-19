@@ -34,9 +34,12 @@ class PublicItemImageControllerTest {
 
         for (String path : new String[]{"/api/v1/public/items/t/image", "/api/v1/public/items/t/image/large"}) {
             mvc.perform(get(path).accept("image/avif,image/webp,image/apng,image/*,*/*;q=0.8"))
-                    .andExpect(status().isNotFound());
+                    .andExpect(status().isNotFound())
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentTypeCompatibleWith(org.springframework.http.MediaType.APPLICATION_JSON))
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.status").value(404));
             mvc.perform(get(path).accept("image/jpeg"))
-                    .andExpect(status().isNotFound());
+                    .andExpect(status().isNotFound())
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentTypeCompatibleWith(org.springframework.http.MediaType.APPLICATION_JSON));
         }
     }
 
@@ -50,9 +53,12 @@ class PublicItemImageControllerTest {
 
         for (String path : new String[]{"/api/v1/public/items/t/image", "/api/v1/public/items/t/image/large"}) {
             mvc.perform(get(path).accept("image/avif,image/webp,image/apng,image/*,*/*;q=0.8"))
-                    .andExpect(status().isNotFound());
+                    .andExpect(status().isNotFound())
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentTypeCompatibleWith(org.springframework.http.MediaType.APPLICATION_JSON))
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.status").value(404));
             mvc.perform(get(path).accept("image/jpeg"))
-                    .andExpect(status().isNotFound());
+                    .andExpect(status().isNotFound())
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentTypeCompatibleWith(org.springframework.http.MediaType.APPLICATION_JSON));
         }
     }
 
