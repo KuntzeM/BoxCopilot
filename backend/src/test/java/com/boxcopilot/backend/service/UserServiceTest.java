@@ -71,6 +71,7 @@ class UserServiceTest {
         when(userRepository.existsByUsername("username_nc")).thenReturn(true);
         when(userRepository.existsByUsername("username_nc2")).thenReturn(false);
 
+        org.springframework.test.util.ReflectionTestUtils.setField(userService, "oidcAutoProvision", true);
         // Act - Use OIDC user creation to test username conflict resolution
         User oidcUser = new User();
         oidcUser.setOidcSubject("oidc123");
@@ -167,6 +168,20 @@ class UserServiceTest {
         assertNotNull(testUser.getSessionsValidAfter());
         verify(tokens).invalidateAllTokensForUser(testUser);
         verify(eventPublisher).publishEvent(new McpAccessRevokedEvent(7L));
+    }
+
+    @Test
+    void testCreateOrUpdateOidcUser_NewUserIsPendingWithoutAutoProvision() {
+        when(userRepository.findByOidcSubject("new-sub")).thenReturn(Optional.empty());
+        when(userRepository.existsByUsername("fresh")).thenReturn(false);
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThrows(CustomUserDetailsService.DisabledException.class,
+                () -> userService.createOrUpdateOidcUser("new-sub", "fresh", "Fresh", "f@example.com"));
+
+        org.mockito.ArgumentCaptor<User> saved = org.mockito.ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(saved.capture());
+        assertFalse(saved.getValue().getEnabled());
     }
 
     @Test

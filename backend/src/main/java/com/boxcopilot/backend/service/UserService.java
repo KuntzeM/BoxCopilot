@@ -45,6 +45,10 @@ public class UserService {
     
     @Value("${app.admin.name:Administrator}")
     private String defaultAdminName;
+
+    /** When false, a first-time OIDC login creates a disabled account that an admin must enable. */
+    @Value("${app.oidc.auto-provision:false}")
+    private boolean oidcAutoProvision;
     
     public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder,
                        MagicLoginTokenRepository magicLoginTokenRepository,
@@ -270,7 +274,7 @@ public class UserService {
     /**
      * Create or update Nextcloud user on OIDC login
      */
-    @Transactional
+    @Transactional(noRollbackFor = CustomUserDetailsService.DisabledException.class)
     public User createOrUpdateOidcUser(String oidcSubject, String preferredUsername, String name, String email) {
         // Try to find existing user by OIDC subject
         Optional<User> existingUser = userRepository.findByOidcSubject(oidcSubject);
@@ -288,11 +292,15 @@ public class UserService {
         String username = resolveUsernameConflict(preferredUsername);
         User newUser = new User(username, name, AuthProvider.NEXTCLOUD, Role.USER);
         newUser.setOidcSubject(oidcSubject);
-        newUser.setEnabled(true);
+        newUser.setEnabled(oidcAutoProvision);
         newUser.setLastLogin(LocalDateTime.now());
-        
+
         User savedUser = userRepository.save(newUser);
-        log.info("Created new Nextcloud user: {} (OIDC subject: {})", savedUser.getUsername(), oidcSubject);
+        log.info("Created new Nextcloud user: {} (OIDC subject: {}, enabled: {})", savedUser.getUsername(), oidcSubject, oidcAutoProvision);
+        if (!oidcAutoProvision) {
+            // kept (noRollbackFor) so an admin can see and enable the pending account
+            throw new CustomUserDetailsService.DisabledException("Account awaits admin approval");
+        }
         
         return savedUser;
     }
