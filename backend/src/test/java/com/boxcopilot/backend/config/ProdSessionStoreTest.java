@@ -33,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "spring.datasource.username=sa",
         "spring.datasource.password=",
         "spring.flyway.enabled=false",
+        "app.image.storage.path=target/prod-session-images",
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "spring.security.oauth2.client.registration.nextcloud.client-id=x",
         "spring.security.oauth2.client.registration.nextcloud.client-secret=x",
