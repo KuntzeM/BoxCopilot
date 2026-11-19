@@ -170,3 +170,61 @@ jobs:
       - run: |
           echo '${{ toJSON(needs.*.result) }}'
           echo '${{ toJSON(needs.*.result) }}' | grep -Eq 'failure|cancelled' && exit 1 || true
+
+  # Sticky PR comment: one comment, updated in place on every run (found via the hidden marker).
+  pr-comment:
+    name: PR comment
+    if: always() && github.event_name == 'pull_request'
+    needs: [backend, backend-security, frontend, e2e]
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write # Dependabot/fork PRs get a read-only token: the step then only warns
+    steps:
+      - name: Post or update comment
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULTS: ${{ toJSON(needs) }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          MARKER='<!-- boxpilot-ci-report -->'
+          icon() { case "$1" in success) echo "✅ Passed";; failure) echo "❌ Failed";; cancelled) echo "🚫 Cancelled";; *) echo "⏭️ Skipped";; esac; }
+          row() { printf '| %s | %s |\n' "$1" "$(icon "$(jq -r --arg k "$2" '.[$k].result' <<<"$RESULTS")")"; }
+          FAILED=$(jq -r '[to_entries[] | select(.value.result=="failure" or .value.result=="cancelled")] | length' <<<"$RESULTS")
+          if [ "$FAILED" -eq 0 ]; then
+            HEAD="## ✅ CI passed"; NOTE="All checks are green. Nothing blocks this PR."
+          else
+            HEAD="## ❌ CI failed"; NOTE="**$FAILED** check(s) need attention. Details and logs are in the [workflow run]($RUN_URL)."
+          fi
+          {
+            echo "$MARKER"
+            echo "$HEAD"
+            echo
+            echo "$NOTE"
+            echo
+            echo "| Check | Result |"
+            echo "| :-- | :-- |"
+            row "🧪 Backend: Maven verify (unit, ArchUnit, Testcontainers)" backend
+            row "🎨 Frontend: typecheck, tests, build, audit" frontend
+            row "🌐 E2E: Docker stack + Playwright journey" e2e
+            row "🛡️ OWASP dependency scan _(nightly/manual only)_" backend-security
+            echo
+            echo "<details><summary>Run details</summary>"
+            echo
+            echo "- Commit: \`${SHA:0:7}\`"
+            echo "- Run: [#${GITHUB_RUN_NUMBER}]($RUN_URL) (attempt ${GITHUB_RUN_ATTEMPT})"
+            echo "- Artifacts (screenshots, test reports) are attached to the run."
+            echo
+            echo "</details>"
+            echo
+            echo "<sub>Updated automatically on every push · $(date -u '+%Y-%m-%d %H:%M UTC')</sub>"
+          } > body.md
+          ID=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+                 --jq "[.[] | select(.body | contains(\"$MARKER\"))][0].id // empty")
+          if [ -n "$ID" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$ID" -F body=@body.md >/dev/null
+          else
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F body=@body.md >/dev/null
+          fi
