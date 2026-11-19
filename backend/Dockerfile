@@ -6,7 +6,7 @@ RUN mvn -B -q dependency:go-offline
 COPY src ./src
 RUN mvn -B -DskipTests package
 
-FROM eclipse-temurin:21.0.13_9-jre
+FROM eclipse-temurin:24.0.2_12-jre
 WORKDIR /app
 # Runs as uid/gid 10001 (non-root). Bind mounts from older root-run installs need a one-time chown, see docker-compose.yml.
 RUN groupadd --gid 10001 boxpilot \
