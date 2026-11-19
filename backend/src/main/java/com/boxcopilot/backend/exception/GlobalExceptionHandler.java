@@ -5,17 +5,20 @@ import com.boxcopilot.backend.service.ResourceNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
@@ -70,7 +73,15 @@ public class GlobalExceptionHandler {
             ex.getMessage(),
             Instant.now()
         );
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+        return jsonNotFound(error);
+    }
+
+    /**
+     * The 404 body is JSON whatever the request accepts: an image request (browser {@code <img>}, Accept
+     * {@code image/*}) cannot be answered with JSON through content negotiation, which would end in a 500.
+     */
+    private static ResponseEntity<ErrorResponse> jsonNotFound(ErrorResponse error) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).contentType(MediaType.APPLICATION_JSON).body(error);
     }
 
     /**
@@ -112,7 +123,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ImageNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleImageNotFound(ImageNotFoundException ex) {
         ErrorResponse error = new ErrorResponse(HttpStatus.NOT_FOUND.value(), "Image not found", Instant.now());
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+        return jsonNotFound(error);
     }
 
     /**
@@ -209,6 +220,32 @@ public class GlobalExceptionHandler {
         ErrorResponse error = new ErrorResponse(
             HttpStatus.BAD_REQUEST.value(),
             "Invalid value for parameter '" + ex.getName() + "'",
+            Instant.now()
+        );
+        return ResponseEntity.badRequest().body(error);
+    }
+
+    /**
+     * Handles a missing required request parameter: a client error, not a server fault.
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> handleMissingParameter(MissingServletRequestParameterException ex) {
+        ErrorResponse error = new ErrorResponse(
+            HttpStatus.BAD_REQUEST.value(),
+            "Missing required parameter '" + ex.getParameterName() + "'",
+            Instant.now()
+        );
+        return ResponseEntity.badRequest().body(error);
+    }
+
+    /**
+     * Handles a missing required multipart part (e.g. an upload without its file).
+     */
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ErrorResponse> handleMissingPart(MissingServletRequestPartException ex) {
+        ErrorResponse error = new ErrorResponse(
+            HttpStatus.BAD_REQUEST.value(),
+            "Missing required part '" + ex.getRequestPartName() + "'",
             Instant.now()
         );
         return ResponseEntity.badRequest().body(error);

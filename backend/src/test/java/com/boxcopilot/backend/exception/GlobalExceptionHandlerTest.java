@@ -149,4 +149,41 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().getStatus()).isEqualTo(503);
         assertThat(response.getBody().getMessage()).contains("try again").doesNotContain("internal");
     }
+
+    @org.springframework.web.bind.annotation.RestController
+    static class ParamController {
+        @org.springframework.web.bind.annotation.GetMapping("/p")
+        String p(@org.springframework.web.bind.annotation.RequestParam String q) {
+            return q;
+        }
+
+        @org.springframework.web.bind.annotation.PostMapping("/u")
+        String u(@org.springframework.web.bind.annotation.RequestPart("file")
+                 org.springframework.web.multipart.MultipartFile file) {
+            return "ok";
+        }
+    }
+
+    private org.springframework.test.web.servlet.MockMvc mvc() {
+        return org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(new ParamController())
+                .setControllerAdvice(handler).build();
+    }
+
+    @Test
+    void missingRequestParameterIsBadRequestNamingOnlyTheParameter() throws Exception {
+        mvc().perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/p"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadRequest())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.status").value(400))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.message")
+                        .value("Missing required parameter 'q'"));
+    }
+
+    @Test
+    void missingMultipartPartIsBadRequestNamingOnlyThePart() throws Exception {
+        mvc().perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/u")
+                        .file(new org.springframework.mock.web.MockMultipartFile("other", new byte[]{1})))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadRequest())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.message")
+                        .value("Missing required part 'file'"));
+    }
 }

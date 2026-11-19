@@ -171,4 +171,28 @@ class BoxPilotMcpToolsObservabilityTest {
 
         assertThat(tools.searchItems(CONTEXT, "lamp", null).isError()).isFalse();
     }
+
+    @Test
+    void aFrameworkErrorBeforeExecutionIsAuditedOnceAndAnsweredWithTheFixedInvalidInputText() {
+        CallToolResult raw = CallToolResult.builder().addTextContent("Cannot deserialize value of type Integer")
+                .isError(true).build();
+
+        CallToolResult result = tools().screenFrameworkFailure(BoxPilotMcpTools.GET_BOX_CONTENTS, CONTEXT, raw);
+
+        assertThat(text(result)).isEqualTo(BoxPilotMcpTools.INVALID_INPUT_ERROR);
+        assertThat(result.isError()).isTrue();
+        verify(auditLogger).toolCall(BoxPilotMcpTools.GET_BOX_CONTENTS, USER_ID, ADDRESS, McpToolResult.ERROR, 0);
+        assertThat(counted(BoxPilotMcpTools.GET_BOX_CONTENTS, McpToolResult.ERROR)).isEqualTo(1);
+    }
+
+    @Test
+    void answersTheToolsProducedThemselvesAreNotAuditedAgain() {
+        CallToolResult own = CallToolResult.builder().addTextContent(BoxPilotMcpTools.GENERIC_ERROR)
+                .isError(true).build();
+        CallToolResult ok = CallToolResult.builder().addTextContent("{}").isError(false).build();
+
+        assertThat(tools().screenFrameworkFailure(BoxPilotMcpTools.SEARCH_ITEMS, CONTEXT, own)).isSameAs(own);
+        assertThat(tools().screenFrameworkFailure(BoxPilotMcpTools.SEARCH_ITEMS, CONTEXT, ok)).isSameAs(ok);
+        verifyNoMoreInteractions(auditLogger);
+    }
 }

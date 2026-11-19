@@ -25,6 +25,38 @@ class PublicItemImageControllerTest {
     }
 
     @Test
+    void deletedImageIs404ForBothEndpointsEvenWhenOnlyImagesAreAccepted() throws Exception {
+        ItemService items = mock(ItemService.class);
+        when(items.getImageByToken("t")).thenThrow(new com.boxcopilot.backend.exception.ImageNotFoundException("Image not found"));
+        when(items.getLargeImageByToken("t")).thenThrow(new com.boxcopilot.backend.exception.ImageNotFoundException("Large image not found"));
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new PublicItemImageController(items))
+                .setControllerAdvice(new com.boxcopilot.backend.exception.GlobalExceptionHandler()).build();
+
+        for (String path : new String[]{"/api/v1/public/items/t/image", "/api/v1/public/items/t/image/large"}) {
+            mvc.perform(get(path).accept("image/avif,image/webp,image/apng,image/*,*/*;q=0.8"))
+                    .andExpect(status().isNotFound());
+            mvc.perform(get(path).accept("image/jpeg"))
+                    .andExpect(status().isNotFound());
+        }
+    }
+
+    @Test
+    void unknownTokenIs404ForBothEndpointsEvenWhenOnlyImagesAreAccepted() throws Exception {
+        ItemService items = mock(ItemService.class);
+        when(items.getImageByToken("t")).thenThrow(new com.boxcopilot.backend.service.ResourceNotFoundException("Item not found for image token"));
+        when(items.getLargeImageByToken("t")).thenThrow(new com.boxcopilot.backend.service.ResourceNotFoundException("Item not found for image token"));
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new PublicItemImageController(items))
+                .setControllerAdvice(new com.boxcopilot.backend.exception.GlobalExceptionHandler()).build();
+
+        for (String path : new String[]{"/api/v1/public/items/t/image", "/api/v1/public/items/t/image/large"}) {
+            mvc.perform(get(path).accept("image/avif,image/webp,image/apng,image/*,*/*;q=0.8"))
+                    .andExpect(status().isNotFound());
+            mvc.perform(get(path).accept("image/jpeg"))
+                    .andExpect(status().isNotFound());
+        }
+    }
+
+    @Test
     void imagesAreBrieflyCachedAndCarryAnHttpDate() throws Exception {
         ItemService items = mock(ItemService.class);
         when(items.getImageByToken("t")).thenReturn(new ByteArrayResource(new byte[]{1}));
