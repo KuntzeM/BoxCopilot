@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Alert,
   ButtonBase,
@@ -166,6 +166,17 @@ export default function BoxList() {
     handleDrawerToggleMoved,
     handleDrawerDelete,
   } = useBoxListLogic();
+
+  // Master-detail keeps this list mounted while boxes are created/edited in the detail pane: refresh quietly on route change.
+  const { pathname } = useLocation();
+  const firstRoute = useRef(true);
+  useEffect(() => {
+    if (firstRoute.current) {
+      firstRoute.current = false;
+      return;
+    }
+    loadData(true);
+  }, [pathname]);
 
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const activeFilters = [filterFragile, filterNoStack, filterLabelPrinted, roomQuery.trim() !== ''].filter(Boolean).length;
@@ -573,7 +584,7 @@ export default function BoxList() {
         <Alert
           severity="error"
           action={
-            <Button color="inherit" size="small" onClick={loadData}>
+            <Button color="inherit" size="small" onClick={() => loadData()}>
               {t('common.retry')}
             </Button>
           }
@@ -589,7 +600,12 @@ export default function BoxList() {
           </Button>
         </Paper>
       ) : filteredBoxes.length === 0 ? (
-        <Alert severity="info">{t('boxes.noBoxesFound')}</Alert>
+        <Alert
+          severity="info"
+          action={<Button color="inherit" size="small" onClick={handleResetFilter}>{t('boxes.reset')}</Button>}
+        >
+          {t('boxes.noBoxesFound')}
+        </Alert>
       ) : (
         <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))', alignItems: 'start' }}>
           {filteredBoxes.map((box) => renderBoxCard(box))}

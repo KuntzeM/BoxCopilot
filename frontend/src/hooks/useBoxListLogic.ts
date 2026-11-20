@@ -108,8 +108,9 @@ export const useBoxListLogic = () => {
   }, [itemQuery, roomQuery, filterFragile, filterNoStack, statusFilter, filterLabelPrinted, allBoxes]);
 
   // === Data Operations ===
-  const loadData = async () => {
-    setIsLoading(true);
+  // silent: background refresh (no spinner, keeps selection) used when the detail pane changed a box
+  const loadData = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     setLoadError(false);
     try {
       const boxes = await fetchBoxes({ includeItems: false });
@@ -123,7 +124,7 @@ export const useBoxListLogic = () => {
 
       setAllBoxes(withUrls);
       setFilteredBoxes(withUrls);
-      setSelectedIds([]);
+      if (!silent) setSelectedIds([]);
       const initialItemsById = withUrls.reduce<Record<number, Item[]>>((acc, box) => {
         if (box.items && box.items.length > 0) {
           acc[box.id] = box.items;
