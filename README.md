@@ -381,7 +381,6 @@ public link, admin, throttling, OIDC, logout. See [`e2e/README.md`](e2e/README.m
 - [`docs/ops/mcp-server.md`](docs/ops/mcp-server.md): Claude / MCP operations, security and kill-switch
 - [`docs/ops/traefik.md`](docs/ops/traefik.md): complete Traefik setup and network configuration
 - [`docs/releases/`](docs/releases/): release notes and upgrade guides
-- [`docs/security-audit-2026-11-19.md`](docs/security-audit-2026-11-19.md): security audit
 
 
 ## Technology Stack

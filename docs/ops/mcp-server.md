@@ -1,8 +1,7 @@
 # MCP server — operations guide
 
 This is the operator-facing companion to the [README MCP section](../../README.md#claude--mcp-integration) and to
-the design spec [`docs/superpowers/specs/2026-09-21-mcp-server-design-v4.md`](../superpowers/specs/2026-09-21-mcp-server-design-v4.md)
-(section references below point there). It covers what support staff and operators need to run the feature day
+the MCP design spec (section references below point there). It covers what support staff and operators need to run the feature day
 to day: client lifecycle, the kill-switch, the cleanup job, how to read the logs and metrics, and the residual
 risks worth knowing about before go-live.
 
@@ -242,8 +241,8 @@ must stay on the same origin.
 ## Open points (not covered by this sprint, needed before/at go-live)
 
 These are explicitly out of scope for the implementation stories (S1–S12) and need a human decision or a manual
-step before or at go-live. Source: the sprint plan's "Out of scope this sprint" section
-(`docs/superpowers/plans/2026-09-21-mcp-server-sprint.md`), spec §7 Phase 0 spike items, spec §8, and the sprint
+step before or at go-live. Source: the sprint plan's "Out of scope this sprint" section,
+spec §7 Phase 0 spike items, spec §8, and the sprint
 ledger (`.superpowers/sdd/2026-09-21-mcp-server-sprint/progress.md`).
 
 1. **Manual MCP Inspector / Claude Free verification** — the automated test suite (through S12, including the
@@ -318,7 +317,7 @@ ledger (`.superpowers/sdd/2026-09-21-mcp-server-sprint/progress.md`).
 4. **Spring Boot 3.5 support-status decision** — *resolved.* Boot 3.5's OSS support ended on 2026-06-30. The
    backend now runs on Spring Boot 4.1.x (Spring Security 7, Spring AI 2, MCP SDK 2), whose OSS support runs until
    2027-07-31 (endoflife.date). Upgrade and rollback notes are in the main README, "Upgrading from the Spring Boot
-   3.5 build"; the evidence is in `docs/superpowers/plans/artifacts/verification-boot4.md`.
+   3.5 build".
 5. **Staging `flyway validate`** — `validate-on-migrate` stays `false` in `application-prod.yml`. Before it is
    ever turned on, a `flyway validate` run against a copy of the real production migration history on staging is
    required (spec §4.3); this sprint added the new MCP migrations but did not perform or automate that

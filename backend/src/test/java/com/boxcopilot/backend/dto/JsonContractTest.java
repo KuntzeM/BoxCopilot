@@ -27,7 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * The JSON the API produces must equal the Spring Boot 3.5 baseline captured in
- * {@code docs/superpowers/plans/artifacts/baseline-3.5}, copied to {@code src/test/resources/baseline-3.5}. Timestamps and UUIDs are normalised to the
+ * {@code src/test/resources/baseline-3.5}. Timestamps and UUIDs are normalised to the
  * baseline placeholders; compared as trees, so property order is not part of the contract.
  */
 @SpringBootTest

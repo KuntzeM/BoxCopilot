@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * The error contract of the API over a real socket (real Tomcat, real multipart limits, the whole security chain),
- * compared with the Spring Boot 3.5.16 captures in docs/superpowers/plans/artifacts/baseline-3.5 (file numbers in
+ * compared with the Spring Boot 3.5.16 captures in src/test/resources/baseline-3.5 (file numbers in
  * the test names). The body shape {status, message, timestamp[, fieldErrors]} is what the frontend reads.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
