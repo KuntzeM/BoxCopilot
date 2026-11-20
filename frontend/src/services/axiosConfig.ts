@@ -5,9 +5,11 @@ import axios from 'axios';
 axios.defaults.baseURL = '';
 axios.defaults.withCredentials = true;
 
-// Ensure CSRF token is read from cookie and sent as header
+// The CSRF token comes from /api/v1/csrf and /api/v1/me and is set as X-XSRF-TOKEN default header (masked value).
+// Same-origin, axios would otherwise copy the raw XSRF-TOKEN cookie over it; the backend rejects the raw value.
 axios.defaults.xsrfCookieName = 'XSRF-TOKEN';
 axios.defaults.xsrfHeaderName = 'X-XSRF-TOKEN';
+axios.defaults.withXSRFToken = false;
 
 // Calls whose 401 is expected and handled by the caller (auth probe, login, public/magic flows)
 const UNAUTHORIZED_OK = /\/api\/(v1\/(me|csrf|public\/|auth\/magic-login)|auth\/)/;

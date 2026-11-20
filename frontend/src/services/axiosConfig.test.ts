@@ -31,3 +31,18 @@ describe('401 response interceptor', () => {
     expect(sessionExpired.reload).not.toHaveBeenCalled();
   });
 });
+
+describe('CSRF header handling', () => {
+  it('does not replace the explicit X-XSRF-TOKEN header with the raw cookie value', async () => {
+    document.cookie = 'XSRF-TOKEN=raw-cookie-value';
+    let sent: any;
+    await axios.post('/api/x', {}, {
+      headers: { 'X-XSRF-TOKEN': 'masked-token' },
+      adapter: (config: any) => {
+        sent = config.headers.get('X-XSRF-TOKEN');
+        return Promise.resolve({ status: 200, data: {}, headers: {}, config, statusText: 'OK' });
+      },
+    });
+    expect(sent).toBe('masked-token');
+  });
+});
