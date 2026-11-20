@@ -27,6 +27,7 @@ import {
 import {
   Delete,
   DriveFileMove,
+  Inventory2,
   Image as ImageIcon,
   MoreVert,
   Edit,
@@ -268,8 +269,8 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
                   />
                 </ButtonBase>
               ) : (
-                <Avatar sx={{ width: 48, height: 48, bgcolor: 'grey.300' }}>
-                  📦
+                <Avatar sx={{ width: 48, height: 48, bgcolor: 'action.hover', color: 'text.secondary' }}>
+                  <Inventory2 />
                 </Avatar>
               )}
             </Box>
@@ -322,7 +323,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
                 <>
                   <IconButton
                     size="small"
-                    color="info"
+                    color="primary"
                     onClick={() => handleMoveSingle(item.id)}
                     title={t('items.move')}
                     aria-label={t('items.move')}
@@ -473,7 +474,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
               sx={{ minHeight: 56, borderRadius: 1, mb: 1 }}
             >
               <ListItemIcon>
-                <DriveFileMove color="info" />
+                <DriveFileMove color="primary" />
               </ListItemIcon>
               <ListItemText primary={t('items.move')} />
             </ListItemButton>

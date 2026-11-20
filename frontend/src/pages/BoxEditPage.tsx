@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Button, ButtonBase, Paper, Typography, Alert, CircularProgress, Stack, Snackbar, Collapse, TextField, IconButton, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
-import { ArrowBack, Save, ExpandMore, ExpandLess, Print, ContentCopy, Autorenew } from '@mui/icons-material';
+import { LocalShipping, ArrowBack, Save, ExpandMore, ExpandLess, Print, ContentCopy, Autorenew, Edit } from '@mui/icons-material';
 import * as boxService from '../services/boxService';
 import * as itemService from '../services/itemService';
 import { Box as BoxType, Item, UpdateItemPayload } from '../types/models';
 import BoxForm, { BoxFormData } from '../components/BoxForm';
 import EnhancedItemsTable from '../components/EnhancedItemsTable';
 import { ItemForm } from '../components/ItemForm';
+import { TILE, FONT_MONO } from '../context/ThemeContext';
 import { useTranslation } from '../hooks/useTranslation';
 import { extractApiError } from '../services/apiError';
 import { generateLabelPdf } from '../utils/labelPdf';
@@ -115,6 +116,21 @@ const BoxEditPage: React.FC = () => {
     } catch (err) {
       setSnackbar({ message: extractApiError(err, t('errors.boxSaveFailed')), severity: 'error' });
       console.error(err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleToggleMoved = async () => {
+    if (!boxId || !box) return;
+    const next = !formData.isMovedToTarget;
+    setIsSaving(true);
+    try {
+      await boxService.updateBox(boxId, { isMovedToTarget: next });
+      setFormData((prev) => ({ ...prev, isMovedToTarget: next }));
+      setSnackbar({ message: t('success.boxSaved'), severity: 'success' });
+    } catch (err) {
+      setSnackbar({ message: extractApiError(err, t('errors.boxSaveFailed')), severity: 'error' });
     } finally {
       setIsSaving(false);
     }
@@ -253,7 +269,7 @@ const BoxEditPage: React.FC = () => {
   }
 
   return (
-    <Box>
+    <Box sx={{ pb: { xs: 12, md: 10 }, minWidth: 0 }}>
       <Stack direction="row" sx={{ mb: 3, justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
         <Button startIcon={<ArrowBack />} onClick={() => navigate('/app/boxes')}>
           {t('boxes.back')}
@@ -263,6 +279,29 @@ const BoxEditPage: React.FC = () => {
         </Button>
       </Stack>
 
+      <Paper variant="outlined" sx={{ p: 0, mb: 3, overflow: 'hidden' }}>
+        <Stack direction="row" spacing={2} sx={{ bgcolor: TILE.bg, color: TILE.ink, p: 2, alignItems: 'flex-end', justifyContent: 'space-between' }}>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontWeight: 800 }}>{formData.currentRoom || '-'} → {formData.targetRoom || '-'}</Typography>
+            {formData.isFragile && <Typography sx={{ fontFamily: FONT_MONO, fontWeight: 800, fontSize: 12 }}>{t('boxes.fragile').toUpperCase()}</Typography>}
+          </Box>
+          <Typography aria-hidden sx={{ fontFamily: FONT_MONO, fontWeight: 800, fontSize: 'clamp(56px, 20vw, 96px)', lineHeight: 0.85, letterSpacing: '-0.08em' }}>
+            {box.boxNumber}
+          </Typography>
+        </Stack>
+        <Button
+          fullWidth
+          size="large"
+          variant={formData.isMovedToTarget ? 'outlined' : 'contained'}
+          startIcon={<LocalShipping />}
+          onClick={handleToggleMoved}
+          disabled={isSaving}
+          sx={{ borderRadius: 0, minHeight: 56 }}
+        >
+          {formData.isMovedToTarget ? t('boxes.unmarkMoved') : t('boxes.markMoved')}
+        </Button>
+      </Paper>
+
       <Paper sx={{ p: 3, mb: 3 }}>
         <ButtonBase
           onClick={() => setExpandBoxAttributes(!expandBoxAttributes)}
@@ -270,9 +309,15 @@ const BoxEditPage: React.FC = () => {
           sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', justifyContent: 'flex-start', textAlign: 'left', borderRadius: 1, mb: expandBoxAttributes ? 2 : 0 }}
         >
           {expandBoxAttributes ? <ExpandLess /> : <ExpandMore />}
-          <Typography variant="h5" component="span">
+          <Typography variant="h5" component="span" sx={{ flex: 1 }}>
             {t('boxes.editBox', { number: box.boxNumber })}
           </Typography>
+          {!expandBoxAttributes && (
+            <Typography component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, color: 'primary.main', fontWeight: 800 }}>
+              <Edit fontSize="small" aria-hidden />
+              {t('boxes.edit')}
+            </Typography>
+          )}
         </ButtonBase>
 
         <Collapse in={expandBoxAttributes} timeout="auto" unmountOnExit>
@@ -307,6 +352,7 @@ const BoxEditPage: React.FC = () => {
             slotProps={{
               input: {
                 readOnly: true,
+                sx: { '& input': { textOverflow: 'ellipsis' } },
                 endAdornment: (
                   <IconButton onClick={handleCopyLink} aria-label={t('boxes.copyPublicLink')} edge="end">
                     <ContentCopy fontSize="small" />
@@ -316,7 +362,7 @@ const BoxEditPage: React.FC = () => {
               htmlInput: { 'aria-label': t('boxes.publicLink') },
             }}
           />
-          <Button variant="outlined" color="warning" startIcon={<Autorenew />} onClick={() => setRotateOpen(true)} sx={{ flexShrink: 0 }}>
+          <Button variant="outlined" startIcon={<Autorenew />} onClick={() => setRotateOpen(true)} sx={{ flexShrink: 0 }}>
             {t('boxes.rotateShare')}
           </Button>
         </Stack>
@@ -364,7 +410,7 @@ const BoxEditPage: React.FC = () => {
           <Button onClick={() => setRotateOpen(false)} disabled={isRotating}>
             {t('common.cancel')}
           </Button>
-          <Button variant="contained" color="warning" onClick={handleRotateShare} disabled={isRotating}>
+          <Button variant="contained" onClick={handleRotateShare} disabled={isRotating}>
             {t('boxes.rotateShareConfirm')}
           </Button>
         </DialogActions>
@@ -377,6 +423,7 @@ const BoxEditPage: React.FC = () => {
         autoHideDuration={4000}
         onClose={() => setSnackbar(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        sx={{ bottom: { xs: 'calc(16px + env(safe-area-inset-bottom))', md: 24 } }}
       >
         <Alert severity={snackbar?.severity} onClose={() => setSnackbar(null)}>
           {snackbar?.message}

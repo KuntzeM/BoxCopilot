@@ -87,10 +87,10 @@ export const de = {
     // Handling
     transportHints: 'Transport-Hinweise',
     fragile: 'Zerbrechlich',
-    fragileEmoji: '🔔 Zerbrechlich / Fragile',
+    fragileEmoji: 'Zerbrechlich / Fragile',
     fragilePrintLabel: 'ZERBRECHLICH',
     noStack: 'Nicht stapeln',
-    noStackEmoji: '⛔ Nichts drauf stellen / Do Not Stack',
+    noStackEmoji: 'Nichts drauf stellen / Do Not Stack',
     noStackPrintLabel: 'NICHT STAPELN',
     
     // Filters
@@ -98,10 +98,14 @@ export const de = {
     itemNamePlaceholder: 'z.B. Hammer',
     targetRoomFilter: 'Zielraum',
     targetRoomFilterPlaceholder: 'z.B. Keller',
+    filters: 'Filter',
     advancedFilters: 'Erweiterte Filter',
     onlyFragileBoxes: 'Nur zerbrechliche Boxen',
     onlyNoStackBoxes: 'Nur nicht stapelbare Boxen',
-    onlyMovedBoxes: 'Nur umgezogene Boxen',
+    statusFilter: 'Status filtern',
+    statusOpen: 'Nicht umgezogen',
+    statusAll: 'Alle',
+    statusMoved: 'Umgezogen',
     onlyLabelPrintedBoxes: 'Nur Boxen mit gedrucktem Label',
     
     // Status
@@ -112,6 +116,9 @@ export const de = {
     // Bulk operations
     bulkUpdate: 'Bulk-Update',
     setMoved: 'Umgezogen setzen',
+    progressMoved: '{{moved}} von {{total}} umgezogen',
+    markMoved: 'Als umgezogen markieren',
+    unmarkMoved: 'Umgezogen · Rückgängig',
     removeMoved: '✓ Umgezogen',
     setLabelPrinted: 'Label gedruckt setzen',
     removeLabelPrinted: '✓ Label gedruckt',
@@ -177,8 +184,8 @@ export const de = {
     noItems: 'Keine Items vorhanden',
     noItemsInBox: 'Keine Items in dieser Box.',
     deleteMessage: 'Dieses Item wird dauerhaft gelöscht.',
-    itemsCount: '{{count}} Items',
-    itemsCountOne: '1 Item',
+    itemsCount: '{{count}} Gegenstände',
+    itemsCountOne: '1 Gegenstand',
     deleteMessageNamed: 'Item „{{name}}“ wird dauerhaft gelöscht.',
     previewAlt: 'Vorschau',
     capturedAlt: 'Aufgenommenes Foto',
