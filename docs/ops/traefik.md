@@ -132,5 +132,5 @@ The single `app` service (Spring Boot serving the SPA, the API, OAuth and `/mcp`
 
 `TRAEFIK_HOST` must be the host of `APP_URL`.
 
-Traefik forwards `X-Forwarded-For`; the app uses it for login throttling only for requests that arrive from an address matching `TRUSTED_PROXY_PATTERN` (default: Docker's default address pool 172.16.0.0/12 and loopback; set it if your compose network uses another range). Check the pattern if Traefik runs on a different network, see [Security](../../README.md#security).
+Traefik forwards `X-Forwarded-For`; the app uses it for login throttling only for requests that arrive from an address matching `TRUSTED_PROXY_PATTERN` (default: Docker's default address pool 172.16.0.0/12 and loopback; set it if your compose network uses another range). Check the pattern if Traefik runs on a different network, see [Security](../security.md#trusted-proxies).
 
