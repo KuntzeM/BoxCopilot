@@ -41,3 +41,7 @@ the OAuth login, the MCP endpoints and the security headers on **one origin**. T
 
 Check out the previous release, restore the previous `.env` (and the Nextcloud redirect URI), then
 `docker compose up -d --build`. There is no database migration in this change.
+
+## Release images
+
+The release workflow now publishes a single image `ghcr.io/<owner>/<repo>` (previously `-backend` and `-frontend`).
