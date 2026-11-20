@@ -1,11 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box as BoxModel, CreateBoxPayload, Item } from '../types/models';
-import { fetchBoxes, createBox, deleteBox } from '../services/boxService';
+import { fetchBoxes, createBox, deleteBox, updateBox } from '../services/boxService';
 import { fetchItemsByBoxUuid, searchItems } from '../services/itemService';
 import { useTranslation } from './useTranslation';
 import { generateLabelPdf } from '../utils/labelPdf';
 import { resolveImagePath } from '../utils/imageUrl';
+
+export type StatusFilter = 'open' | 'all' | 'moved';
 
 type SnackbarState = { open: boolean; message: string; severity: 'success' | 'error' | 'info' };
 
@@ -38,7 +40,7 @@ export const useBoxListLogic = () => {
   const [roomQuery, setRoomQuery] = useState('');
   const [filterFragile, setFilterFragile] = useState(false);
   const [filterNoStack, setFilterNoStack] = useState(false);
-  const [filterMoved, setFilterMoved] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [filterLabelPrinted, setFilterLabelPrinted] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   
@@ -101,11 +103,12 @@ export const useBoxListLogic = () => {
     }, 400);
 
     return () => clearTimeout(timeoutId);
-  }, [itemQuery, roomQuery, filterFragile, filterNoStack, filterMoved, filterLabelPrinted, allBoxes]);
+  }, [itemQuery, roomQuery, filterFragile, filterNoStack, statusFilter, filterLabelPrinted, allBoxes]);
 
   // === Data Operations ===
-  const loadData = async () => {
-    setIsLoading(true);
+  // silent: background refresh (no spinner, keeps selection) used when the detail pane changed a box
+  const loadData = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     setLoadError(false);
     try {
       const boxes = await fetchBoxes({ includeItems: false });
@@ -119,7 +122,7 @@ export const useBoxListLogic = () => {
 
       setAllBoxes(withUrls);
       setFilteredBoxes(withUrls);
-      setSelectedIds([]);
+      if (!silent) setSelectedIds([]);
       const initialItemsById = withUrls.reduce<Record<number, Item[]>>((acc, box) => {
         if (box.items && box.items.length > 0) {
           acc[box.id] = box.items;
@@ -139,7 +142,7 @@ export const useBoxListLogic = () => {
     setRoomQuery('');
     setFilterFragile(false);
     setFilterNoStack(false);
-    setFilterMoved(false);
+    setStatusFilter('all');
     setFilterLabelPrinted(false);
     setMatchedItemIds(new Set());
     setFilteredBoxes(allBoxes);
@@ -179,8 +182,10 @@ export const useBoxListLogic = () => {
         next = next.filter((b) => b.noStack === true);
       }
 
-      if (filterMoved) {
+      if (statusFilter === 'moved') {
         next = next.filter((b) => b.isMovedToTarget === true);
+      } else if (statusFilter === 'open') {
+        next = next.filter((b) => !b.isMovedToTarget);
       }
 
       if (filterLabelPrinted) {
@@ -416,6 +421,18 @@ export const useBoxListLogic = () => {
     handleCloseDrawer();
   };
 
+  const handleDrawerToggleMoved = async () => {
+    const box = selectedBoxForActions;
+    handleCloseDrawer();
+    if (!box) return;
+    try {
+      await updateBox(box.id, { isMovedToTarget: !box.isMovedToTarget });
+      await loadData();
+    } catch (error) {
+      setSnackbar({ open: true, message: t('errors.boxUpdateFailed'), severity: 'error' });
+    }
+  };
+
   const handleDrawerDelete = () => {
     if (selectedBoxForActions) {
       setDeleteConfirmId(selectedBoxForActions.id);
@@ -438,8 +455,8 @@ export const useBoxListLogic = () => {
     setFilterFragile,
     filterNoStack,
     setFilterNoStack,
-    filterMoved,
-    setFilterMoved,
+    statusFilter,
+    setStatusFilter,
     filterLabelPrinted,
     setFilterLabelPrinted,
     showAdvancedFilters,
@@ -486,6 +503,7 @@ export const useBoxListLogic = () => {
     handleDrawerEdit,
     handleDrawerCopyLink,
     handleDrawerOpenLink,
+    handleDrawerToggleMoved,
     handleDrawerDelete,
   };
 };
