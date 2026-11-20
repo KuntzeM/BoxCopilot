@@ -47,7 +47,7 @@ class McpTransportConfiguration {
     static DefaultServerTransportSecurityValidator hostAndOriginOf(String backendUrl) {
         URI uri = backendUrl == null || backendUrl.isBlank() ? null : URI.create(backendUrl);
         if (uri == null || uri.getScheme() == null || uri.getHost() == null) {
-            throw new IllegalStateException("app.mcp.enabled=true requires BACKEND_URL (app.mcp.backend-url)"
+            throw new IllegalStateException("app.mcp.enabled=true requires APP_URL (app.mcp.backend-url)"
                     + " to be an absolute URL");
         }
         String scheme = uri.getScheme().toLowerCase(Locale.ROOT);

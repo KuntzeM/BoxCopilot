@@ -36,9 +36,10 @@ spring:
       max-file-size: 15MB
       max-request-size: 15MB
 
-# Default frontend URL (can be overridden in profiles)
+# The public origin of the application (scheme://host[:port], no path, no trailing slash). The SPA, the API, OAuth
+# and MCP are all served from it: redirect target after login, CORS origin, OIDC redirect URI and MCP issuer.
 frontend:
-  url: ${FRONTEND_URL}
+  url: ${APP_URL}
 
 # Default Nextcloud logout URL (can be overridden in profiles)
 nextcloud:
@@ -63,14 +64,19 @@ app:
       ip-limit: ${APP_LOGIN_THROTTLE_IP_LIMIT:10}
       ip-user-limit: ${APP_LOGIN_THROTTLE_IP_USER_LIMIT:5}
       window: ${APP_LOGIN_THROTTLE_WINDOW:15m}
+    # Browser hardening headers on every response (formerly set by the frontend's nginx), see SecurityHeadersFilter.
+    # csp-mode: 'enforce' sends Content-Security-Policy, anything else sends it as Content-Security-Policy-Report-Only.
+    # hsts-enabled: Strict-Transport-Security, only behind TLS.
+    headers:
+      csp-mode: ${CSP_MODE:enforce}
+      hsts-enabled: ${HSTS_ENABLED:false}
   magiclink:
     default-valid-hours: ${MAGIC_LINK_VALID_HOURS:24}
   # Read-only MCP server for AI agents. Off by default: without the flag there are no MCP beans and no /mcp endpoint.
   mcp:
     enabled: ${APP_MCP_ENABLED:false}
-    backend-url: ${BACKEND_URL:}
-    # Origin of the SPA's API (VITE_API_BASE_URL); empty when the SPA is served from the backend's own origin
-    spa-api-base-url: ${VITE_API_BASE_URL:}
+    # The MCP issuer and resource identifier: the application's public origin
+    backend-url: ${APP_URL:}
     redirect-uris:
       - https://claude.ai/api/mcp/auth_callback
     max-connection-age: 14d

@@ -82,9 +82,9 @@ class ProdSessionStoreTest {
                 "defaultMaxInactiveInterval")).isEqualTo(Duration.ofMinutes(30));
     }
 
-    /** The SPA is cross-site behind the proxy: the session cookie Spring Session writes must stay None + Secure. */
+    /** The SPA is served by the backend itself (same site): the session cookie is Lax by default, always Secure. */
     @Test
-    void prodSessionCookieIsCrossSiteSecureAndHttpOnly() {
+    void prodSessionCookieIsLaxSecureAndHttpOnly() {
         MockHttpServletRequest request = new MockHttpServletRequest();
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -92,6 +92,6 @@ class ProdSessionStoreTest {
                 .writeCookieValue(new CookieSerializer.CookieValue(request, response, "session-id"));
 
         assertThat(response.getHeader(HttpHeaders.SET_COOKIE))
-                .contains("SameSite=None").contains("Secure").contains("HttpOnly");
+                .contains("SameSite=Lax").contains("Secure").contains("HttpOnly");
     }
 }

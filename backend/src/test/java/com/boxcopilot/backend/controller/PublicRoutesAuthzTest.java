@@ -55,7 +55,7 @@ class PublicRoutesAuthzTest extends AuthzTestSupport {
         mockMvc.perform(build(r).with(csrf())).andExpect(status().isUnauthorized());
     }
 
-    /** Outside /api the entry point redirects (302) to the app: anonymous callers never get content. */
+    /** Outside /api, on the server's own prefixes, the entry point redirects (302) to the app: no content. */
     @ParameterizedTest
     @MethodSource("nonApiNonPublicPaths")
     void nonApiPathsRedirectAnonymousCallersToLogin(String path) throws Exception {
@@ -64,7 +64,27 @@ class PublicRoutesAuthzTest extends AuthzTestSupport {
     }
 
     static List<String> nonApiNonPublicPaths() {
-        return List.of("/actuator/env", "/actuator/metrics", "/some/other/path");
+        return List.of("/actuator/env", "/actuator/metrics", "/oauth2/token", "/mcp", "/.well-known/anything");
+    }
+
+    /** Everything else is the SPA served from this origin: GET is public (static file or index.html)... */
+    @ParameterizedTest
+    @MethodSource("spaPaths")
+    void spaPathsArePublicForGet(String path) throws Exception {
+        var res = mockMvc.perform(build(route(GET, path, ""))).andReturn().getResponse();
+        assertThat(res.getStatus()).isNotIn(401, 403, 302);
+    }
+
+    /** ...but no other method is. */
+    @ParameterizedTest
+    @MethodSource("spaPaths")
+    void spaPathsRequireAuthenticationForUnsafeMethods(String path) throws Exception {
+        var res = mockMvc.perform(build(route(POST, path, "")).with(csrf())).andReturn().getResponse();
+        assertThat(res.getStatus()).isIn(302, 401);
+    }
+
+    static List<String> spaPaths() {
+        return List.of("/some/other/path", "/app/boxes", "/", "/assets/app.js");
     }
 
     @Test

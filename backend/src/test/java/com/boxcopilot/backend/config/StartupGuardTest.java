@@ -115,7 +115,6 @@ class StartupGuardTest {
         environment.setActiveProfiles("prod");
         // application-prod.yml leaves an unresolvable placeholder behind when the variable is unset
         environment.setProperty("spring.data.redis.password", "${REDIS_PASSWORD}");
-        environment.setProperty("frontend.url", "http://front");
 
         assertThatThrownBy(() -> new StartupGuard(environment).afterPropertiesSet())
                 .isInstanceOf(IllegalStateException.class)
@@ -125,8 +124,34 @@ class StartupGuardTest {
                 .hasMessageContaining("CLIENT_SECRET")
                 .hasMessageContaining("NEXTCLOUD_URL")
                 .hasMessageContaining("NEXTCLOUD_LOGOUT_URL")
-                .hasMessageContaining("VITE_API_BASE_URL")
+                .hasMessageContaining("APP_URL")
+                .hasMessageNotContaining("VITE_API_BASE_URL")
                 .hasMessageNotContaining("FRONTEND_URL");
+    }
+
+    /** APP_URL feeds both the SPA/redirect URL and the OIDC redirect URI; it is named once, whichever is missing. */
+    @Test
+    void prodNamesAppUrlOnceWhenEitherOfItsPropertiesIsMissing() {
+        for (String key : new String[] {"frontend.url",
+                "spring.security.oauth2.client.registration.nextcloud.redirect-uri"}) {
+            MockEnvironment environment = completeProd();
+            environment.setProperty(key, "${APP_URL}");
+
+            assertThatThrownBy(() -> new StartupGuard(environment).afterPropertiesSet())
+                    .as(key)
+                    .hasMessage("Missing required configuration for profile 'prod': APP_URL");
+        }
+    }
+
+    @Test
+    void prodNamesAppUrlOnceWhenBothOfItsPropertiesAreMissing() {
+        MockEnvironment environment = completeProd();
+        environment.setProperty("frontend.url", "${APP_URL}");
+        environment.setProperty("spring.security.oauth2.client.registration.nextcloud.redirect-uri",
+                "${APP_URL}/login/oauth2/code/{registrationId}");
+
+        assertThatThrownBy(() -> new StartupGuard(environment).afterPropertiesSet())
+                .hasMessage("Missing required configuration for profile 'prod': APP_URL");
     }
 
     @Test

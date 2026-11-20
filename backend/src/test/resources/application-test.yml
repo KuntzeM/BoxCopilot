@@ -27,4 +27,4 @@ app:
 
 # For test profile we use NoSecurityConfig which permits all requests (no auth)
 frontend:
-  url: ${FRONTEND_URL:http://localhost:3000}
+  url: ${APP_URL:http://localhost:3000}

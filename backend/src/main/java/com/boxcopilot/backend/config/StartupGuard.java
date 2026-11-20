@@ -32,25 +32,25 @@ public class StartupGuard implements InitializingBean {
     private static final String NEXTCLOUD = "spring.security.oauth2.client.registration.nextcloud.";
 
     /**
-     * Environment variable named in the error message -> the property of application-prod.yml it feeds. The
+     * Environment variable named in the error message -> the properties of application-prod.yml it feeds. The
      * property is checked, not the variable, so a value supplied any other way (system property, test property)
      * counts. Empty is accepted (compose enforces a non-empty REDIS_PASSWORD with {@code :?}); an unset variable
      * leaves an unresolvable placeholder behind, which is what is detected here.
      */
-    private static final Map<String, String> REQUIRED_IN_PROD = new LinkedHashMap<>();
+    private static final Map<String, List<String>> REQUIRED_IN_PROD = new LinkedHashMap<>();
 
     static {
-        REQUIRED_IN_PROD.put("SPRING_DATASOURCE_URL", "spring.datasource.url");
-        REQUIRED_IN_PROD.put("POSTGRES_USER", "spring.datasource.username");
-        REQUIRED_IN_PROD.put("POSTGRES_PASSWORD", "spring.datasource.password");
-        REQUIRED_IN_PROD.put("REDIS_HOST", "spring.data.redis.host");
-        REQUIRED_IN_PROD.put("REDIS_PORT", "spring.data.redis.port");
-        REQUIRED_IN_PROD.put("REDIS_PASSWORD", "spring.data.redis.password");
-        REQUIRED_IN_PROD.put("CLIENT_ID", NEXTCLOUD + "client-id");
-        REQUIRED_IN_PROD.put("CLIENT_SECRET", NEXTCLOUD + "client-secret");
-        REQUIRED_IN_PROD.put("VITE_API_BASE_URL", NEXTCLOUD + "redirect-uri");
-        REQUIRED_IN_PROD.put("NEXTCLOUD_LOGOUT_URL", "nextcloud.logout-url");
-        REQUIRED_IN_PROD.put("FRONTEND_URL", "frontend.url");
+        REQUIRED_IN_PROD.put("SPRING_DATASOURCE_URL", List.of("spring.datasource.url"));
+        REQUIRED_IN_PROD.put("POSTGRES_USER", List.of("spring.datasource.username"));
+        REQUIRED_IN_PROD.put("POSTGRES_PASSWORD", List.of("spring.datasource.password"));
+        REQUIRED_IN_PROD.put("REDIS_HOST", List.of("spring.data.redis.host"));
+        REQUIRED_IN_PROD.put("REDIS_PORT", List.of("spring.data.redis.port"));
+        REQUIRED_IN_PROD.put("REDIS_PASSWORD", List.of("spring.data.redis.password"));
+        REQUIRED_IN_PROD.put("CLIENT_ID", List.of(NEXTCLOUD + "client-id"));
+        REQUIRED_IN_PROD.put("CLIENT_SECRET", List.of(NEXTCLOUD + "client-secret"));
+        REQUIRED_IN_PROD.put("NEXTCLOUD_LOGOUT_URL", List.of("nextcloud.logout-url"));
+        // The one public origin: the SPA, the redirect target after login and the OIDC redirect URI derive from it
+        REQUIRED_IN_PROD.put("APP_URL", List.of("frontend.url", NEXTCLOUD + "redirect-uri"));
     }
 
     private final Environment environment;
@@ -104,8 +104,8 @@ public class StartupGuard implements InitializingBean {
     public void afterPropertiesSet() {
         if (environment.acceptsProfiles(Profiles.of(PROD_PROFILE))) {
             List<String> missing = new ArrayList<>();
-            REQUIRED_IN_PROD.forEach((name, key) -> {
-                if (isMissing(key)) {
+            REQUIRED_IN_PROD.forEach((name, keys) -> {
+                if (keys.stream().anyMatch(this::isMissing)) {
                     missing.add(name);
                 }
             });

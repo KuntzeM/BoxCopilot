@@ -115,6 +115,9 @@ public class OAuth2SecurityConfig {
                 .requestMatchers("/login/**", "/oauth2/authorization/**", "/error").permitAll()
                 // All other API endpoints require authentication
                 .requestMatchers("/api/**").authenticated()
+                // The SPA served from this origin: its static files and client-side routes (GET/HEAD outside the
+                // server's own prefixes, see SpaRoutes). Unknown /api paths never get here and stay 401/404.
+                .requestMatchers(SpaRoutes.staticAndSpaRequests()).permitAll()
                 .anyRequest().authenticated()
             )
             .exceptionHandling(exceptions -> exceptions

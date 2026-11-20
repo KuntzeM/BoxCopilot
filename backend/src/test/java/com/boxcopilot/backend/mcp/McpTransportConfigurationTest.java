@@ -86,11 +86,11 @@ class McpTransportConfigurationTest {
     @Test
     void aMissingOrRelativeBackendUrlFailsInsteadOfAllowingEverything() {
         assertThatThrownBy(() -> McpTransportConfiguration.hostAndOriginOf(null))
-                .hasMessageContaining("BACKEND_URL");
+                .hasMessageContaining("APP_URL");
         assertThatThrownBy(() -> McpTransportConfiguration.hostAndOriginOf(" "))
-                .hasMessageContaining("BACKEND_URL");
+                .hasMessageContaining("APP_URL");
         assertThatThrownBy(() -> McpTransportConfiguration.hostAndOriginOf("/relative"))
-                .hasMessageContaining("BACKEND_URL");
+                .hasMessageContaining("APP_URL");
         assertThatCode(() -> McpTransportConfiguration.hostAndOriginOf("http://localhost"))
                 .doesNotThrowAnyException();
     }
