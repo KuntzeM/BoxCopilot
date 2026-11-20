@@ -13,7 +13,6 @@ import {
   Card,
   Stack,
   Fab,
-  Tooltip,
   Slider,
   Typography,
   useMediaQuery,
@@ -636,9 +635,9 @@ export const ItemForm: React.FC<ItemFormProps> = ({
           size="large"
           sx={{
             position: 'fixed',
-            bottom: 16,
+                        bottom: { xs: 'calc(16px + env(safe-area-inset-bottom))', md: 24 },
             right: 16,
-            zIndex: 50,
+            zIndex: 1050,
           }}
         >
           <Add />
@@ -747,40 +746,30 @@ export const ItemForm: React.FC<ItemFormProps> = ({
             />
 
             <Stack direction="row" spacing={1}>
-              <Tooltip title={t('items.takePhoto')}>
-                <Box sx={{ flex: 1 }}>
-                  <IconButton
-                    color="primary"
-                    onClick={() => startCamera('environment')}
-                    aria-label={t('items.takePhoto')}
-                    disabled={submitting}
-                    size="large"
-                    sx={{ width: '100%', justifyContent: 'center' }}
-                  >
-                    <PhotoCamera sx={{ fontSize: 40 }} />
-                  </IconButton>
-                </Box>
-              </Tooltip>
-              <Tooltip title={t('items.selectFromGallery')}>
-                <Box sx={{ flex: 1 }}>
-                  <IconButton
-                    color="primary"
-                    onClick={() => fileInputRef.current?.click()}
-                    aria-label={t('items.selectFromGallery')}
-                    disabled={submitting}
-                    size="large"
-                    sx={{ width: '100%', justifyContent: 'center' }}
-                  >
-                    <FolderOpen sx={{ fontSize: 40 }} />
-                  </IconButton>
-                </Box>
-              </Tooltip>
+              <Button
+                variant="outlined"
+                onClick={() => startCamera('environment')}
+                disabled={submitting}
+                startIcon={<PhotoCamera />}
+                sx={{ flex: 1, minWidth: 0, minHeight: 56 }}
+              >
+                {t('items.takePhoto')}
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={submitting}
+                startIcon={<FolderOpen />}
+                sx={{ flex: 1, minWidth: 0, minHeight: 56 }}
+              >
+                {t('items.selectFromGallery')}
+              </Button>
             </Stack>
           </Stack>
         </DialogContent>
 
-        <DialogActions sx={{ p: 2, gap: 1 }}>
-          <Button onClick={handleClose} disabled={submitting}>
+        <DialogActions sx={{ p: 2, gap: 1, flexWrap: 'wrap' }}>
+          <Button onClick={handleClose} disabled={submitting} sx={{ minHeight: 48 }}>
             {t('common.cancel')}
           </Button>
           {!isEditMode && (

@@ -187,7 +187,7 @@ try {
     await passField(page).fill(PASS);
     await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
     await loggedIn(page);
-    await page.getByRole('button', { name: 'Admin' }).waitFor();
+    await page.getByRole('link', { name: 'Admin' }).waitFor();
     ok(await hasSession(ctx), 'no SESSION cookie after login');
     await shot(page, '02-boxlist');
   });

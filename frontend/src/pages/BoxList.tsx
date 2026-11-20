@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Alert,
   ButtonBase,
@@ -33,7 +33,9 @@ import {
   Menu,
   MenuItem,
   CircularProgress,
+  alpha,
 } from '@mui/material';
+import { TILE, FONT_MONO } from '../context/ThemeContext';
 import {
   Add,
   ExpandMore,
@@ -48,11 +50,14 @@ import {
   BrokenImage,
   DoNotDisturb,
   Close,
+  ArrowForward,
+  FilterList,
   MoreVert,
   LocalShipping,
   Label,
   EditNote,
   DoneAll,
+  Inventory2,
 } from '@mui/icons-material';
 import { Box as BoxModel } from '../types/models';
 import { updateBox } from '../services/boxService';
@@ -60,6 +65,8 @@ import { truncateToFirstLine } from '../utils/textUtils';
 import { useTranslation } from '../hooks/useTranslation';
 import { LabelGenerationProgress } from '../components/LabelGenerationProgress';
 import { useBoxListLogic } from '../hooks/useBoxListLogic';
+
+const srOnly: React.CSSProperties = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' };
 
 type SnackbarState = { open: boolean; message: string; severity: 'success' | 'error' | 'info' };
 
@@ -70,27 +77,25 @@ interface BoxHandlingBadgesProps {
 const BoxHandlingBadges: React.FC<BoxHandlingBadgesProps> = ({ box }) => {
   const { t } = useTranslation();
 
-  if (!box.isFragile && !box.noStack) {
+  if (!box.isFragile && !box.noStack && !box.labelPrinted && !box.isMovedToTarget) {
     return null;
   }
 
+  // Every status is an icon + text label, never colour alone
+  const flagSx = { fontWeight: 700, maxWidth: '100%' } as const;
   return (
     <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
       {box.isFragile && (
-        <Chip
-          icon={<BrokenImage />}
-          label={t('boxes.fragile')}
-          color="warning"
-          size="small"
-        />
+        <Chip icon={<BrokenImage />} label={t('boxes.fragile')} size="small" sx={{ ...flagSx, bgcolor: '#ffa726', color: TILE.ink, '& .MuiChip-icon': { color: TILE.ink } }} />
       )}
       {box.noStack && (
-        <Chip
-          icon={<DoNotDisturb />}
-          label={t('boxes.noStack')}
-          color="error"
-          size="small"
-        />
+        <Chip icon={<DoNotDisturb />} label={t('boxes.noStack')} variant="outlined" size="small" sx={{ ...flagSx, borderWidth: 2, borderColor: 'text.primary', color: 'text.primary', '& .MuiChip-icon': { color: 'text.primary' } }} />
+      )}
+      {box.labelPrinted && (
+        <Chip icon={<Label />} label={t('boxes.labelPrinted')} color="primary" variant="outlined" size="small" sx={flagSx} />
+      )}
+      {box.isMovedToTarget && (
+        <Chip icon={<LocalShipping />} label={t('boxes.moved')} color="success" size="small" sx={flagSx} />
       )}
     </Box>
   );
@@ -117,8 +122,8 @@ export default function BoxList() {
     setFilterFragile,
     filterNoStack,
     setFilterNoStack,
-    filterMoved,
-    setFilterMoved,
+    statusFilter,
+    setStatusFilter,
     filterLabelPrinted,
     setFilterLabelPrinted,
     showAdvancedFilters,
@@ -158,8 +163,23 @@ export default function BoxList() {
     handleDrawerEdit,
     handleDrawerCopyLink,
     handleDrawerOpenLink,
+    handleDrawerToggleMoved,
     handleDrawerDelete,
   } = useBoxListLogic();
+
+  // Master-detail keeps this list mounted while boxes are created/edited in the detail pane: refresh quietly on route change.
+  const { pathname } = useLocation();
+  const firstRoute = useRef(true);
+  useEffect(() => {
+    if (firstRoute.current) {
+      firstRoute.current = false;
+      return;
+    }
+    loadData(true);
+  }, [pathname]);
+
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const activeFilters = [filterFragile, filterNoStack, filterLabelPrinted, roomQuery.trim() !== ''].filter(Boolean).length;
 
   // Bulk update state
   const [bulkMenuAnchor, setBulkMenuAnchor] = useState<null | HTMLElement>(null);
@@ -239,64 +259,24 @@ export default function BoxList() {
 
   // Render a single box card (for both regular and virtualized rendering)
   const renderBoxCard = useCallback((box: BoxModel) => (
-    <Paper key={box.id} sx={{ borderRadius: 2, boxShadow: 2, position: 'relative' }}>
-      {/* Status badges in top right corner */}
-      {(box.labelPrinted || box.isMovedToTarget) && (
-        <Box
-          sx={{
-            position: 'absolute',
-            top: 8,
-            right: 8,
-            display: 'flex',
-            gap: 0.5,
-            zIndex: 1,
-          }}
-        >
-          {box.labelPrinted && (
-            <Chip
-              icon={<Label />}
-              label={isMobile ? undefined : t('boxes.labelPrinted')}
-              size="small"
-              color="primary"
-              sx={{
-                pointerEvents: 'none',
-                ...(isMobile && {
-                  '& .MuiChip-label': { display: 'none' },
-                  '& .MuiChip-icon': { margin: 0 },
-                  minWidth: 32,
-                  height: 24,
-                  padding: '4px',
-                })
-              }}
-            />
-          )}
-          {box.isMovedToTarget && (
-            <Chip
-              icon={<LocalShipping />}
-              label={isMobile ? undefined : t('boxes.moved')}
-              size="small"
-              color="success"
-              sx={{
-                pointerEvents: 'none',
-                ...(isMobile && {
-                  '& .MuiChip-label': { display: 'none' },
-                  '& .MuiChip-icon': { margin: 0 },
-                  minWidth: 32,
-                  height: 24,
-                  padding: '4px',
-                })
-              }}
-            />
-          )}
-        </Box>
-      )}
-
+    <Paper
+      key={box.id}
+      variant="outlined"
+      sx={{
+        position: 'relative',
+        overflow: 'hidden',
+        ...(box.isFragile && {
+          boxShadow: `inset 6px 0 0 ${theme.palette.primary.main}`,
+        }),
+      }}
+    >
       <Box sx={{ p: 2 }}>
-        <Stack direction="row" spacing={2} sx={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-          <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flex: 1, minWidth: 200 }}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start', flex: 1, minWidth: 0 }}>
             <Checkbox
               checked={selectedIds.includes(box.id)}
               onChange={() => toggleSelect(box.id)}
+              sx={{ p: 0, width: 48, height: 48, flexShrink: 0 }}
               slotProps={{ input: { 'aria-label': t('boxes.selectBox', { number: box.boxNumber }) } }}
             />
             <ButtonBase
@@ -305,6 +285,7 @@ export default function BoxList() {
               aria-label={t('boxes.openBox', { number: box.boxNumber ?? 0 })}
               sx={{
                 flex: 1,
+                minWidth: 0,
                 display: 'block',
                 textAlign: 'left',
                 borderRadius: 1,
@@ -314,12 +295,40 @@ export default function BoxList() {
               }}
               onClick={() => navigate(`/app/boxes/${box.id}/edit`)}
             >
-              <Typography variant="h6">{t('boxes.boxNumber', { number: box.boxNumber ?? 0 })}</Typography>
-              <Typography variant="body2" color="text.secondary">
-                {t('boxes.current')}: {box.currentRoom || '-'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {t('boxes.target')}: {box.targetRoom || '-'}
+              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start', minWidth: 0 }}>
+                <Box
+                  aria-hidden
+                  sx={{
+                    bgcolor: TILE.bg,
+                    color: TILE.ink,
+                    borderRadius: 0.5,
+                    width: 72,
+                    aspectRatio: '1',
+                    alignSelf: 'flex-start',
+                    flexShrink: 0,
+                    boxSizing: 'border-box',
+                    px: 1,
+                    py: 0.75,
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    justifyContent: 'flex-end',
+                    fontFamily: FONT_MONO,
+                    fontWeight: 800,
+                    fontSize: 32,
+                    lineHeight: 0.9,
+                    letterSpacing: '-0.07em',
+                  }}
+                >
+                  {box.boxNumber ?? 0}
+                </Box>
+                <Box sx={{ minWidth: 0, flex: 1, overflowWrap: 'break-word' }}>
+                  <Typography variant="h6" sx={{ lineHeight: 1.2 }}>{t('boxes.boxNumber', { number: box.boxNumber ?? 0 })}</Typography>
+              <Typography variant="body2" color="text.secondary" component="div" sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 0.5 }}>
+                <span style={srOnly}>{t('boxes.current')}: </span>
+                <span>{box.currentRoom || '-'}</span>
+                <ArrowForward aria-hidden sx={{ fontSize: 16 }} />
+                <span style={srOnly}>{t('boxes.target')}: </span>
+                <span>{box.targetRoom || '-'}</span>
               </Typography>
               {box.description && (
                 <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mt: 0.5 }}>
@@ -327,6 +336,8 @@ export default function BoxList() {
                 </Typography>
               )}
               <BoxHandlingBadges box={box} />
+                </Box>
+              </Stack>
             </ButtonBase>
           </Stack>
 
@@ -337,7 +348,7 @@ export default function BoxList() {
               aria-label={t('boxes.actions')}
               onClick={() => handleOpenBoxActions(box)}
               color="primary"
-              sx={{ minWidth: 48, minHeight: 48 }}
+              sx={{ minWidth: 48, minHeight: 48, flexShrink: 0 }}
             >
               <MoreVert />
             </IconButton>
@@ -352,7 +363,7 @@ export default function BoxList() {
           onClick={() => toggleExpandBox(box)}
           aria-expanded={expandedBoxes.has(box.id)}
           aria-label={t('boxes.expandItems', { number: box.boxNumber ?? 0 })}
-          sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', justifyContent: 'flex-start', borderRadius: 1, userSelect: 'none' }}
+          sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', minHeight: 48, justifyContent: 'flex-start', borderRadius: 1, userSelect: 'none' }}
         >
           {expandedBoxes.has(box.id) ? <ExpandLess /> : <ExpandMore />}
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
@@ -403,10 +414,10 @@ export default function BoxList() {
                       </ButtonBase>
                     ) : (
                       <Avatar sx={{ width: 40, height: 40, bgcolor: 'grey.300', flexShrink: 0 }}>
-                        📦
+                        <Inventory2 fontSize="small" />
                       </Avatar>
                     )}
-                    <Box sx={{ flex: 1, minWidth: 160 }}>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Typography variant="body2" sx={{ fontWeight: 500 }}>
                         {item.name}
                       </Typography>
@@ -423,14 +434,65 @@ export default function BoxList() {
         </Collapse>
       </Box>
     </Paper>
-  ), [selectedIds, expandedBoxes, t, resolveImageUrl, withApiBase, matchedItemIds, theme, isMobile, getBoxItems, getBoxItemCount, isLoadingItemsForBox]);
+  ), [selectedIds, expandedBoxes, t, resolveImageUrl, withApiBase, matchedItemIds, theme, getBoxItems, getBoxItemCount, isLoadingItemsForBox]);
 
   return (
-    <Box sx={{ width: '100%', pb: isMobile ? 16 : 4 }}>
+    <Box sx={{ width: '100%', minWidth: 0, containerType: 'inline-size', pb: isMobile ? 14 : 4 }}>
       <Stack spacing={2} sx={{ mb: 2 }}>
-        <Paper sx={{ p: 2, borderRadius: 2, boxShadow: 2 }}>
+        {allBoxes.length > 0 && (() => {
+          const total = allBoxes.length;
+          const moved = allBoxes.filter((b) => b.isMovedToTarget).length;
+          return (
+            <Paper variant="outlined" sx={{ p: 2 }} role="group" aria-label={t('boxes.progressMoved', { moved, total })}>
+              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'baseline', flexWrap: 'wrap' }}>
+                <Typography component="span" sx={{ fontFamily: FONT_MONO, fontWeight: 800, fontSize: 'clamp(44px, 14vw, 72px)', lineHeight: 0.9, letterSpacing: '-0.08em', color: 'primary.main' }}>
+                  {moved}
+                </Typography>
+                <Typography component="span" variant="h6">
+                  {t('boxes.progressMoved', { moved: '', total }).replace(/^\s+/, '')}
+                </Typography>
+              </Stack>
+              <Box aria-hidden sx={{ mt: 1.5, height: 16, bgcolor: 'divider', borderRadius: 0.5, overflow: 'hidden' }}>
+                <Box sx={{ width: `${(moved / total) * 100}%`, height: '100%', bgcolor: TILE.bg }} />
+              </Box>
+            </Paper>
+          );
+        })()}
+        <Stack
+          direction="row"
+          spacing={1}
+          role="group"
+          aria-label={t('boxes.statusFilter')}
+          sx={{ overflowX: 'auto', pb: 0.5, '& > *': { flexShrink: 0 } }}
+        >
+          {([['open', 'boxes.statusOpen'], ['all', 'boxes.statusAll'], ['moved', 'boxes.statusMoved']] as const).map(([value, key]) => {
+            const selected = statusFilter === value;
+            return (
+              <Chip
+                key={value}
+                label={t(key)}
+                clickable
+                aria-pressed={selected}
+                onClick={() => setStatusFilter(value)}
+                variant={selected ? 'filled' : 'outlined'}
+                sx={{
+                  height: 48,
+                  borderRadius: 1,
+                  px: 1,
+                  fontWeight: 800,
+                  fontSize: '1rem',
+                  borderWidth: 2,
+                  ...(selected
+                    ? { bgcolor: 'primary.main', color: 'primary.contrastText', borderColor: 'primary.main', '&:hover, &:focus': { bgcolor: 'primary.main' } }
+                    : { borderColor: 'text.primary' }),
+                }}
+              />
+            );
+          })}
+        </Stack>
+        <Paper variant="outlined" sx={{ p: 2 }}>
           <Stack spacing={2}>
-            <Stack direction="column" spacing={2}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
               <TextField
                 fullWidth
                 label={t('boxes.itemName')}
@@ -438,125 +500,77 @@ export default function BoxList() {
                 value={itemQuery}
                 onChange={(e) => setItemQuery(e.target.value)}
               />
-              <TextField
-                fullWidth
-                label={t('boxes.targetRoomFilter')}
-                placeholder={t('boxes.targetRoomFilterPlaceholder')}
-                value={roomQuery}
-                onChange={(e) => setRoomQuery(e.target.value)}
-              />
               <Button
-                fullWidth
                 variant="outlined"
-                onClick={handleResetFilter}
-                size="small"
+                onClick={() => setShowFilterPanel((v) => !v)}
+                startIcon={<FilterList />}
+                aria-expanded={showFilterPanel}
+                aria-label={t('boxes.filters')}
+                sx={{ minHeight: 48, flexShrink: 0, borderWidth: 2, borderColor: 'text.primary', color: 'text.primary' }}
               >
-                {t('boxes.reset')}
+                <Box component="span" sx={{ '@container (max-width: 420px)': { display: 'none' } }}>{t('boxes.filters')}</Box>
+                {activeFilters > 0 && <Chip label={activeFilters} size="small" sx={{ ml: 1 }} />}
               </Button>
             </Stack>
-
-            {/* Advanced Filters Toggle */}
-            <Button
-              size="small"
-              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-              sx={{ alignSelf: 'flex-start' }}
-            >
-              {showAdvancedFilters ? '▼' : '▶'} {t('boxes.advancedFilters')}
-              {(filterFragile || filterNoStack || filterMoved || filterLabelPrinted) && (
-                <Chip
-                  label={[
-                    filterFragile && '🔔',
-                    filterNoStack && '⛔',
-                    filterMoved && '🚚',
-                    filterLabelPrinted && '🏷️'
-                  ].filter(Boolean).join(' ')}
-                  size="small"
-                  sx={{ ml: 1 }}
+            <Collapse in={showFilterPanel} unmountOnExit>
+              <Stack spacing={2}>
+                <TextField
+                  fullWidth
+                  label={t('boxes.targetRoomFilter')}
+                  placeholder={t('boxes.targetRoomFilterPlaceholder')}
+                  value={roomQuery}
+                  onChange={(e) => setRoomQuery(e.target.value)}
                 />
-              )}
-            </Button>
-
-            {/* Advanced Filters */}
-            <Collapse in={showAdvancedFilters}>
-              <Stack
-                direction={isMobile ? 'column' : 'row'}
-                spacing={isMobile ? 1 : 2}
-                sx={{ pl: isMobile ? 0 : 1, pt: 1 }}
-              >
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={filterFragile}
-                      onChange={(e) => setFilterFragile(e.target.checked)}
-                      color="warning"
-                      size={isMobile ? 'small' : 'medium'}
-                    />
-                  }
-                  label={isMobile ? `🔔 ${t('boxes.fragile')}` : t('boxes.onlyFragileBoxes')}
-                  sx={{ m: 0 }}
-                />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={filterNoStack}
-                      onChange={(e) => setFilterNoStack(e.target.checked)}
-                      color="error"
-                      size={isMobile ? 'small' : 'medium'}
-                    />
-                  }
-                  label={isMobile ? `⛔ ${t('boxes.noStack')}` : t('boxes.onlyNoStackBoxes')}
-                  sx={{ m: 0 }}
-                />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={filterMoved}
-                      onChange={(e) => setFilterMoved(e.target.checked)}
-                      color="success"
-                      size={isMobile ? 'small' : 'medium'}
-                    />
-                  }
-                  label={isMobile ? `🚚 ${t('boxes.moved')}` : t('boxes.onlyMovedBoxes')}
-                  sx={{ m: 0 }}
-                />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={filterLabelPrinted}
-                      onChange={(e) => setFilterLabelPrinted(e.target.checked)}
-                      color="primary"
-                      size={isMobile ? 'small' : 'medium'}
-                    />
-                  }
-                  label={isMobile ? `🏷️ ${t('boxes.labelPrinted')}` : t('boxes.onlyLabelPrintedBoxes')}
-                  sx={{ m: 0 }}
-                />
+                <Stack direction={isMobile ? 'column' : 'row'} spacing={isMobile ? 0 : 2}>
+                  <FormControlLabel
+                    control={<Checkbox checked={filterFragile} onChange={(e) => setFilterFragile(e.target.checked)} sx={{ p: 1.5 }} />}
+                    label={t('boxes.onlyFragileBoxes')}
+                    sx={{ m: 0, minHeight: 48 }}
+                  />
+                  <FormControlLabel
+                    control={<Checkbox checked={filterNoStack} onChange={(e) => setFilterNoStack(e.target.checked)} sx={{ p: 1.5 }} />}
+                    label={t('boxes.onlyNoStackBoxes')}
+                    sx={{ m: 0, minHeight: 48 }}
+                  />
+                  <FormControlLabel
+                    control={<Checkbox checked={filterLabelPrinted} onChange={(e) => setFilterLabelPrinted(e.target.checked)} sx={{ p: 1.5 }} />}
+                    label={t('boxes.onlyLabelPrintedBoxes')}
+                    sx={{ m: 0, minHeight: 48 }}
+                  />
+                </Stack>
+                <Button fullWidth variant="outlined" onClick={handleResetFilter} sx={{ minHeight: 48 }}>
+                  {t('boxes.reset')}
+                </Button>
               </Stack>
             </Collapse>
           </Stack>
         </Paper>
 
-        <Stack direction={isMobile ? 'column' : 'row'} spacing={1.5} sx={{ justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center' }}>
-          <Typography variant="h5" sx={{ fontWeight: 700 }}>{t('boxes.boxes')}</Typography>
-          <Stack direction="row" spacing={1} sx={{ justifyContent: isMobile ? 'flex-start' : 'flex-end' }}>
+        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1.5, minWidth: 0 }}>
+          <Typography variant="h5" sx={{ fontWeight: 700, minWidth: 0 }}>{t('boxes.boxes')}</Typography>
+          <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', minWidth: 0 }}>
             <Button
               variant="outlined"
               startIcon={<EditNote />}
+              aria-label={t('boxes.bulkUpdate')}
               onClick={(e) => setBulkMenuAnchor(e.currentTarget)}
               disabled={selectedIds.length === 0}
+              sx={{ minHeight: 48, '@container (max-width: 520px)': { minWidth: 48, px: 1.5, '& .MuiButton-startIcon': { m: 0 }, '& .btn-label': { display: 'none' } } }}
             >
-              {t('boxes.bulkUpdate')}
+              <span className="btn-label">{t('boxes.bulkUpdate')}</span>
             </Button>
             <Button
               variant="outlined"
               startIcon={<Print />}
+              aria-label={t('boxes.printLabels')}
               onClick={handlePrintWithDialog}
               disabled={selectedIds.length === 0}
+              sx={{ minHeight: 48, '@container (max-width: 520px)': { minWidth: 48, px: 1.5, '& .MuiButton-startIcon': { m: 0 }, '& .btn-label': { display: 'none' } } }}
             >
-              {t('boxes.printLabels')}
+              <span className="btn-label">{t('boxes.printLabels')}</span>
             </Button>
             {!isMobile && (
-              <Button variant="contained" startIcon={<Add />} onClick={handleOpenBoxDialog}>
+              <Button variant="contained" startIcon={<Add />} onClick={handleOpenBoxDialog} sx={{ minHeight: 48 }}>
                 {t('boxes.createNew')}
               </Button>
             )}
@@ -570,7 +584,7 @@ export default function BoxList() {
         <Alert
           severity="error"
           action={
-            <Button color="inherit" size="small" onClick={loadData}>
+            <Button color="inherit" size="small" onClick={() => loadData()}>
               {t('common.retry')}
             </Button>
           }
@@ -586,11 +600,16 @@ export default function BoxList() {
           </Button>
         </Paper>
       ) : filteredBoxes.length === 0 ? (
-        <Alert severity="info">{t('boxes.noBoxesFound')}</Alert>
+        <Alert
+          severity="info"
+          action={<Button color="inherit" size="small" onClick={handleResetFilter}>{t('boxes.reset')}</Button>}
+        >
+          {t('boxes.noBoxesFound')}
+        </Alert>
       ) : (
-        <Stack spacing={2}>
+        <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))', alignItems: 'start' }}>
           {filteredBoxes.map((box) => renderBoxCard(box))}
-        </Stack>
+        </Box>
       )}
 
       {/* Box Dialog - Create new box */}
@@ -734,37 +753,23 @@ export default function BoxList() {
         </DialogActions>
       </Dialog>
 
-      {/* Floating Action Buttons for Mobile */}
+      {/* New-box FAB for mobile */}
       {isMobile && (
-        <>
-          <Fab
-            color="secondary"
-            aria-label={t('boxes.bulkUpdate')}
-            disabled={selectedIds.length === 0}
-            onClick={(e) => setBulkMenuAnchor(e.currentTarget)}
-            sx={{
-              position: 'fixed',
-              bottom: 80,
-              right: 88,
-              zIndex: 1000,
-            }}
-          >
-            <EditNote />
-          </Fab>
-          <Fab
-            color="primary"
-            aria-label={t('boxes.createNew')}
-            onClick={handleOpenBoxDialog}
-            sx={{
-              position: 'fixed',
-              bottom: 80,
-              right: 16,
-              zIndex: 1000,
-            }}
-          >
-            <Add />
-          </Fab>
-        </>
+        <Fab
+          color="primary"
+          aria-label={t('boxes.createNew')}
+          onClick={handleOpenBoxDialog}
+          sx={{
+            position: 'fixed',
+            bottom: 'calc(16px + env(safe-area-inset-bottom))',
+            right: 16,
+            zIndex: 1000,
+            borderRadius: 1,
+            boxShadow: 'none',
+          }}
+        >
+          <Add />
+        </Fab>
       )}
 
       {/* Bulk Update Menu */}
@@ -775,7 +780,7 @@ export default function BoxList() {
       >
         <MenuItem onClick={handleBulkUpdateMoved}>
           <ListItemIcon>
-            <LocalShipping color={allSelectedMoved ? "success" : "inherit"} />
+            <LocalShipping />
           </ListItemIcon>
           <ListItemText>
             {allSelectedMoved ? t('boxes.removeMoved') : t('boxes.setMoved')}
@@ -783,7 +788,7 @@ export default function BoxList() {
         </MenuItem>
         <MenuItem onClick={handleBulkUpdateLabelPrinted}>
           <ListItemIcon>
-            <Label color={allSelectedPrinted ? "primary" : "inherit"} />
+            <Label />
           </ListItemIcon>
           <ListItemText>
             {allSelectedPrinted ? t('boxes.removeLabelPrinted') : t('boxes.setLabelPrinted')}
@@ -830,11 +835,20 @@ export default function BoxList() {
           </Typography>
           <List>
             <ListItemButton
+              onClick={handleDrawerToggleMoved}
+              sx={{ minHeight: 56, borderRadius: 1, mb: 1 }}
+            >
+              <ListItemIcon>
+                <LocalShipping sx={{ color: 'text.secondary' }} />
+              </ListItemIcon>
+              <ListItemText primary={selectedBoxForActions?.isMovedToTarget ? t('boxes.unmarkMoved') : t('boxes.markMoved')} />
+            </ListItemButton>
+            <ListItemButton
               onClick={handleDrawerEdit}
               sx={{ minHeight: 56, borderRadius: 1, mb: 1 }}
             >
               <ListItemIcon>
-                <Edit color="primary" />
+                <Edit sx={{ color: "text.secondary" }} />
               </ListItemIcon>
               <ListItemText primary={t('boxes.edit')} />
             </ListItemButton>
@@ -843,7 +857,7 @@ export default function BoxList() {
               sx={{ minHeight: 56, borderRadius: 1, mb: 1 }}
             >
               <ListItemIcon>
-                <ContentCopy />
+                <ContentCopy sx={{ color: "text.secondary" }} />
               </ListItemIcon>
               <ListItemText primary={t('boxes.copyPublicLink')} />
             </ListItemButton>
@@ -852,7 +866,7 @@ export default function BoxList() {
               sx={{ minHeight: 56, borderRadius: 1, mb: 1 }}
             >
               <ListItemIcon>
-                <OpenInNew color="info" />
+                <OpenInNew sx={{ color: "text.secondary" }} />
               </ListItemIcon>
               <ListItemText primary={t('boxes.openPublicLink')} />
             </ListItemButton>
@@ -861,7 +875,7 @@ export default function BoxList() {
               sx={{ minHeight: 56, borderRadius: 1, mb: 1 }}
             >
               <ListItemIcon>
-                <Delete color="error" />
+                <Delete sx={{ color: "text.secondary" }} />
               </ListItemIcon>
               <ListItemText primary={t('boxes.delete')} />
             </ListItemButton>

@@ -1,5 +1,5 @@
-import React, { Suspense, lazy, useEffect, useState } from 'react';
-import { Routes, Route, Navigate, Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
+import React, { Fragment, Suspense, lazy, useEffect, useState } from 'react';
+import { Routes, Route, Navigate, Link as RouterLink, useLocation, useMatch, useNavigate, useOutlet } from 'react-router-dom';
 import { 
   CssBaseline, 
   Container, 
@@ -8,6 +8,7 @@ import {
   Typography, 
   Box, 
   Button, 
+  Paper,
   CircularProgress, 
   IconButton,
   Drawer,
@@ -25,11 +26,11 @@ import {
   WbSunny,
   DarkMode,
   Logout,
-  AdminPanelSettings,
   Menu as MenuIcon,
   Language as LanguageIcon,
+  AdminPanelSettings,
+  SmartToy,
 } from '@mui/icons-material';
-import SmartToyIcon from '@mui/icons-material/SmartToy';
 import axios from './services/axiosConfig';
 import PublicPreview from './pages/PublicPreview';
 import LoginPage from './pages/LoginPage';
@@ -41,6 +42,7 @@ import { useTranslation } from './hooks/useTranslation';
 import { useMcpContinue } from './hooks/useMcpContinue';
 import LanguageSelector from './components/LanguageSelector';
 import { Role, UserPrincipal } from './types/models';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Authenticated-only pages are split out so /public/:token and login stay light.
 const BoxList = lazy(() => import('./pages/BoxList'));
@@ -94,7 +96,13 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
   const { t } = useTranslation();
   const navigate = useNavigate();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  // <900px: bottom nav (+ hamburger for theme/language/logout); >=900px: side rail + full top bar.
+  // jsdom has no matchMedia, so tests render the wide (rail) layout.
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  // Hooks must run unconditionally: a short-circuited useMatch crashed the app when crossing 900px live.
+  const onBoxes = !!useMatch('/app/boxes/*');
+  const onBoxList = !!useMatch('/app/boxes');
+  const wideSplit = !isMobile && onBoxes;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [claudeDialogOpen, setClaudeDialogOpen] = useState(false);
 
@@ -119,23 +127,13 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
     handleCloseMobileMenu();
   };
 
-  const handleMobileAdminClick = () => {
-    navigate('/app/admin');
-    handleCloseMobileMenu();
-  };
-
-  const handleMobileClaudeClick = () => {
-    setClaudeDialogOpen(true);
-    handleCloseMobileMenu();
-  };
-
   const handleMobileLogout = async () => {
     handleCloseMobileMenu();
     await handleLogout();
   };
 
   return (
-    <>
+    <Box>
       <AppBar position="static" elevation={2}>
         <Toolbar>
           <Box
@@ -145,17 +143,10 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
             aria-label={t('app.title')}
           >
             <Inventory2 />
-            <Typography variant="h6" component="div" sx={{ display: { xs: 'none', sm: 'block' } }}>
+            <Typography variant="h6" component="div">
               {t('app.title')}
             </Typography>
           </Box>
-
-          {/* Mobile: Username next to icon */}
-          {isMobile && user && (
-            <Typography variant="h6" component="div" sx={{ fontWeight: 600, ml: 1 }}>
-              {user.name || user.username}
-            </Typography>
-          )}
 
           <Box sx={{ flexGrow: 1 }} />
           
@@ -175,6 +166,16 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
           {/* Desktop: All Controls */}
           {!isMobile && (
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+              {hasAdminAccess(user) && (
+                <Button color="inherit" startIcon={<AdminPanelSettings />} component={RouterLink} to="/app/admin">
+                  {t('app.admin')}
+                </Button>
+              )}
+              {user?.mcpAllowed === true && (
+                <Button color="inherit" startIcon={<SmartToy />} onClick={() => setClaudeDialogOpen(true)}>
+                  {t('mcp.title')}
+                </Button>
+              )}
               <IconButton
                 onClick={toggleTheme}
                 color="inherit"
@@ -188,26 +189,6 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
                 <Typography variant="body2" sx={{ ml: 1, fontWeight: 600 }}>
                   {user.name || user.username}
                 </Typography>
-              )}
-              {hasAdminAccess(user) && (
-                <Button
-                  color="inherit"
-                  startIcon={<AdminPanelSettings />}
-                  onClick={() => navigate('/app/admin')}
-                  sx={{ ml: 1 }}
-                >
-                  {t('app.admin')}
-                </Button>
-              )}
-              {user?.mcpAllowed === true && (
-                <Button
-                  color="inherit"
-                  startIcon={<SmartToyIcon />}
-                  onClick={() => setClaudeDialogOpen(true)}
-                  sx={{ ml: 1 }}
-                >
-                  {t('mcp.title')}
-                </Button>
               )}
               <Button
                 color="inherit"
@@ -248,6 +229,19 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
             </ListItem>
             <Divider />
 
+            {hasAdminAccess(user) && (
+              <ListItemButton component={RouterLink} to="/app/admin" onClick={handleCloseMobileMenu} sx={{ minHeight: 56 }}>
+                <ListItemIcon><AdminPanelSettings /></ListItemIcon>
+                <ListItemText primary={t('app.admin')} />
+              </ListItemButton>
+            )}
+            {user?.mcpAllowed === true && (
+              <ListItemButton onClick={() => { handleCloseMobileMenu(); setClaudeDialogOpen(true); }} sx={{ minHeight: 56 }}>
+                <ListItemIcon><SmartToy /></ListItemIcon>
+                <ListItemText primary={t('mcp.title')} />
+              </ListItemButton>
+            )}
+
             {/* Theme Toggle */}
             <ListItem sx={{ minHeight: 56 }}>
               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
@@ -265,26 +259,6 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
 
             <Divider />
 
-            {/* Admin Access */}
-            {hasAdminAccess(user) && (
-              <ListItemButton onClick={handleMobileAdminClick} sx={{ minHeight: 56 }}>
-                <ListItemIcon>
-                  <AdminPanelSettings color="primary" />
-                </ListItemIcon>
-                <ListItemText primary={t('app.admin')} />
-              </ListItemButton>
-            )}
-
-            {/* Claude Connection */}
-            {user?.mcpAllowed === true && (
-              <ListItemButton onClick={handleMobileClaudeClick} sx={{ minHeight: 56 }}>
-                <ListItemIcon>
-                  <SmartToyIcon color="primary" />
-                </ListItemIcon>
-                <ListItemText primary={t('mcp.title')} />
-              </ListItemButton>
-            )}
-
             {/* Logout */}
             <ListItemButton onClick={handleMobileLogout} sx={{ minHeight: 56 }}>
               <ListItemIcon>
@@ -296,14 +270,64 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
         </Box>
       </Drawer>
 
-      <Container component="main" maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-        <Suspense fallback={<CircularProgress aria-label="loading" />}>{children}</Suspense>
+      <Container
+        component="main"
+        maxWidth={wideSplit ? false : 'lg'}
+        sx={{ mt: wideSplit ? 2 : 4, mb: 4, ...(wideSplit && { maxWidth: 1440 }), ...(isMobile && { maxWidth: onBoxList ? 960 : 720 }) }}
+      >
+        <ErrorBoundary>
+          <Suspense fallback={<CircularProgress aria-label="loading" />}>{children}</Suspense>
+        </ErrorBoundary>
       </Container>
+
 
       {user?.mcpAllowed === true && (
         <ClaudeConnectionDialog open={claudeDialogOpen} onClose={() => setClaudeDialogOpen(false)} />
       )}
-    </>
+    </Box>
+  );
+}
+
+/**
+ * Boxes list + optional edit child. <900px: single pane (list OR edit, as before).
+ * >=900px: master-detail; the list stays mounted while the selected box changes.
+ */
+function BoxesLayout() {
+  const outlet = useOutlet();
+  const id = useMatch('/app/boxes/:id/edit')?.params.id;
+  // One stable tree for every width (BoxList never remounts); <900px just hides the inactive pane via CSS.
+  const narrow = (show: boolean) => ({ xs: show ? 'block' : 'none', md: 'block' });
+
+  return (
+    <Box sx={{ display: { md: 'flex' }, gap: 3, alignItems: 'flex-start' }}>
+      <Box
+        sx={{
+          display: narrow(!outlet),
+          width: { md: 'clamp(360px, 36vw, 460px)' },
+          flexShrink: 0,
+          overflowX: 'hidden',
+          position: { md: 'sticky' },
+          top: 16,
+          maxHeight: { md: 'calc(100vh - 96px)' },
+          overflowY: { md: 'auto' },
+          // Breathing room between cards and the scrollbar; thin scrollbar, gutter reserved so width never jumps.
+          pr: { md: 2 },
+          scrollbarGutter: { md: 'stable' },
+          scrollbarWidth: 'thin',
+        }}
+      >
+        <BoxList />
+      </Box>
+      <Box sx={{ display: narrow(!!outlet), flex: { md: 1 }, minWidth: 0, maxWidth: { md: 900 } }}>
+        {outlet ? (
+          <Fragment key={id}>{outlet}</Fragment>
+        ) : (
+          <Paper variant="outlined" sx={{ minHeight: 240, display: 'grid', placeItems: 'center', color: 'text.disabled' }}>
+            <Inventory2 sx={{ fontSize: 64 }} />
+          </Paper>
+        )}
+      </Box>
+    </Box>
   );
 }
 
@@ -350,21 +374,13 @@ export default function App() {
             element={
               <ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} user={user}>
                 <AppShell user={user}>
-                  <BoxList />
+                  <BoxesLayout />
                 </AppShell>
               </ProtectedRoute>
             }
-          />
-          <Route
-            path="/app/boxes/:id/edit"
-            element={
-              <ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} user={user}>
-                <AppShell user={user}>
-                  <BoxEditPage />
-                </AppShell>
-              </ProtectedRoute>
-            }
-          />
+          >
+            <Route path=":id/edit" element={<BoxEditPage />} />
+          </Route>
           <Route
             path="/app/admin"
             element={

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import axios from './services/axiosConfig';
 import App from './App';
@@ -146,13 +146,13 @@ describe('theme contrast (WCAG AA)', () => {
   it('light primary', () => {
     expect(ratio(PRIMARY.light.contrastText, PRIMARY.light.main)).toBeGreaterThanOrEqual(4.5);
     expect(ratio(PRIMARY.light.main, '#ffffff')).toBeGreaterThanOrEqual(4.5);
-    expect(ratio(PRIMARY.light.main, '#f5f5f5')).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(PRIMARY.light.main, '#faf8f5')).toBeGreaterThanOrEqual(4.5);
     expect(ratio(PRIMARY.light.contrastText, PRIMARY.light.dark)).toBeGreaterThanOrEqual(4.5);
   });
   it('dark primary', () => {
     expect(ratio(PRIMARY.dark.contrastText, PRIMARY.dark.main)).toBeGreaterThanOrEqual(4.5);
-    expect(ratio(PRIMARY.dark.main, '#1e1e1e')).toBeGreaterThanOrEqual(4.5);
-    expect(ratio(PRIMARY.dark.main, '#121212')).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(PRIMARY.dark.main, '#1f1c19')).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(PRIMARY.dark.main, '#11100f')).toBeGreaterThanOrEqual(4.5);
     expect(ratio(PRIMARY.dark.contrastText, PRIMARY.dark.light)).toBeGreaterThanOrEqual(4.5);
   });
 });
@@ -189,5 +189,98 @@ describe('App shell', () => {
     await screen.findByRole('button', { name: 'Logout' });
     expect(screen.queryByText('Administration')).toBeNull();
     expect(screen.getByRole('link', { name: 'BoxCopilot' })).toBeDefined();
+  });
+});
+
+describe('App navigation', () => {
+  beforeEach(() => {
+    vi.mocked(axios.get).mockReset();
+    axios.defaults.headers.common = {};
+    document.cookie = 'app-language=en';
+  });
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('wide layout: no side rail, admin link lives in the top bar for admins only', async () => {
+    mockMe({ admin: true });
+    render(
+      <MemoryRouter initialEntries={['/app/boxes']}>
+        <App />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole('link', { name: 'Admin' })).toBeDefined();
+    expect(screen.queryByRole('link', { name: 'Boxes' })).toBeNull();
+  });
+
+  it('phone layout: no bottom bar, no admin entry for normal users', async () => {
+    vi.stubGlobal('matchMedia', (q: string) => ({
+      matches: q.includes('max-width'),
+      media: q,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+    }));
+    mockMe({});
+    render(
+      <MemoryRouter initialEntries={['/app/boxes']}>
+        <App />
+      </MemoryRouter>,
+    );
+    await screen.findByRole('main');
+    expect(screen.queryByRole('navigation')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
+  });
+});
+
+describe('App live resize across the 900px breakpoint', () => {
+  beforeEach(() => {
+    vi.mocked(axios.get).mockReset();
+    axios.defaults.headers.common = {};
+    document.cookie = 'app-language=en';
+  });
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps rendering when the viewport flips wide -> narrow -> wide', async () => {
+    let width = 1200;
+    const listeners = new Set<() => void>();
+    const matches = (q: string) => {
+      const min = /min-width:\s*([\d.]+)px/.exec(q);
+      const max = /max-width:\s*([\d.]+)px/.exec(q);
+      return (!min || width >= +min[1]) && (!max || width <= +max[1]);
+    };
+    vi.stubGlobal('matchMedia', (q: string) => ({
+      get matches() { return matches(q); },
+      media: q,
+      addEventListener: (_: string, l: () => void) => listeners.add(l),
+      removeEventListener: (_: string, l: () => void) => listeners.delete(l),
+      addListener: () => {},
+      removeListener: () => {},
+    }));
+    const { fetchBoxes } = await import('./services/boxService');
+    vi.mocked(fetchBoxes).mockResolvedValue([
+      { id: 1, uuid: 'u1', boxNumber: '1', currentRoom: 'Kitchen', targetRoom: 'Hall', description: 'd', items: [] },
+    ] as never);
+    mockMe({});
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(
+      <MemoryRouter initialEntries={['/app/boxes']}>
+        <App />
+      </MemoryRouter>,
+    );
+    await screen.findByRole('main');
+    for (const w of [600, 1200, 600, 1200]) {
+      width = w;
+      act(() => listeners.forEach((l) => l()));
+      await screen.findByRole('main');
+      expect(screen.getByRole('main')).toBeDefined();
+    }
+    expect(errors.mock.calls.flat().join('\n')).not.toMatch(/TypeError|Cannot read/);
+    errors.mockRestore();
   });
 });
