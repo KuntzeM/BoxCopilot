@@ -1,6 +1,6 @@
 # MCP server — operations guide
 
-This is the operator-facing companion to the [README MCP section](../../README.md#claude--mcp-integration) and to
+This is the operator-facing companion to the [Claude and MCP page](../claude-mcp.md) and to
 the MCP design spec (section references below point there). It covers what support staff and operators need to run the feature day
 to day: client lifecycle, the kill-switch, the cleanup job, how to read the logs and metrics, and the residual
 risks worth knowing about before go-live.
@@ -29,7 +29,7 @@ does not need direct database access for the normal case:
 - Disabling a user, deleting a user, or an admin turning off `mcp_allowed` for a user has the same effect as
   regenerate: client and all authorizations for that user are deleted (`McpAccessRevokedListener`,
   `@TransactionalEventListener(phase = BEFORE_COMMIT)`, so it is atomic with the user change).
-- Since 0.2.0 failed logins no longer lock accounts (they are throttled per client IP instead, see the main README),
+- Since 0.2.0 failed logins no longer lock accounts (they are throttled per client IP instead, see [Security](../security.md#login-throttling)),
   so a login attack cannot touch a victim's MCP connection. `McpAccessPolicy` still denies a user whose legacy
   `lockedUntil` is in the future; migration V15 cleared all such values and nothing sets them any more.
 - **Setting the user's password** (Admin Panel) revokes the user's MCP access the same way as regenerate: the
@@ -42,7 +42,7 @@ deletes the client and forces a fresh `mcp-client` provisioning call next time t
 
 ## Kill-switch
 
-For the Spring Boot 4 upgrade and rollback notes see the main README, "Upgrading from the Spring Boot 3.5 build".
+For the Spring Boot 4 upgrade and rollback notes see [Spring Boot 4 upgrade](../releases/spring-boot-4-upgrade.md).
 
 `APP_MCP_ENABLED=false` (the default) turns the entire feature off at startup: no MCP Spring beans are created,
 `spring.ai.mcp.server.enabled` follows the same flag (and is forced off even when set directly, e.g. by a
@@ -175,8 +175,7 @@ From spec §8 (accepted, documented there in more detail) and points surfaced du
 
 ## Docker and Traefik
 
-Traefik configuration itself lives **outside this repository** (see the main README's "Reverse Proxy (Traefik)"
-section) — the points below are what that external Traefik setup needs to know, not something to change in this
+Traefik configuration itself lives **outside this repository** (see [Deployment](../deployment.md#reverse-proxy-traefik) and [Traefik](traefik.md)) — the points below are what that external Traefik setup needs to know, not something to change in this
 repo's `docker-compose.yml` unless noted.
 
 - The single application container (`app`) serves the SPA, the API, `/oauth2/**`, `/.well-known/**` and `/mcp` on
@@ -312,8 +311,7 @@ ledger (`.superpowers/sdd/2026-09-21-mcp-server-sprint/progress.md`).
    all with this implementation.
 4. **Spring Boot 3.5 support-status decision** — *resolved.* Boot 3.5's OSS support ended on 2026-06-30. The
    backend now runs on Spring Boot 4.1.x (Spring Security 7, Spring AI 2, MCP SDK 2), whose OSS support runs until
-   2027-07-31 (endoflife.date). Upgrade and rollback notes are in the main README, "Upgrading from the Spring Boot
-   3.5 build".
+   2027-07-31 (endoflife.date). Upgrade and rollback notes are in [Spring Boot 4 upgrade](../releases/spring-boot-4-upgrade.md).
 5. **Staging `flyway validate`** — `validate-on-migrate` stays `false` in `application-prod.yml`. Before it is
    ever turned on, a `flyway validate` run against a copy of the real production migration history on staging is
    required (spec §4.3); this sprint added the new MCP migrations but did not perform or automate that
