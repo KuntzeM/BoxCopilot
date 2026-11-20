@@ -112,7 +112,7 @@ const BoxForm: React.FC<BoxFormProps> = ({ data, onChange }) => {
               color="success"
             />
           }
-          label={`🚚 ${t('boxes.moved')}`}
+          label={t('boxes.moved')}
         />
         <FormControlLabel
           control={
@@ -122,7 +122,7 @@ const BoxForm: React.FC<BoxFormProps> = ({ data, onChange }) => {
               color="primary"
             />
           }
-          label={`🏷️ ${t('boxes.labelPrinted')}`}
+          label={t('boxes.labelPrinted')}
         />
       </Box>
     </Box>

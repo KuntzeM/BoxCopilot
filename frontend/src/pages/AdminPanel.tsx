@@ -331,7 +331,7 @@ export default function AdminPanel() {
     if (!user.enabled) {
       return <Chip label={t('admin.inactive')} color="warning" size="small" />;
     }
-    return <Chip label={t('admin.active')} color="success" size="small" />;
+    return <Chip label={t('admin.active')} color="primary" size="small" />;
   };
 
   const handleMenuOpen = (userId: number, event: React.MouseEvent<HTMLElement>) => {
@@ -1059,7 +1059,7 @@ export default function AdminPanel() {
         autoHideDuration={6000}
         onClose={() => setSuccessMessage(null)}
         message={successMessage}
-        sx={{ zIndex: theme.zIndex.snackbar + theme.zIndex.modal }}
+        sx={{ zIndex: theme.zIndex.snackbar + theme.zIndex.modal, bottom: { xs: 'calc(16px + env(safe-area-inset-bottom))', md: 24 } }}
       />
 
       {/* Error Snackbar: above dialogs, long enough to read */}
@@ -1068,7 +1068,7 @@ export default function AdminPanel() {
         autoHideDuration={8000}
         onClose={(_, reason) => reason !== 'clickaway' && setError(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        sx={{ zIndex: theme.zIndex.snackbar + theme.zIndex.modal }}
+        sx={{ zIndex: theme.zIndex.snackbar + theme.zIndex.modal, bottom: { xs: 'calc(16px + env(safe-area-inset-bottom))', md: 24 } }}
       >
         <Alert severity="error" onClose={() => setError(null)} sx={{ width: '100%' }}>
           {error}

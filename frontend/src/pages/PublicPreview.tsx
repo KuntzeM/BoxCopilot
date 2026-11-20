@@ -8,7 +8,7 @@ import { BoxPreview } from '../types/models';
 import { truncateToFirstLine } from '../utils/textUtils';
 import { resolveImagePath } from '../utils/imageUrl';
 import { LanguageProvider } from '../context/LanguageContext';
-import { CookieThemeProvider, useThemeContext } from '../context/ThemeContext';
+import { CookieThemeProvider, useThemeContext, TILE, FONT_MONO } from '../context/ThemeContext';
 import { useTranslation } from '../hooks/useTranslation';
 import LanguageSelector from '../components/LanguageSelector';
 
@@ -147,47 +147,39 @@ function PublicPreviewContent() {
     <>
       {appBar}
       <Container maxWidth="sm" sx={{ py: 4 }}>
-        <Card sx={{ boxShadow: 3 }}>
+        <Card variant="outlined">
           <CardContent>
             <Stack spacing={2}>
-              {(data.isFragile || data.noStack) && (
-                <Alert severity="warning" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
-                    {data.isFragile && (
-                      <Chip
-                        label={`🔔 ${t('boxes.fragile')}`}
-                        color="warning"
-                        size="small"
-                      />
-                    )}
-                    {data.noStack && (
-                      <Chip
-                        label={`⛔ ${t('boxes.noStack')}`}
-                        color="error"
-                        size="small"
-                      />
-                    )}
-                  </Stack>
-                </Alert>
-              )}
-              
-              {/* Box Info */}
-              <Box>
-                <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                  {t('boxes.boxNumber', { number: data.boxNumber ?? '' })}
-                </Typography>
-                <Typography variant="body1" sx={{ mt: 0.5 }}>
-                  {t('boxes.current')}: <strong>{data.currentRoom || '-'}</strong>
-                </Typography>
-                <Typography variant="body1">
-                  {t('boxes.target')}: <strong>{data.targetRoom || '-'}</strong>
-                </Typography>
-                {data.description && (
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
-                    {truncateToFirstLine(data.description)}
+              {/* Shipping-label header */}
+              <Box sx={{ bgcolor: TILE.bg, color: TILE.ink, borderRadius: 0.5, p: 2, mx: -1, mt: -1 }}>
+                <Stack direction="row" spacing={2} sx={{ alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontFamily: FONT_MONO, fontWeight: 800, fontSize: 12 }}>{t('boxes.current')}</Typography>
+                    <Typography sx={{ fontWeight: 800 }}>{data.currentRoom || '-'}</Typography>
+                    <Typography sx={{ fontFamily: FONT_MONO, fontWeight: 800, fontSize: 12, mt: 1 }}>{t('boxes.target')}</Typography>
+                    <Typography sx={{ fontWeight: 800, fontSize: 'clamp(20px, 6vw, 28px)', lineHeight: 1.1 }}>{data.targetRoom || '-'}</Typography>
+                  </Box>
+                  <Typography
+                    aria-label={t('boxes.boxNumber', { number: data.boxNumber ?? '' })}
+                    sx={{ fontFamily: FONT_MONO, fontWeight: 800, fontSize: 'clamp(64px, 26vw, 120px)', lineHeight: 0.85, letterSpacing: '-0.08em' }}
+                  >
+                    {data.boxNumber ?? ''}
                   </Typography>
-                )}
+                </Stack>
               </Box>
+
+              {(data.isFragile || data.noStack) && (
+                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                  {data.isFragile && <Chip variant="outlined" color="primary" label={t('boxes.fragile').toUpperCase()} sx={{ borderWidth: 2, fontFamily: FONT_MONO }} />}
+                  {data.noStack && <Chip variant="outlined" color="primary" label={t('boxes.noStack').toUpperCase()} sx={{ borderWidth: 2, fontFamily: FONT_MONO }} />}
+                </Stack>
+              )}
+
+              {data.description && (
+                <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                  {truncateToFirstLine(data.description)}
+                </Typography>
+              )}
 
               <Divider />
 
@@ -227,8 +219,8 @@ function PublicPreviewContent() {
                               />
                             </ButtonBase>
                           ) : (
-                            <Avatar sx={{ width: 50, height: 50, bgcolor: 'grey.300' }}>
-                              📦
+                            <Avatar sx={{ width: 50, height: 50, bgcolor: 'action.hover', color: 'text.secondary' }}>
+                              <Inventory2 />
                             </Avatar>
                           )}
                           <Typography>{item.name}</Typography>

@@ -3,13 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { LanguageProvider } from '../context/LanguageContext';
-import { fetchBoxes } from '../services/boxService';
+import { fetchBoxes, updateBox } from '../services/boxService';
 import { useBoxListLogic } from './useBoxListLogic';
 
 vi.mock('../services/boxService', () => ({
   fetchBoxes: vi.fn(),
   createBox: vi.fn(),
   deleteBox: vi.fn(),
+  updateBox: vi.fn().mockResolvedValue({}),
 }));
 vi.mock('../services/itemService', () => ({ fetchItemsByBoxUuid: vi.fn(), searchItems: vi.fn() }));
 
@@ -55,5 +56,99 @@ describe('useBoxListLogic loading states', () => {
 
     expect(result.current.loadError).toBe(false);
     expect(result.current.allBoxes).toHaveLength(1);
+  });
+});
+
+describe('useBoxListLogic status filter', () => {
+  beforeEach(() => {
+    vi.mocked(fetchBoxes).mockReset();
+    document.cookie = 'app-language=en';
+  });
+
+  afterEach(cleanup);
+
+  it('defaults to all and filters moved / not moved boxes, reset restores all', async () => {
+    vi.mocked(fetchBoxes).mockResolvedValue([
+      { id: 1, uuid: 'u1', boxNumber: 1, isMovedToTarget: true } as never,
+      { id: 2, uuid: 'u2', boxNumber: 2, isMovedToTarget: false } as never,
+      { id: 3, uuid: 'u3', boxNumber: 3 } as never,
+    ]);
+
+    const { result } = renderHook(() => useBoxListLogic(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.statusFilter).toBe('all');
+    expect(result.current.filteredBoxes).toHaveLength(3);
+
+    act(() => result.current.setStatusFilter('moved'));
+    await waitFor(() => expect(result.current.filteredBoxes.map((b) => b.id)).toEqual([1]));
+
+    act(() => result.current.setStatusFilter('open'));
+    await waitFor(() => expect(result.current.filteredBoxes.map((b) => b.id)).toEqual([3, 2]));
+
+    act(() => result.current.handleResetFilter());
+    expect(result.current.statusFilter).toBe('all');
+    await waitFor(() => expect(result.current.filteredBoxes).toHaveLength(3));
+  });
+});
+
+describe('useBoxListLogic drawer toggle moved', () => {
+  afterEach(cleanup);
+
+  it('flips isMovedToTarget via updateBox and reloads', async () => {
+    vi.mocked(fetchBoxes).mockReset().mockResolvedValue([
+      { id: 1, uuid: 'u1', boxNumber: 1, isMovedToTarget: false } as never,
+    ]);
+    const { result } = renderHook(() => useBoxListLogic(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    act(() => result.current.handleOpenBoxActions(result.current.allBoxes[0]));
+    await act(async () => { await result.current.handleDrawerToggleMoved(); });
+    expect(updateBox).toHaveBeenCalledWith(1, { isMovedToTarget: true });
+    expect(fetchBoxes).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('useBoxListLogic with a large inventory (150 boxes)', () => {
+  const many = Array.from({ length: 150 }, (_, i) => ({
+    id: i + 1,
+    uuid: `u${i + 1}`,
+    boxNumber: i + 1,
+    currentRoom: i % 2 ? 'Keller' : 'Flur',
+    isMovedToTarget: i % 3 === 0,
+    isFragile: i % 10 === 0,
+  })) as never[];
+
+  beforeEach(() => {
+    vi.mocked(fetchBoxes).mockReset().mockResolvedValue(many);
+  });
+  afterEach(cleanup);
+
+  it('loads all boxes sorted newest first and filters by status and fragile quickly', async () => {
+    const { result } = renderHook(() => useBoxListLogic(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.allBoxes).toHaveLength(150);
+    expect(result.current.filteredBoxes[0].boxNumber).toBe(150);
+
+    act(() => result.current.setStatusFilter('moved'));
+    await waitFor(() => expect(result.current.filteredBoxes).toHaveLength(50));
+    act(() => result.current.setStatusFilter('open'));
+    await waitFor(() => expect(result.current.filteredBoxes).toHaveLength(100));
+    act(() => result.current.setFilterFragile(true));
+    await waitFor(() => expect(result.current.filteredBoxes.every((b) => b.isFragile && !b.isMovedToTarget)).toBe(true));
+  });
+
+  it('silent refresh keeps the list visible (no loading flash) and the selection', async () => {
+    const { result } = renderHook(() => useBoxListLogic(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    act(() => result.current.toggleSelect(5));
+    expect(result.current.selectedIds).toEqual([5]);
+
+    vi.mocked(fetchBoxes).mockResolvedValue([...many, { id: 151, uuid: 'u151', boxNumber: 151 } as never]);
+    await act(async () => {
+      const p = result.current.loadData(true);
+      expect(result.current.isLoading).toBe(false);
+      await p;
+    });
+    expect(result.current.allBoxes).toHaveLength(151);
+    expect(result.current.selectedIds).toEqual([5]);
   });
 });

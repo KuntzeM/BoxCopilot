@@ -89,10 +89,10 @@ export const en: TranslationKeys = {
     // Handling
     transportHints: 'Transport Notes',
     fragile: 'Fragile',
-    fragileEmoji: '🔔 Fragile',
+    fragileEmoji: 'Fragile',
     fragilePrintLabel: 'FRAGILE',
     noStack: 'Do Not Stack',
-    noStackEmoji: '⛔ Do Not Stack',
+    noStackEmoji: 'Do Not Stack',
     noStackPrintLabel: 'DO NOT STACK',
     
     // Filters
@@ -100,10 +100,14 @@ export const en: TranslationKeys = {
     itemNamePlaceholder: 'e.g. Hammer',
     targetRoomFilter: 'Target Room',
     targetRoomFilterPlaceholder: 'e.g. Basement',
+    filters: 'Filters',
     advancedFilters: 'Advanced Filters',
     onlyFragileBoxes: 'Only fragile boxes',
     onlyNoStackBoxes: 'Only non-stackable boxes',
-    onlyMovedBoxes: 'Only moved boxes',
+    statusFilter: 'Filter by status',
+    statusOpen: 'Not moved',
+    statusAll: 'All',
+    statusMoved: 'Moved',
     onlyLabelPrintedBoxes: 'Only boxes with printed label',
     
     // Status
@@ -114,6 +118,9 @@ export const en: TranslationKeys = {
     // Bulk operations
     bulkUpdate: 'Bulk Update',
     setMoved: 'Mark as moved',
+    progressMoved: '{{moved}} of {{total}} moved',
+    markMoved: 'Mark as moved',
+    unmarkMoved: 'Moved · Undo',
     removeMoved: '✓ Moved',
     setLabelPrinted: 'Mark label as printed',
     removeLabelPrinted: '✓ Label printed',
