@@ -15,7 +15,7 @@ Use this skill to verify the complete deployed bundle, not just isolated fronten
 
 - Run the application through Docker Compose. Do not claim E2E coverage from `npm test`, Vitest, JUnit, MockMvc, or direct component tests alone.
 - Use a real browser controlled by Playwright (Chromium by default). Do not replace browser navigation with API calls or DOM-only unit tests.
-- Test the built frontend and running backend together. Prefer a production-like frontend container and backend container; use a Vite server only when the scenario explicitly targets development proxy behavior.
+- Test the built frontend and running backend together. Prefer the production-like single `app` container (root `Dockerfile`: Spring Boot serves the built SPA and the API on one origin, http://localhost:8080 in the E2E overlay); use a Vite server only when the scenario explicitly targets development proxy behavior.
 - Supply the login username and password through environment variables or the test runner's secret store. Never hard-code, print, commit, or put credentials in screenshots, traces, reports, `.env` files, or source code.
 - Cover local form login with the actual username/password fields. Verify the post-login authenticated UI and at least one protected API-backed operation.
 - Cover Nextcloud OAuth/OIDC using a mock provider when the real Nextcloud tenant is unavailable, unstable, private, or unsuitable for repeatable tests. Do not stub BoxPilot's own `/oauth2`, `/login`, or `/api` endpoints.
@@ -24,8 +24,8 @@ Use this skill to verify the complete deployed bundle, not just isolated fronten
 ## Project entry points
 
 - Frontend commands run from `frontend/`; backend Maven commands run from `backend/`.
-- The existing Compose stack provides `postgres`, `redis`, `backend`, and `frontend`. Use a test-only Compose override for browser tooling or a mock OAuth provider; do not weaken the default production configuration.
-- The local frontend proxy exposes `/api`, `/oauth2`, and `/login` to the backend. The form login endpoint is `/api/auth/login` and the Nextcloud entry point is `/oauth2/authorization/nextcloud`.
+- The existing Compose stack provides `postgres`, `redis`, and `app`. Use a test-only Compose override for browser tooling or a mock OAuth provider; do not weaken the default production configuration.
+- The app serves the SPA, `/api`, `/oauth2`, `/login`, `/mcp` and `/.well-known` on one origin (the Vite dev server proxies the same paths). The form login endpoint is `/api/auth/login` and the Nextcloud entry point is `/oauth2/authorization/nextcloud`.
 - The dev profile creates the default admin from `ADMIN_USERNAME` and `ADMIN_PASSWORD`. For E2E runs, set both explicitly to non-default test credentials and ensure the database is isolated or reset.
 
 ## Required workflow
@@ -34,7 +34,7 @@ Use this skill to verify the complete deployed bundle, not just isolated fronten
 2. Confirm Docker is available and validate the rendered configuration with `docker compose config`. Fail early if required variables or services are missing.
 3. Create or use an E2E-only Compose overlay. It must provide:
    - the complete application bundle and its dependencies;
-   - a health/readiness check for the backend and frontend;
+   - a health/readiness check for the app;
    - an isolated database/session state;
    - a mock OIDC provider for Nextcloud tests; and
    - a browser test runner with the required Playwright browser installed.

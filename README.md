@@ -135,7 +135,7 @@ The backend resolves the OIDC issuer on startup, so `NEXTCLOUD_URL` must point t
 ```bash
 cd backend
 export SPRING_PROFILES_ACTIVE=dev
-export FRONTEND_URL=http://localhost:5173
+export APP_URL=http://localhost:5173   # origin the browser uses (the Vite dev server below)
 export CLIENT_ID=your-client-id CLIENT_SECRET=your-client-secret
 export NEXTCLOUD_URL=https://cloud.example.com
 export NEXTCLOUD_LOGOUT_URL=https://cloud.example.com/index.php/logout
@@ -154,12 +154,11 @@ or if an existing ADMIN account still has the password `admin`. Set `REDIS_PASSW
 ```bash
 cd frontend
 npm install
-VITE_API_BASE_URL=http://localhost:8080 npm run dev
+npm run dev
 ```
 
-Runs on http://localhost:5173. Set `VITE_API_BASE_URL` (for example in `frontend/.env.local`): the SPA then calls the backend
-cross-origin, as in production. Without it the SPA uses the Vite proxy (`/api`, `/oauth2`, `/login`), and axios sends
-the raw `XSRF-TOKEN` cookie as CSRF header, which the backend rejects: the form login answers 403.
+Runs on http://localhost:5173. The SPA uses relative URLs only; the Vite dev server proxies `/api`, `/oauth2`, `/login`,
+`/mcp` and `/.well-known` to the backend on port 8080, so the browser sees one origin, as in production.
 
 Open http://localhost:5173 and sign in with `admin` / `admin`.
 
@@ -176,12 +175,15 @@ See [application-*.yml](backend/src/main/resources/) for the profile settings an
 | Variable | Purpose |
 |---|---|
 | `SPRING_PROFILES_ACTIVE` | `dev` or `prod` |
-| `FRONTEND_URL` | Frontend origin (CORS, redirects) |
-| `VITE_API_BASE_URL` | Backend origin the SPA calls; baked into the frontend bundle at build time |
+| `APP_URL` | Public origin of the application (`https://host[:port]`, no path, no trailing slash): OAuth redirect URI, magic links, logout redirect, MCP issuer |
 | `CLIENT_ID`, `CLIENT_SECRET` | OAuth2/OIDC client of your Nextcloud |
 | `NEXTCLOUD_URL`, `NEXTCLOUD_LOGOUT_URL` | OIDC issuer and logout URL |
 | `ADMIN_USERNAME`, `ADMIN_PASSWORD` | Bootstrap admin (`prod`: at least 12 characters) |
 | `POSTGRES_*`, `REDIS_PASSWORD` | Database and session store (`prod`) |
+| `CSP_MODE` | `enforce` (default) or `report` (Content-Security-Policy-Report-Only, for debugging) |
+| `HSTS_ENABLED` | Send `Strict-Transport-Security` (`false` in the app, `true` in `docker-compose.yml`) |
+| `TRUSTED_PROXY_PATTERN` | Java regex of the reverse proxies whose `X-Forwarded-*` headers are trusted (`prod`) |
+| `TRAEFIK_HOST` | Host of the Traefik router in `docker-compose.yml` (the host of `APP_URL`) |
 | `APP_MCP_ENABLED` | Claude / MCP server, off by default |
 
 All other options (login throttling, cookie `SameSite`, CSP/HSTS, upload concurrency, MCP) are listed in [`.env.example`](.env.example).
@@ -193,7 +195,7 @@ All other options (login throttling, cookie `SameSite`, CSP/HSTS, upload concurr
 - `POST /api/auth/login` - Form-based login (`username` + `password`, form-encoded, with CSRF token); 429 + `Retry-After` when throttled
 - `GET /oauth2/authorization/nextcloud` - Initiate OIDC login
 - `POST /api/v1/auth/magic-login` - Redeem a magic login link (`{"token": "..."}`); 429 + `Retry-After` when throttled
-- `POST /api/auth/logout` - Logout current user; answers 200 with `{"redirectUrl": ...}` (identity provider logout URL for OIDC users, the frontend otherwise) and the SPA navigates there
+- `POST /api/auth/logout` - Logout current user; answers 200 with `{"redirectUrl": ...}` (identity provider logout URL for OIDC users, `APP_URL` otherwise) and the SPA navigates there
 - `GET /api/v1/me` - Get current user info
 - `GET /api/v1/csrf` - Fetch the CSRF token
 
@@ -263,9 +265,8 @@ POSTGRES_DB=boxcopilot
 REDIS_PASSWORD=generate-with-openssl-rand-base64-24
 ADMIN_PASSWORD=generate-with-openssl-rand-base64-24
 
-# URLs (VITE_API_BASE_URL is baked into the frontend bundle at build time)
-FRONTEND_URL=https://boxes.example.com
-VITE_API_BASE_URL=https://boxes-api.example.com
+# Public origin: SPA, API, OAuth callback and MCP share it
+APP_URL=https://boxes.example.com
 
 # OAuth2/OIDC (Nextcloud)
 CLIENT_ID=your-nextcloud-oauth-client-id
@@ -273,33 +274,36 @@ CLIENT_SECRET=your-nextcloud-oauth-client-secret
 NEXTCLOUD_URL=https://cloud.example.com
 NEXTCLOUD_LOGOUT_URL=https://cloud.example.com/index.php/logout
 
-# Traefik Hosts
-TRAEFIK_FRONTEND_HOST=boxes.example.com
-TRAEFIK_BACKEND_HOST=boxes-api.example.com
+# Traefik host (the host of APP_URL)
+TRAEFIK_HOST=boxes.example.com
 ```
 
 [`.env.example`](.env.example) lists every variable, including the optional ones (login throttling, session cookie
 `SameSite`, CSP/HSTS, upload concurrency, MCP). In `prod` the backend lists all missing required variables in one
 startup message.
 
-2. **Prepare the data directories** (the backend runs as non-root uid 10001; once, for both `logs` and `images`, before the first start. Without it the container exits: the log shows `Permission denied` for `/app/logs/boxcopilot.log` or the image directory error)
+The image is built from the root [`Dockerfile`](Dockerfile): it builds the frontend with Node, copies the bundle into
+the Spring Boot jar and runs it on a JRE as uid 10001. There is one application container (`app`); Spring Boot serves
+the SPA, the API, the OAuth endpoints and `/mcp` on port 8080.
+
+2. **Prepare the data directories** (the app runs as non-root uid 10001; once, for both `logs` and `images`, before the first start. Without it the container exits: the log shows `Permission denied` for `/app/logs/boxcopilot.log` or the image directory error)
 ```bash
 mkdir -p logs images && sudo chown -R 10001:10001 logs images
 ```
 
 3. **Start services**
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
 
-Health: `docker compose ps` shows the backend as healthy once `GET /actuator/health` reports `UP`; the frontend starts after it.
+Health: `docker compose ps` shows `app` as healthy once `GET /actuator/health` reports `UP`.
 
 Back up the database and the `images` directory together: [`docs/ops/backup-restore.md`](docs/ops/backup-restore.md).
 
 ### Nextcloud OIDC setup
 
 Register OAuth2/OIDC client in Nextcloud:
-- **Redirect URI**: `https://boxes-api.example.com/login/oauth2/code/nextcloud`
+- **Redirect URI**: `https://boxes.example.com/login/oauth2/code/nextcloud` (`APP_URL` + `/login/oauth2/code/nextcloud`)
 - **Grant Type**: Authorization Code
 - **Scopes**: `openid`, `profile`, `email`
 
@@ -308,8 +312,8 @@ Use the generated `client_id` and `client_secret` in your `.env` file.
 
 ### Reverse proxy (Traefik)
 
-BoxCopilot requires an **external** Traefik instance that shares the `traefik-proxy` Docker network. Frontend and backend carry the Traefik labels
-(HTTP to HTTPS redirect, Let's Encrypt, host-based routing). A complete example and the network configuration are in
+BoxCopilot requires an **external** Traefik instance that shares the `traefik-proxy` Docker network. The `app` service carries the Traefik labels
+(one router on `TRAEFIK_HOST`, HTTP to HTTPS redirect, Let's Encrypt). A complete example and the network configuration are in
 [`docs/ops/traefik.md`](docs/ops/traefik.md). Traefik forwards `X-Forwarded-For`; the backend trusts it only from addresses matching
 `TRUSTED_PROXY_PATTERN`, see [Security](#security).
 
@@ -324,26 +328,25 @@ BoxCopilot requires an **external** Traefik instance that shares the `traefik-pr
 - **In-process, one replica.** The counters live in the backend process: they reset on restart and are not shared between
   replicas. Run a single backend replica.
 - **`TRUSTED_PROXY_PATTERN` must be right.** The client IP comes from `X-Forwarded-For`, which Tomcat trusts only from
-  addresses matching this Java regular expression (not CIDR). The default covers Docker's default address pool (172.16.0.0/12) and loopback. The backend's direct peer for API traffic is Traefik on the external `traefik-proxy` network, so the pattern must match that subnet; the frontend nginx overwrites `X-Forwarded-For` with the client IP it resolves from the Traefik/edge peer (`REAL_IP_FROM`, default 172.16.0.0/12, must match that peer); a blank
+  addresses matching this Java regular expression (not CIDR). The default covers Docker's default address pool (172.16.0.0/12) and loopback. The app's direct peer is Traefik on the external `traefik-proxy` network, so the pattern must match that subnet; a blank
   value is treated like an unset one, and the backend logs the pattern in effect at startup (`Trusted proxy pattern
   (default|custom from TRUSTED_PROXY_PATTERN): ...`). If your proxy is outside the range, or the pattern is wrong, all
   clients appear as the proxy and share one login throttle counter, so a few failed logins block everybody.
 - **Password reset ends sessions.** Setting a user's password in the Admin Panel ends all of that user's sessions, invalidates
   their magic links and revokes their MCP access. Resetting your own password logs you out. The session holds no password
   hash. Every authenticated request re-reads the user from the database to check that the session is still valid.
-- **Session cookie.** `SESSION_COOKIE_SAME_SITE` defaults to `none` (needed when the SPA runs on another site than the API).
-  Set `lax` when frontend and API share a site, e.g. `app.example.com` and `api.example.com`; `strict` breaks the OIDC
-  redirect back to the backend.
-- **Frontend headers.** The frontend nginx sends `Content-Security-Policy` (enforced by default; `CSP_MODE=report` for
-  report-only while debugging; verified with the browser suite in both modes), `Strict-Transport-Security` (`HSTS_ENABLED`, on by default in `docker-compose.yml`, set `false` for plain http),
-  `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`. The CSP allows the
-  origin of `VITE_API_BASE_URL` (derived automatically as `API_ORIGIN`).
-- **Containers.** The backend runs as uid 10001 with a read-only root filesystem, no extra capabilities and a memory limit;
-  postgres and the frontend do not receive the application secrets they do not need.
+- **Session cookie.** `SESSION_COOKIE_SAME_SITE` defaults to `lax` (SPA and API share one origin); `strict` breaks the
+  OIDC redirect back to the app.
+- **Security headers.** The app sends `Content-Security-Policy` (`'self'` only; enforced by default, `CSP_MODE=report` for
+  report-only while debugging), `Strict-Transport-Security` (`HSTS_ENABLED`, on by default in `docker-compose.yml`, set
+  `false` for plain http), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`.
+  `index.html` is served with `Cache-Control: no-cache`, the hashed bundles under `/assets/` for a year (`immutable`).
+- **Containers.** The app runs as uid 10001 with a read-only root filesystem (`/tmp` is a tmpfs), no capabilities and a
+  memory limit; postgres does not receive the application secrets it does not need.
 - **Uploads.** Images are limited to 25 megapixels, only a few are decoded at once (`APP_IMAGE_MAX_CONCURRENT_UPLOADS`,
   default 2), and the backend refuses to start if the image directory is not writable.
-- **MCP.** With `APP_MCP_ENABLED=true` the backend refuses to start unless `VITE_API_BASE_URL` and `BACKEND_URL` have the
-  same origin. See [`docs/ops/mcp-server.md`](docs/ops/mcp-server.md).
+- **MCP.** The MCP OAuth issuer and resource identifier is `APP_URL`; with `APP_MCP_ENABLED=true` it must be https in
+  production. See [`docs/ops/mcp-server.md`](docs/ops/mcp-server.md).
 
 
 ## Upgrading
@@ -354,6 +357,7 @@ BoxCopilot requires an **external** Traefik instance that shares the `traefik-pr
 - **From the Spring Boot 3.5 build:** the backend runs on Spring Boot 4.1. Preparation, changes, rollback and known issues are in
   [`docs/releases/spring-boot-4-upgrade.md`](docs/releases/spring-boot-4-upgrade.md).
 - **Security hardening (2026-11):** [`docs/releases/security-hardening-2026-11.md`](docs/releases/security-hardening-2026-11.md).
+- **Single image (frontend and backend in one container):** [`docs/releases/single-image.md`](docs/releases/single-image.md).
 
 
 
@@ -370,7 +374,7 @@ npm run build
 ```
 
 **Browser end-to-end test.** `e2e/smoke.mjs` drives a real headless Chromium against the full Docker bundle
-(`docker-compose.e2e.yml`, including a mock OIDC provider standing in for Nextcloud): login, boxes, items, photo upload,
+(`docker-compose.e2e.yml`: the app on http://localhost:8080 and a mock OIDC provider standing in for Nextcloud): login, boxes, items, photo upload,
 public link, admin, throttling, OIDC, logout. See [`e2e/README.md`](e2e/README.md).
 
 

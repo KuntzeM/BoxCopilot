@@ -6,8 +6,10 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const FRONT = process.env.E2E_FRONTEND_URL || 'http://localhost:5173';
-const API = process.env.E2E_API_URL || 'http://localhost:8080';
+// One origin: Spring Boot serves the SPA and the API (FRONT and API are the same URL, kept apart for readability).
+const BASE = (process.env.E2E_BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
+const FRONT = BASE;
+const API = BASE;
 const USER = process.env.E2E_USERNAME;
 const PASS = process.env.E2E_PASSWORD;
 const OUT = process.env.E2E_OUT || mkdtempSync(join(tmpdir(), 'boxpilot-e2e-'));
@@ -93,7 +95,7 @@ async function newCtx(opts = {}) {
   watch(page, opts.label || 'main');
   return { ctx, page };
 }
-const cookiesOf = async (ctx) => (await ctx.cookies(API)).concat(await ctx.cookies(FRONT));
+const cookiesOf = (ctx) => ctx.cookies(BASE);
 const hasSession = async (ctx) => (await cookiesOf(ctx)).some((c) => c.name === 'SESSION' && c.value);
 const apiStatus = (page, path) => page.evaluate(async (u) => (await fetch(u, { credentials: 'include' })).status, API + path);
 
@@ -363,13 +365,17 @@ try {
     publicUrl = newUrl;
   });
 
-  await step('11 security headers on the frontend', async () => {
+  await step('11 security headers on the SPA', async () => {
     const r = await ctx.request.get(FRONT + '/app/boxes');
     const h = r.headers();
     ok(h['content-security-policy'] || h['content-security-policy-report-only'], 'neither Content-Security-Policy nor -Report-Only header');
     ok(/nosniff/i.test(h['x-content-type-options'] || ''), `X-Content-Type-Options: "${h['x-content-type-options']}"`);
     ok(/DENY/i.test(h['x-frame-options'] || ''), `X-Frame-Options: "${h['x-frame-options']}"`);
     if (FRONT.startsWith('https://')) ok(h['strict-transport-security'], 'HSTS header missing on https');
+    ok(/no-cache/i.test(h['cache-control'] || ''), `SPA route (index.html) should be Cache-Control: no-cache, got "${h['cache-control']}"`);
+    // Unknown API paths never fall back to the SPA's index.html
+    const u = await ctx.request.get(API + '/api/v1/does-not-exist-' + RUN, { headers: { Accept: 'text/html' } });
+    ok(!/text\/html/i.test(u.headers()['content-type'] || ''), `unknown /api path answered with HTML (status ${u.status()})`);
     console.log(`        (info) CSP mode: ${h['content-security-policy'] ? 'enforced' : 'report-only'}`);
   });
 

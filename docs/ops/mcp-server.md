@@ -179,16 +179,15 @@ Traefik configuration itself lives **outside this repository** (see the main REA
 section) — the points below are what that external Traefik setup needs to know, not something to change in this
 repo's `docker-compose.yml` unless noted.
 
-- The backend's existing Traefik router already matches on `Host(`${TRAEFIK_BACKEND_HOST}`)` with no further path
-  restriction (see `docker-compose.yml`, `box-backend`/`box-backend-secure` routers), so `/mcp`, `/oauth2/**` and
-  `/.well-known/**` are already reachable on the backend host once MCP is enabled — no additional Traefik router
-  or path rule is required for this feature.
+- The single application container (`app`) serves the SPA, the API, `/oauth2/**`, `/.well-known/**` and `/mcp` on
+  one origin. Its Traefik router matches on `Host(`${TRAEFIK_HOST}`)` with no further path restriction (see
+  `docker-compose.yml`, `box`/`box-secure` routers), so the MCP endpoints are reachable once MCP is enabled — no
+  additional Traefik router or path rule is required for this feature. The SPA fallback never answers `/mcp`,
+  `/oauth2`, `/.well-known`, `/login` or `/api` paths with `index.html`.
 - Traefik must keep passing the client's `Host` through (its default, `passHostHeader: true`): `/mcp` only
-  accepts the host of `BACKEND_URL`, and a rewritten `Host` is answered with 421.
-- The frontend's nginx config only proxies `/api/`. It must **not** be extended to proxy `/mcp` or `/oauth2` —
-  that routing intentionally stays backend-only (spec §5); do not "fix" this if it looks inconsistent.
+  accepts the host of `APP_URL`, and a rewritten `Host` is answered with 421.
 - Traefik needs `forwardedHeaders.trustedIPs` (or the equivalent for the Traefik major version in use) configured
-  to trust the addresses that actually sit between it and the backend container, matching the backend's own
+  to trust the addresses that actually sit between it and the app container, matching the app's own
   `TRUSTED_PROXY_PATTERN` (see the environment variable table below — that value is a **Java regular expression**
   matched by Tomcat's `RemoteIpValve`, not CIDR notation; the two settings describe the same trust boundary from
   either side and should be kept consistent by whoever administers Traefik). Without this, `X-Forwarded-For` is
@@ -211,10 +210,9 @@ documented there or has just been added there as part of this story.
 | Variable | Default | Required when | Purpose | In `.env.example` |
 |---|---|---|---|---|
 | `APP_MCP_ENABLED` | `false` | — | Master kill-switch for the whole MCP feature (`app.mcp.enabled`). | Y |
-| `BACKEND_URL` | *(none)* | `APP_MCP_ENABLED=true` | Fixed OAuth issuer / resource identifier (`app.mcp.backend-url`). Startup fails without it (and without `https` in prod) when MCP is on. Never derived from the request or `X-Forwarded-*`. Also the DNS-rebinding allow-list of `/mcp`: the `Host` header must equal its host (with port, if it names a non-default one; `:443` on https and `:80` on http are ignored) or the call gets 421, and an `Origin`, if sent, must equal its origin or the call gets 403. | Y |
-| `VITE_API_BASE_URL` | *(none, required)* | always | Base URL the SPA calls the backend on, baked into the frontend bundle at **build** time. **Must name the same origin as `BACKEND_URL`.** The backend sets the `mcp_authz` pending-authorization cookie and the OAuth issuer on `BACKEND_URL`, while the SPA builds the MCP "continue" URL and the connector URL shown in the "Claude-Verbindung" dialog from this value; if the two origins differ, the cookie is set on one origin and the continue-redirect points at the other, and the connect flow silently loops with no error. Since 0.2.0 the backend compares the two origins at startup (`McpStartupGuard`, via `app.mcp.spa-api-base-url`) and refuses to start when MCP is enabled and they differ; the value baked into an already-built frontend bundle cannot be checked, so rebuild the frontend whenever you change it. Changing it requires a frontend rebuild. | Y |
+| `APP_URL` | *(none, required)* | always (`prod`) | Public origin of the application (`scheme://host[:port]`, no path, no trailing slash). Fixed OAuth issuer / resource identifier (`app.mcp.backend-url`). Startup fails without it (and without `https` in prod) when MCP is on. Never derived from the request or `X-Forwarded-*`. Also the DNS-rebinding allow-list of `/mcp`: the `Host` header must equal its host (with port, if it names a non-default one; `:443` on https and `:80` on http are ignored) or the call gets 421, and an `Origin`, if sent, must equal its origin or the call gets 403. | Y |
 | `APP_MCP_CLEANUP_CRON` | `0 0 3 * * *` | optional | Cron schedule for the nightly authorization cleanup job. | Y |
-| `APP_MCP_COOKIE_SAME_SITE` | *(blank — follows the session cookie)* | optional | `SameSite` attribute of the short-lived `mcp_authz` pending-authorization cookie (`app.mcp.cookie-same-site`). Blank means it follows `server.servlet.session.cookie.same-site` (`none` in `application-prod.yml`), because the cookie has to travel on exactly the requests the session cookie travels on. Set it to `Lax` where frontend and backend share a site. | Y |
+| `APP_MCP_COOKIE_SAME_SITE` | *(blank — follows the session cookie)* | optional | `SameSite` attribute of the short-lived `mcp_authz` pending-authorization cookie (`app.mcp.cookie-same-site`). Blank means it follows `server.servlet.session.cookie.same-site` (`lax` in `application-prod.yml`), because the cookie has to travel on exactly the requests the session cookie travels on. | Y |
 | `APP_MCP_CALLS_PER_MINUTE` | `60` | optional | Per-subject rate limit on `/mcp` tool calls. | Y |
 | `APP_MCP_IMAGE_CALLS_PER_DAY` | `200` | optional | Per-subject daily quota on `get_item_image` calls (the expensive, large-payload tool). | Y |
 | `APP_MCP_AUTHORIZATION_REQUESTS_PER_MINUTE` | `30` | optional | Per-IP rate limit on `/oauth2/authorize` and `/oauth2/token`. Only meaningful if `TRUSTED_PROXY_PATTERN`/M4 is correctly configured — otherwise it rate-limits the proxy's address, not the caller's. | Y |
@@ -222,7 +220,6 @@ documented there or has just been added there as part of this story.
 | `TRUSTED_PROXY_PATTERN` | Docker default pool 172.16.0.0/12 + loopback regex (see `application-prod.yml`) | optional, recommended in prod | **Java regular expression** (not CIDR) matched by Tomcat's `RemoteIpValve` against the immediate peer address, to decide whether to trust its `X-Forwarded-*` headers. Underpins the two IP-based limits above, the login throttling of `POST /api/auth/login` and `POST /api/v1/auth/magic-login`, and the `ip=` field in the MCP audit log. Renamed from the originally spec'd `TRUSTED_PROXY_CIDR` during implementation review because the underlying mechanism is regex-based, not CIDR-based. | Y |
 | `REDIS_PASSWORD` | *(none, required)* | always in prod | Redis `requirepass` and the backend's session-store credential. Predates MCP (S2 hardening) but is a hard prerequisite for the app to start at all in `prod`. | Y |
 | `ADMIN_PASSWORD` | *(none in prod; `admin` only in `dev`)* | always in prod | Bootstrap admin account password. Startup fails in `prod` if empty, literally `admin` or shorter than 12 characters, and also if an existing admin account's password hash still matches `admin`. Predates MCP (S2 hardening), listed here because it gates the Admin Panel screen used to grant `mcp_allowed`. | Y |
-| `FRONTEND_URL` | *(none, required)* | always | Base URL of the SPA. Already required pre-MCP; now additionally the base of magic links and the redirect target after the pending-authorization cookie flow (spec §4.1/§4.4). | Y |
 | `MAGIC_LINK_VALID_HOURS` | `24` | optional | Maximum lifetime of a magic login link (hard cap enforced since the S2/S3 magic-link hardening fixes; the previous unbounded value is no longer accepted). | Y |
 
 `app.mcp.max-connection-age` (default `14d`) and `app.mcp.redirect-uris` (default: Claude's
@@ -232,11 +229,10 @@ rather than added to `.env.example`. Change them in `backend/src/main/resources/
 ever needs a different value.
 
 `.env.example` in the repo root has been updated to include the MCP-specific variables above (`APP_MCP_ENABLED`,
-`BACKEND_URL`, `APP_MCP_CLEANUP_CRON`, `APP_MCP_COOKIE_SAME_SITE` and the four rate-limit knobs,
-`TRUSTED_PROXY_PATTERN`) alongside the pre-existing entries; `REDIS_PASSWORD`, `ADMIN_PASSWORD`, `FRONTEND_URL`,
-`VITE_API_BASE_URL` and `MAGIC_LINK_VALID_HOURS` were already present there from earlier stories. `BACKEND_URL` and
-`VITE_API_BASE_URL` now ship with the same example origin and carry a comment on both entries stating that they
-must stay on the same origin.
+`APP_MCP_CLEANUP_CRON`, `APP_MCP_COOKIE_SAME_SITE` and the four rate-limit knobs, `TRUSTED_PROXY_PATTERN`) alongside
+the pre-existing entries. Since the single-image release, one variable, `APP_URL`, replaces the former
+`FRONTEND_URL`, `VITE_API_BASE_URL` and `BACKEND_URL`: SPA and backend share one origin, so the MCP "continue"
+redirect, the `mcp_authz` cookie and the OAuth issuer can no longer diverge.
 
 ## Open points (not covered by this sprint, needed before/at go-live)
 
@@ -255,7 +251,7 @@ ledger (`.superpowers/sdd/2026-09-21-mcp-server-sprint/progress.md`).
    above it cannot be overridden by an environment variable, so adding the loopback callback below means editing
    `backend/src/main/resources/application.yml` (or `application-prod.yml`) and rebuilding and redeploying the
    backend image, not just changing `.env`. Remove the loopback entry again after the verification run.
-   - Backend reachable over **public HTTPS** (Claude will not call a private host); `BACKEND_URL` set to exactly
+   - Backend reachable over **public HTTPS** (Claude will not call a private host); `APP_URL` set to exactly
      that origin, Traefik forwarding `X-Forwarded-*`.
    - `app.mcp.enabled=true`, `app.mcp.redirect-uris` containing `https://claude.ai/api/mcp/auth_callback` and
      `http://127.0.0.1:41000/callback`.
@@ -266,7 +262,7 @@ ledger (`.superpowers/sdd/2026-09-21-mcp-server-sprint/progress.md`).
 
    **A. MCP Inspector**
    1. `npx @modelcontextprotocol/inspector` (Node 18+) — opens the inspector UI in the browser.
-   2. Transport type **Streamable HTTP**, URL `https://<backend>/mcp`.
+   2. Transport type **Streamable HTTP**, URL `https://<APP_URL host>/mcp`.
    3. In **Authentication / OAuth**, choose OAuth 2.1 and enter the client ID from the BoxPilot "Claude-Verbindung"
       dialog (`POST /api/v1/me/mcp-client`). Leave the client secret empty (public client) and let the inspector
       use PKCE S256 and its own loopback redirect — if it can't be pinned to port 41000, either register its
@@ -283,7 +279,7 @@ ledger (`.superpowers/sdd/2026-09-21-mcp-server-sprint/progress.md`).
       deleted, not just re-enabled).
 
    **B. Claude Free, custom connector**
-   1. claude.ai → Settings → Connectors → **Add custom connector**, name `BoxPilot`, URL `https://<backend>/mcp`,
+   1. claude.ai → Settings → Connectors → **Add custom connector**, name `BoxPilot`, URL `https://<APP_URL host>/mcp`,
       client ID from the BoxPilot dialog under advanced settings, no client secret.
    2. Connect — the same login/consent pages must appear and the connector must end up "Connected".
    3. In a chat, enable the connector and ask for inventory by room and for a photo of a specific item; confirm
@@ -296,7 +292,7 @@ ledger (`.superpowers/sdd/2026-09-21-mcp-server-sprint/progress.md`).
    6. Press "Alle Verbindungen widerrufen" in the BoxPilot dialog and confirm the connector stops working with no
       further BoxPilot-side action.
 
-   **Spring Boot 4 addition, NOT YET RUN:** since the upgrade `/mcp` refuses a `Host` that differs from `BACKEND_URL`
+   **Spring Boot 4 addition, NOT YET RUN:** since the upgrade `/mcp` refuses a `Host` that differs from `APP_URL`
    (421) and an `Origin` that differs from its origin (403); requests without `Origin` pass. This was verified with
    scripted clients and the MCP Inspector CLI only. Nobody has yet confirmed with a real claude.ai connector (web and
    mobile) which `Host` and `Origin` it sends. If Claude.ai sends an `Origin` such as `https://claude.ai`, the
@@ -326,11 +322,11 @@ ledger (`.superpowers/sdd/2026-09-21-mcp-server-sprint/progress.md`).
    - **M3** — session invalidation on role change or user deactivation: done (`SessionRevalidationFilter`, and since
      0.2.0 also after a password reset). The 30-minute idle default of `@EnableRedisHttpSession` applies.
    - **Container hardening** — done in 0.2.0: the backend runs non-root (uid 10001) with a read-only root filesystem and
-     `cap_drop: ALL`; the frontend drops all capabilities except those nginx needs (see the 0.2.0 release notes).
+     `cap_drop: ALL`. Since the single-image release there is no separate nginx frontend container any more.
    - **Unified login error messages** — locked/disabled/wrong-password are still distinguishable in the login
      failure handler (`OAuth2SecurityConfig`), an account-enumeration nicety, not fixed this sprint.
    - **Configurable cookie `SameSite` for the *session* cookie** — done in 0.2.0: `SESSION_COOKIE_SAME_SITE`
-     (default `none`; `lax` where frontend and backend share a site). The MCP `mcp_authz` cookie has its own
+     (default `lax` since the single-image release; SPA and API share one origin). The MCP `mcp_authz` cookie has its own
      `APP_MCP_COOKIE_SAME_SITE` (see the environment variable table above) and only falls back to the session
      cookie's value when that is left blank.
    - **Global LIKE-escaping audit** — spec §3.3 assumes Spring Data's derived `...ContainingIgnoreCase` methods

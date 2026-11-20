@@ -86,6 +86,22 @@ jobs:
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
 
+  docker:
+    name: Docker image (build + SPA in jar)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the single application image
+        run: docker build -t boxpilot:ci .
+      - name: Check the image ships the SPA and runs as uid 10001
+        run: |
+          test "$(docker image inspect -f '{{.Config.User}}' boxpilot:ci)" = "10001:10001"
+          id=$(docker create boxpilot:ci)
+          docker cp "$id:/app/app.jar" "$RUNNER_TEMP/app.jar"
+          docker rm "$id" >/dev/null
+          unzip -l "$RUNNER_TEMP/app.jar" | grep -q 'BOOT-INF/classes/static/index.html'
+
   e2e:
     name: E2E (compose + Playwright)
     runs-on: ubuntu-latest
@@ -115,14 +131,11 @@ jobs:
           CLIENT_SECRET=$CLIENT_SECRET
           NEXTCLOUD_URL=http://oidc.localhost:9090/default
           NEXTCLOUD_LOGOUT_URL=http://oidc.localhost:9090/default/endsession
-          FRONTEND_URL=http://localhost:5173
-          VITE_API_BASE_URL=http://localhost:8080
-          BACKEND_URL=http://localhost:8080
+          APP_URL=http://localhost:8080
           ADMIN_USERNAME=e2eadmin
           ADMIN_PASSWORD=$ADMIN_PW
           ADMIN_NAME=E2E Admin
-          TRAEFIK_FRONTEND_HOST=box.localhost
-          TRAEFIK_BACKEND_HOST=box-backend.localhost
+          TRAEFIK_HOST=box.localhost
           ENV
           echo "E2E_PASSWORD=$ADMIN_PW" >> "$GITHUB_ENV"
           # runner.* is not available in job-level env, so the compose command is exported from here
@@ -164,7 +177,7 @@ jobs:
   ci-ok:
     name: CI passed
     if: always()
-    needs: [backend, backend-security, frontend, e2e]
+    needs: [backend, backend-security, frontend, docker, e2e]
     runs-on: ubuntu-latest
     steps:
       - run: |
@@ -175,7 +188,7 @@ jobs:
   pr-comment:
     name: PR comment
     if: always() && github.event_name == 'pull_request'
-    needs: [backend, backend-security, frontend, e2e]
+    needs: [backend, backend-security, frontend, docker, e2e]
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write # Dependabot/fork PRs get a read-only token: the step then only warns
@@ -208,6 +221,7 @@ jobs:
             echo "| :-- | :-- |"
             row "🧪 Backend: Maven verify (unit, ArchUnit, Testcontainers)" backend
             row "🎨 Frontend: typecheck, tests, build, audit" frontend
+            row "🐳 Docker: single image build (SPA in jar)" docker
             row "🌐 E2E: Docker stack + Playwright journey" e2e
             row "🛡️ OWASP dependency scan _(nightly/manual only)_" backend-security
             echo

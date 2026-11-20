@@ -124,10 +124,13 @@ networks:
     external: true
 ```
 
-Both frontend and backend services include Traefik labels (certificate resolver `http`, entrypoints `http` and `https`) for:
+The single `app` service (Spring Boot serving the SPA, the API, OAuth and `/mcp` on port 8080) carries the Traefik labels
+(one router on `Host(${TRAEFIK_HOST})`, certificate resolver `http`, entrypoints `http` and `https`) for:
 - HTTP → HTTPS redirect
 - TLS certificate provisioning (Let's Encrypt)
 - Host-based routing
 
-Traefik forwards `X-Forwarded-For`; the backend uses it for login throttling only for requests that arrive from an address matching `TRUSTED_PROXY_PATTERN` (default: Docker's default address pool 172.16.0.0/12 and loopback; set it if your compose network uses another range). Check the pattern if Traefik runs on a different network, see [Security](../../README.md#security).
+`TRAEFIK_HOST` must be the host of `APP_URL`.
+
+Traefik forwards `X-Forwarded-For`; the app uses it for login throttling only for requests that arrive from an address matching `TRUSTED_PROXY_PATTERN` (default: Docker's default address pool 172.16.0.0/12 and loopback; set it if your compose network uses another range). Check the pattern if Traefik runs on a different network, see [Security](../../README.md#security).
 

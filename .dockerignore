@@ -1,0 +1,23 @@
+# Build context is the repository root; only frontend/ and backend/ sources are copied into the image.
+**/node_modules
+**/target
+**/.env
+**/.env.*
+.git
+.github
+.claude
+.superpowers
+agent
+graphify-out
+docs
+e2e
+pgdata
+images
+logs
+data
+frontend/dist
+backend/data
+backend/logs
+# Generated: the Dockerfile copies the fresh SPA build here
+backend/src/main/resources/static
+*.md
