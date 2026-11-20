@@ -14,6 +14,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.annotation.web.configurers.RequestCacheConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.web.OAuth2ProtectedResourceMetadataFilter;
@@ -61,6 +62,8 @@ class McpSecurityConfig {
                         McpEndpoints.PROTECTED_RESOURCE_METADATA_PATTERN)
                 .csrf(csrf -> csrf.ignoringRequestMatchers(mcpEndpoint))
                 .cors(AbstractHttpConfigurer::disable)
+                // HSTS comes only from SecurityHeadersFilter (HSTS_ENABLED), never from Spring Security's default
+                .headers(headers -> headers.httpStrictTransportSecurity(HeadersConfigurer.HstsConfig::disable))
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)

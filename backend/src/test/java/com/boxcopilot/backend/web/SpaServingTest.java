@@ -179,28 +179,54 @@ class SpaServingTest {
         assertSecurityHeaders(r);
     }
 
+    /**
+     * Server prefixes keep their own answers (MCP is off here): anonymous callers are redirected to the app by the
+     * entry point, the already public /login/** and /error answer 404 JSON - never index.html.
+     */
     @Test
     void reservedPrefixesNeverFallBackToIndexHtml() throws Exception {
-        for (String path : new String[] {"/mcp", "/mcp/x", "/oauth2/token", "/login/whatever", "/actuator/env",
+        java.util.Map<String, Integer> expected = new java.util.LinkedHashMap<>();
+        for (String path : new String[] {"/mcp", "/mcp/x", "/oauth2/token", "/actuator/env",
                 "/.well-known/oauth-authorization-server", "/error/x"}) {
-            RealTomcat.Reply r = get(path, "Accept", HTML);
+            expected.put(path, 302);
+        }
+        expected.put("/login/whatever", 404);
+        for (var entry : expected.entrySet()) {
+            RealTomcat.Reply r = get(entry.getKey(), "Accept", HTML);
 
-            assertThat(r.body()).as(path).doesNotContain(INDEX_MARKER);
-            assertThat(r.status()).as(path).isNotEqualTo(200);
+            assertThat(r.status()).as(entry.getKey()).isEqualTo(entry.getValue());
+            assertThat(r.body()).as(entry.getKey()).doesNotContain(INDEX_MARKER);
+            if (entry.getValue() == 302) {
+                assertThat(r.headers().firstValue("Location")).as(entry.getKey()).hasValue("http://localhost:3000");
+            } else {
+                assertThat(r.headers().firstValue("content-type").orElse("")).as(entry.getKey())
+                        .startsWith("application/json");
+            }
         }
     }
 
+    /**
+     * {@code /%61pi} decodes to {@code /api}: authorization treats it as /api (not public), so it is denied. The
+     * entry point checks the raw URI for "/api/", so the denial is its redirect to the app rather than the JSON
+     * 401 (behaviour unchanged from before the SPA moved in here).
+     */
     @Test
     void anEncodedReservedPrefixDoesNotBypassAuthentication() throws Exception {
         RealTomcat.Reply r = get("/%61pi/v1/boxes", "Accept", HTML);
 
+        assertThat(r.status()).isEqualTo(302);
+        assertThat(r.headers().firstValue("Location")).hasValue("http://localhost:3000");
         assertThat(r.body()).doesNotContain(INDEX_MARKER);
-        // Denied by authorization; the entry point checks the raw URI for "/api/", so it answers with its
-        // redirect to the SPA instead of the JSON 401 (behaviour unchanged from before the SPA moved in here).
-        assertThat(r.status()).isIn(302, 400, 401, 404);
-        if (r.status() == 302) {
-            assertThat(r.headers().firstValue("Location")).hasValue("http://localhost:3000");
-        }
+    }
+
+    @Test
+    void headOnAClientSideRouteIsAnsweredLikeGet() throws Exception {
+        RealTomcat.Reply r = new RealTomcat.Client(port).send("HEAD", "/app/boxes", null, null, "Accept", HTML);
+
+        assertThat(r.status()).isEqualTo(200);
+        assertThat(r.headers().firstValue("content-type").orElse("")).startsWith("text/html");
+        assertThat(header(r, "Cache-Control")).isEqualTo("no-cache");
+        assertSecurityHeaders(r);
     }
 
     @Test

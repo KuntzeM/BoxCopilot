@@ -37,7 +37,7 @@ public class MagicLoginTokenService {
                                   @Value("${frontend.url}") String frontendUrl,
                                   @Value("${app.magiclink.default-valid-hours:24}") int defaultValidHours) {
         if (!StringUtils.hasText(frontendUrl)) {
-            throw new IllegalStateException("frontend.url (FRONTEND_URL) must be configured to build magic links");
+            throw new IllegalStateException("frontend.url (APP_URL) must be configured to build magic links");
         }
         this.tokenRepository = tokenRepository;
         this.userRepository = userRepository;
