@@ -375,7 +375,7 @@ try {
     ok(/no-cache/i.test(h['cache-control'] || ''), `SPA route (index.html) should be Cache-Control: no-cache, got "${h['cache-control']}"`);
     // Unknown API paths never fall back to the SPA's index.html
     const u = await ctx.request.get(API + '/api/v1/does-not-exist-' + RUN, { headers: { Accept: 'text/html' } });
-    ok(!/text\/html/i.test(u.headers()['content-type'] || ''), `unknown /api path answered with HTML (status ${u.status()})`);
+    ok(!(await u.text()).includes('id="root"'), `unknown /api path answered with the SPA's index.html (status ${u.status()})`);
     console.log(`        (info) CSP mode: ${h['content-security-policy'] ? 'enforced' : 'report-only'}`);
   });
 
