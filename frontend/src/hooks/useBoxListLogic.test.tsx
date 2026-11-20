@@ -106,3 +106,49 @@ describe('useBoxListLogic drawer toggle moved', () => {
     expect(fetchBoxes).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('useBoxListLogic with a large inventory (150 boxes)', () => {
+  const many = Array.from({ length: 150 }, (_, i) => ({
+    id: i + 1,
+    uuid: `u${i + 1}`,
+    boxNumber: i + 1,
+    currentRoom: i % 2 ? 'Keller' : 'Flur',
+    isMovedToTarget: i % 3 === 0,
+    isFragile: i % 10 === 0,
+  })) as never[];
+
+  beforeEach(() => {
+    vi.mocked(fetchBoxes).mockReset().mockResolvedValue(many);
+  });
+  afterEach(cleanup);
+
+  it('loads all boxes sorted newest first and filters by status and fragile quickly', async () => {
+    const { result } = renderHook(() => useBoxListLogic(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.allBoxes).toHaveLength(150);
+    expect(result.current.filteredBoxes[0].boxNumber).toBe(150);
+
+    act(() => result.current.setStatusFilter('moved'));
+    await waitFor(() => expect(result.current.filteredBoxes).toHaveLength(50));
+    act(() => result.current.setStatusFilter('open'));
+    await waitFor(() => expect(result.current.filteredBoxes).toHaveLength(100));
+    act(() => result.current.setFilterFragile(true));
+    await waitFor(() => expect(result.current.filteredBoxes.every((b) => b.isFragile && !b.isMovedToTarget)).toBe(true));
+  });
+
+  it('silent refresh keeps the list visible (no loading flash) and the selection', async () => {
+    const { result } = renderHook(() => useBoxListLogic(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    act(() => result.current.toggleSelect(5));
+    expect(result.current.selectedIds).toEqual([5]);
+
+    vi.mocked(fetchBoxes).mockResolvedValue([...many, { id: 151, uuid: 'u151', boxNumber: 151 } as never]);
+    await act(async () => {
+      const p = result.current.loadData(true);
+      expect(result.current.isLoading).toBe(false);
+      await p;
+    });
+    expect(result.current.allBoxes).toHaveLength(151);
+    expect(result.current.selectedIds).toEqual([5]);
+  });
+});
