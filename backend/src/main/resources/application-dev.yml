@@ -36,9 +36,9 @@ spring:
           nextcloud:
             issuer-uri: ${NEXTCLOUD_URL:https://example.nextcloud.com}
 
-# Frontend URL for CORS and redirects
+# Public URL for CORS and redirects; in development the Vite dev server, which proxies the backend paths
 frontend:
-  url: ${FRONTEND_URL:http://localhost:3000}
+  url: ${APP_URL:http://localhost:3000}
 
 # Nextcloud logout URL
 nextcloud:

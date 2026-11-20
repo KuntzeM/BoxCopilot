@@ -24,7 +24,7 @@ spring:
             client-id: ${CLIENT_ID}
             client-secret: ${CLIENT_SECRET}
             authorization-grant-type: authorization_code
-            redirect-uri: "${VITE_API_BASE_URL}/login/oauth2/code/{registrationId}"
+            redirect-uri: "${APP_URL}/login/oauth2/code/{registrationId}"
             scope:
               - openid
               - profile
@@ -45,7 +45,7 @@ spring:
     validate-on-migrate: true
 
 frontend:
-  url: ${FRONTEND_URL}
+  url: ${APP_URL}
 
 # Image Storage
 app:
@@ -71,7 +71,7 @@ logging:
   file:
     path: /app/logs
 
-# Ensure proper behavior behind reverse proxy and cross-site cookies
+# Ensure proper behavior behind reverse proxy
 server:
   # 'native' lets Tomcat's RemoteIpValve resolve the client address, and it honours X-Forwarded-For only for a
   # request that really arrives from one of the internal proxies below. 'framework' trusted every caller, which
@@ -79,8 +79,7 @@ server:
   forward-headers-strategy: native
   tomcat:
     remoteip:
-      # The immediate peer is Traefik on the external traefik-proxy network (API traffic; the frontend nginx for its proxied
-      # requests), which gets a Docker-assigned address, so the default is
+      # The immediate peer is Traefik on the external traefik-proxy network, which gets a Docker-assigned address, so the default is
       # Docker's default address pool (172.16.0.0/12) plus loopback. The pattern must match the traefik-proxy subnet or all
       # clients share one throttle bucket; 10.x and 192.168.x are NOT trusted by default. Where the proxy address is known, narrow it (or, for custom
       # Docker address pools, widen it) with TRUSTED_PROXY_PATTERN. That value is a JAVA REGULAR EXPRESSION, which is what Tomcat matches the
@@ -90,8 +89,8 @@ server:
   servlet:
     session:
       cookie:
-        # 'none' lets a SPA on another site send the cookie. Use 'lax' when SPA and API share a site
-        # (e.g. app.example.com and api.example.com); 'strict' would break the OIDC redirect back to the API.
-        same-site: ${SESSION_COOKIE_SAME_SITE:none}
+        # The SPA is served from the backend's own origin, so 'lax' suffices. 'none' would only be needed for a SPA
+        # on another site; 'strict' would break the OIDC redirect back from Nextcloud.
+        same-site: ${SESSION_COOKIE_SAME_SITE:lax}
         secure: true
 

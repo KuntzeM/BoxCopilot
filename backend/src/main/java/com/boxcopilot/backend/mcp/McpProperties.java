@@ -10,7 +10,8 @@ import java.util.List;
  * MCP feature configuration.
  *
  * @param enabled          master switch; without it no MCP bean exists
- * @param backendUrl       public base URL of this backend (the OAuth issuer and resource identifier); a single
+ * @param backendUrl       public base URL of this backend, {@code APP_URL} (the OAuth issuer and resource
+ *                         identifier; the SPA is served from the same origin); a single
  *                         trailing slash is removed so that paths can simply be appended
  * @param redirectUris     redirect URIs the MCP client is allowed to use
  * @param maxConnectionAge absolute lifetime of an MCP connection, counted from its first authorization; a
@@ -21,19 +22,11 @@ import java.util.List;
  * @param rateLimit        the abuse limits; absent means the documented defaults
  * @param cleanupCron      cron expression of the daily authorization cleanup; blank means
  *                         {@link #DEFAULT_CLEANUP_CRON}
- * @param spaApiBaseUrl    the API base URL the SPA was built with ({@code VITE_API_BASE_URL}); optional, when
- *                         set its origin must equal the one of {@code backendUrl}
  */
 @ConfigurationProperties(prefix = "app.mcp")
 public record McpProperties(boolean enabled, String backendUrl, List<String> redirectUris,
                             Duration maxConnectionAge, String cookieSameSite, RateLimit rateLimit,
-                            String cleanupCron, String spaApiBaseUrl) {
-
-    /** Convenience for callers that do not set the SPA API base URL. */
-    public McpProperties(boolean enabled, String backendUrl, List<String> redirectUris, Duration maxConnectionAge,
-                         String cookieSameSite, RateLimit rateLimit, String cleanupCron) {
-        this(enabled, backendUrl, redirectUris, maxConnectionAge, cookieSameSite, rateLimit, cleanupCron, null);
-    }
+                            String cleanupCron) {
 
     /** 14 days, as specified; kept in sync with the value in {@code application.yml}. */
     public static final Duration DEFAULT_MAX_CONNECTION_AGE = Duration.ofDays(14);

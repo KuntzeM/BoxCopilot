@@ -7,7 +7,7 @@ OIDC, mobile, login and magic-link throttle, CSP console check) against an alrea
     cd e2e && npm install && npx playwright install chromium
     E2E_USERNAME=<admin> E2E_PASSWORD=<pw> npm test      # exits non-zero on any failed step
 
-Optional env: E2E_FRONTEND_URL (default http://localhost:5173), E2E_API_URL (default http://localhost:8080),
+Optional env: E2E_BASE_URL (default http://localhost:8080; the single origin that serves both the SPA and the API),
 E2E_OUT (screenshot/results dir, default a fresh temp dir). The mock OIDC provider must be reachable at oidc.localhost:9090
 (docker-compose.e2e.yml). The script creates one box and one user and deletes both at the end; it expects the E2E stack, never production.
 

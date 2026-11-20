@@ -8,6 +8,7 @@ This area controls security chains, startup validation, profile-specific wiring,
 - `LoginThrottleFilter` (package `security`) is registered in `OAuth2SecurityConfig` before the form-login filter and depends on correct proxy-header trust; changing `TRUSTED_PROXY_PATTERN` handling changes who shares a throttle bucket.
 - `/actuator/health` is the only anonymous actuator path (status only); the compose healthcheck uses it.
 - Keep MCP beans and the `/mcp` endpoint disabled unless `app.mcp.enabled=true`.
+- The backend serves the SPA (`SpaWebConfig`, `SpaRoutes`): GET/HEAD outside the reserved prefixes (`/api`, `/mcp`, `/oauth2`, `/login`, `/actuator`, `/.well-known`, `/error`) are public and fall back to `index.html`; reserved paths never do. `SecurityHeadersFilter` sets CSP (`CSP_MODE`), HSTS (`HSTS_ENABLED`) and the other browser headers on every response.
 - Do not add a new SecurityFilterChain without testing ordering, matcher ownership, and the unaffected chains.
 - Do not enable remote OIDC discovery in tests; use the existing test registration pattern.
 - Preserve proxy-header trust, secure-cookie, session-store, and CORS behavior. Never broaden trusted proxy settings casually.

@@ -12,7 +12,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** The prod session cookie: SameSite=None by default (unchanged), switchable through SESSION_COOKIE_SAME_SITE, always Secure. */
+/** The prod session cookie: SameSite=Lax by default (SPA and API share one origin), switchable through SESSION_COOKIE_SAME_SITE, always Secure. */
 class SessionCookieConfigTest {
 
     private static StandardEnvironment prod(Map<String, Object> operator) throws IOException {
@@ -26,14 +26,14 @@ class SessionCookieConfigTest {
     }
 
     @Test
-    void sameSiteDefaultsToNone() throws IOException {
-        assertThat(prod(Map.of()).getProperty("server.servlet.session.cookie.same-site")).isEqualTo("none");
+    void sameSiteDefaultsToLax() throws IOException {
+        assertThat(prod(Map.of()).getProperty("server.servlet.session.cookie.same-site")).isEqualTo("lax");
     }
 
     @Test
     void sameSiteFollowsTheEnvironmentVariable() throws IOException {
-        assertThat(prod(Map.of("SESSION_COOKIE_SAME_SITE", "lax"))
-                .getProperty("server.servlet.session.cookie.same-site")).isEqualTo("lax");
+        assertThat(prod(Map.of("SESSION_COOKIE_SAME_SITE", "none"))
+                .getProperty("server.servlet.session.cookie.same-site")).isEqualTo("none");
     }
 
     @Test

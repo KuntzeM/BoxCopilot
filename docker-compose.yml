@@ -41,16 +41,17 @@ services:
       timeout: 5s
       retries: 5
 
-  backend:
-    build: backend
-    container_name: boxcopilot-backend
+  app:
+    # One image (root Dockerfile): Spring Boot serves the API, OAuth/MCP endpoints and the built SPA on one origin.
+    build: .
+    container_name: boxcopilot-app
     working_dir: /app
     # Runs as non-root uid 10001 (set in the Dockerfile). UPGRADE from a root-run install (one time, before `up`):
     #   mkdir -p logs images && sudo chown -R 10001:10001 logs images
     # ROLLBACK to root: uncomment the next line (add `cap_add: [DAC_OVERRIDE]` if the dirs belong to another uid).
     # user: "0:0"
     # Without the chown startup fails with a clear message (ImageStorageService requires a writable image directory;
-    # logback also cannot write log files); check `docker compose logs backend`.
+    # logback also cannot write log files); check `docker compose logs app`.
     read_only: true
     tmpfs:
       - /tmp:size=64m,mode=1777   # Tomcat work dir, multipart temp files (up to 15 MB), Java tmp
@@ -71,13 +72,19 @@ services:
       CLIENT_SECRET: ${CLIENT_SECRET}
       NEXTCLOUD_URL: ${NEXTCLOUD_URL}
       NEXTCLOUD_LOGOUT_URL: ${NEXTCLOUD_LOGOUT_URL}
-      FRONTEND_URL: ${FRONTEND_URL}
-      VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+      # Public origin of the application (scheme://host[:port], no path, no trailing slash): OAuth redirect URI,
+      # magic links, logout redirect, MCP issuer. Must match the Traefik host below.
+      APP_URL: ${APP_URL:?APP_URL must be set}
+      # enforce = Content-Security-Policy (default), report = Content-Security-Policy-Report-Only
+      CSP_MODE: ${CSP_MODE:-enforce}
+      # production sits behind Traefik TLS; the e2e overlay (plain http) turns this off
+      HSTS_ENABLED: ${HSTS_ENABLED:-true}
       APP_IMAGE_STORAGE_PATH: /var/boxcopilot/images
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    # JVM heap is 75% of this (JAVA_TOOL_OPTIONS in the Dockerfile); the SPA adds only a few MB of static files.
     mem_limit: 1g
     cpus: 2.0
     networks:
@@ -85,18 +92,17 @@ services:
       - traefik-proxy
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.box-backend.entrypoints=http"
-      - "traefik.http.routers.box-backend.rule=Host(`${TRAEFIK_BACKEND_HOST}`)"
-      - "traefik.http.middlewares.box-backend-https-redirect.redirectscheme.scheme=https"
-      - "traefik.http.routers.box-backend.middlewares=box-backend-https-redirect"
-      - "traefik.http.routers.box-backend-secure.entrypoints=https"
-      - "traefik.http.routers.box-backend-secure.rule=Host(`${TRAEFIK_BACKEND_HOST}`)"
-      - "traefik.http.routers.box-backend-secure.tls=true"
-      - "traefik.http.routers.box-backend-secure.tls.certresolver=http"
-      - "traefik.http.routers.box-backend-secure.service=box-backend"
-      - "traefik.http.services.box-backend.loadbalancer.server.port=8080"
+      - "traefik.http.routers.box.entrypoints=http"
+      - "traefik.http.routers.box.rule=Host(`${TRAEFIK_HOST}`)"
+      - "traefik.http.middlewares.box-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.box.middlewares=box-https-redirect"
+      - "traefik.http.routers.box-secure.entrypoints=https"
+      - "traefik.http.routers.box-secure.rule=Host(`${TRAEFIK_HOST}`)"
+      - "traefik.http.routers.box-secure.tls=true"
+      - "traefik.http.routers.box-secure.tls.certresolver=http"
+      - "traefik.http.routers.box-secure.service=box"
+      - "traefik.http.services.box.loadbalancer.server.port=8080"
       - "traefik.docker.network=traefik-proxy"
-
 
     healthcheck:
       # GET /actuator/health via bash /dev/tcp (no curl in the image); healthy only on "status":"UP" (DB + Redis).
@@ -110,54 +116,6 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_healthy
-
-  frontend:
-    build:
-      context: frontend
-      args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
-    container_name: boxcopilot-frontend
-    environment:
-      # rendered into the nginx CSP (connect-src/img-src); must be a bare origin (scheme://host[:port], no path)
-      API_ORIGIN: ${VITE_API_BASE_URL}
-      # enforce = Content-Security-Policy (default), report = Content-Security-Policy-Report-Only
-      CSP_MODE: ${CSP_MODE:-enforce}
-      # peers whose X-Forwarded-For nginx trusts (CIDR; the Traefik network). Default: Docker's default address pool.
-      REAL_IP_FROM: ${REAL_IP_FROM:-172.16.0.0/12}
-      # production sits behind Traefik TLS; the e2e overlay (plain http) turns this off
-      HSTS_ENABLED: ${HSTS_ENABLED:-true}
-    security_opt:
-      - no-new-privileges:true
-    # nginx (root master, setuid workers, port 80) needs these
-    cap_drop:
-      - ALL
-    cap_add:
-      - CHOWN
-      - SETGID
-      - SETUID
-      - NET_BIND_SERVICE
-    mem_limit: 128m
-    cpus: 0.5
-    networks:
-      - boxcopilot-network
-      - traefik-proxy
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.box.entrypoints=http"
-      - "traefik.http.routers.box.rule=Host(`${TRAEFIK_FRONTEND_HOST}`)"
-      - "traefik.http.middlewares.box-https-redirect.redirectscheme.scheme=https"
-      - "traefik.http.routers.box.middlewares=box-https-redirect"
-      - "traefik.http.routers.box-secure.entrypoints=https"
-      - "traefik.http.routers.box-secure.rule=Host(`${TRAEFIK_FRONTEND_HOST}`)"
-      - "traefik.http.routers.box-secure.tls=true"
-      - "traefik.http.routers.box-secure.tls.certresolver=http"
-      - "traefik.http.routers.box-secure.service=box"
-      - "traefik.http.services.box.loadbalancer.server.port=80"
-      - "traefik.docker.network=traefik-proxy"
-
-    depends_on:
-      backend:
         condition: service_healthy
 
 networks:

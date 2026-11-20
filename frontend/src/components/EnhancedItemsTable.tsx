@@ -77,11 +77,8 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
   // ItemForm ref for edit mode
   const itemFormRef = useRef<{ openEdit: (item: { id: number; name: string; imageUrl?: string }) => void }>(null);
 
-  // Ensure image URLs use API origin (works without nginx proxy)
-  const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-  const withApiBase = (path: string) =>
-    apiBase ? `${apiBase}${path.startsWith('/') ? path : `/${path}`}` : path;
-  const resolveImageUrl = (url?: string) => resolveImagePath(url, withApiBase);
+  // Same-origin: image URLs stay relative to the current origin
+  const resolveImageUrl = (url?: string) => resolveImagePath(url, (path) => path);
 
   const handleEditClick = (item: Item) => {
     const formRef = getItemFormRef();
@@ -152,7 +149,7 @@ const EnhancedItemsTable: React.FC<EnhancedItemsTableProps> = ({
   const handleImageClick = (itemId: number, imageUrl: string) => {
     // Convert thumbnail URL to large image URL
     const largeImageUrl = imageUrl.replace('/image', '/image/large');
-    setFullImageUrl(withApiBase(largeImageUrl));
+    setFullImageUrl(largeImageUrl);
   };
 
   const handleOpenItemActions = (item: Item) => {

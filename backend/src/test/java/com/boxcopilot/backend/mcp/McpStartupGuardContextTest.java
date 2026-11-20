@@ -45,7 +45,7 @@ class McpStartupGuardContextTest {
         runner.withPropertyValues("app.mcp.enabled=true", "app.mcp.redirect-uris=https://claude.ai/cb")
                 .run(context -> assertThat(context.getStartupFailure())
                         .hasRootCauseInstanceOf(IllegalStateException.class)
-                        .rootCause().hasMessageContaining("BACKEND_URL"));
+                        .rootCause().hasMessageContaining("APP_URL"));
     }
 
     @Test

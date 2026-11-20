@@ -22,7 +22,7 @@ STAMP=$(date +%Y%m%d-%H%M%S)
 mkdir -p backups
 
 # 1. Optional but safest: stop writers so that dump and images describe the same moment.
-docker compose stop backend
+docker compose stop app
 
 # 2. Database. The credentials come from the postgres container's own environment.
 docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner' \
@@ -31,11 +31,11 @@ docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES
 # 3. Images, same moment.
 tar -czf "backups/boxpilot-images-$STAMP.tar.gz" -C images .
 
-# 4. Start the backend again.
-docker compose start backend
+# 4. Start the app again.
+docker compose start app
 ```
 
-`docker compose stop backend` costs a short outage (the image volume cannot change while it is stopped).
+`docker compose stop app` costs a short outage (the image volume cannot change while it is stopped).
 If you cannot afford it, skip steps 1 and 4: run steps 2 and 3 back to back during a quiet period and accept that a
 photo uploaded in between may be missing from one of the two. Checks that the backup is complete:
 
@@ -49,11 +49,11 @@ Flyway migrations only go forward, so a dump is the only way back to the previou
 
 ## Restore
 
-Order matters: database first, then images, backend last.
+Order matters: database first, then images, app last.
 
 ```bash
 # 0. Stop everything that uses the data.
-docker compose stop frontend backend
+docker compose stop app
 
 # 1. Empty database. The postgres container must be running.
 docker compose up -d postgres
@@ -65,9 +65,9 @@ gunzip -c backups/boxpilot-db-<STAMP>.sql.gz \
 
 # 3. Replace the image files with the matching copy.
 rm -rf images/* && tar -xzf backups/boxpilot-images-<STAMP>.tar.gz -C images
-sudo chown -R 10001:10001 images        # the backend runs as uid 10001
+sudo chown -R 10001:10001 images        # the app runs as uid 10001
 
-# 4. Start the backend (and the frontend once it is healthy).
+# 4. Start the app.
 docker compose up -d
 ```
 
@@ -83,9 +83,9 @@ Notes:
 
 A backup nobody has restored is a hope. After the first backup, and now and then after that, restore into a throwaway
 stack instead of production, for example on another host or in a separate compose project with its own directory,
-`.env` and different `TRAEFIK_*_HOST` values (or the E2E overlay's ports). Then check:
+`.env` and different `TRAEFIK_HOST` and `APP_URL` values (or the E2E overlay's ports). Then check:
 
-1. The backend becomes healthy (`curl -s http://<host>:8080/actuator/health` answers `{"status":"UP"}`).
+1. The app becomes healthy (`curl -s http://<host>:8080/actuator/health` answers `{"status":"UP"}`).
 2. You can sign in and the box and item counts look right.
 3. A few item images and the public link of a box open (`/public/{uuid}`), which proves the image files match the
    database.

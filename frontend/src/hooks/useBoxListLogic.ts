@@ -85,10 +85,8 @@ export const useBoxListLogic = () => {
     [selectedIds, filteredBoxes]
   );
 
-  const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-  const withApiBase = (path: string) =>
-    apiBase ? `${apiBase}${path.startsWith('/') ? path : `/${path}`}` : path;
-  const resolveImageUrl = (url?: string) => resolveImagePath(url, withApiBase);
+  // Same-origin: image URLs stay relative to the current origin
+  const resolveImageUrl = (url?: string) => resolveImagePath(url, (path) => path);
 
   // === Effects ===
   useEffect(() => {
@@ -485,7 +483,6 @@ export const useBoxListLogic = () => {
     
     // Computed
     resolveImageUrl,
-    withApiBase,
     getBoxItems,
     getBoxItemCount,
     isLoadingItemsForBox,

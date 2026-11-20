@@ -6,6 +6,8 @@ node_modules
 *.db
 data/
 backend/logs/
+# SPA build copied into the backend at Docker build time (generated)
+backend/src/main/resources/static/
 logs/
 images/
 pgdata/

@@ -53,21 +53,11 @@ describe('mcpService', () => {
 });
 
 describe('MCP URLs', () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it('derives the continue and connector URLs from the API base URL', () => {
-    vi.stubEnv('VITE_API_BASE_URL', 'https://api.example.com/');
-
-    expect(getMcpContinueUrl()).toBe('https://api.example.com/api/v1/mcp/continue');
-    expect(getMcpConnectorUrl()).toBe('https://api.example.com/mcp');
-  });
-
-  it('uses a relative continue URL and no connector URL without a configured base URL', () => {
-    vi.stubEnv('VITE_API_BASE_URL', '');
-
+  it('uses a relative continue URL', () => {
     expect(getMcpContinueUrl()).toBe('/api/v1/mcp/continue');
-    expect(getMcpConnectorUrl()).toBeNull();
+  });
+
+  it('derives the connector URL from the current origin', () => {
+    expect(getMcpConnectorUrl()).toBe(`${window.location.origin}/mcp`);
   });
 });

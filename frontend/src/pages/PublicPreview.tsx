@@ -25,11 +25,8 @@ function PublicPreviewContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
-  // Ensure image requests go to the API origin (prod without nginx proxy)
-  const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-  const withApiBase = (path: string) =>
-    apiBase ? `${apiBase}${path.startsWith('/') ? path : `/${path}`}` : path;
-  const resolveImageUrl = (url?: string) => resolveImagePath(url, withApiBase);
+  // Same-origin: image URLs stay relative to the current origin
+  const resolveImageUrl = (url?: string) => resolveImagePath(url, (path) => path);
 
   // Check if user is authenticated
   useEffect(() => {
@@ -211,7 +208,7 @@ function PublicPreviewContent() {
                           {item.imageUrl ? (
                             <ButtonBase
                               aria-label={t('boxes.showPhoto', { name: item.name })}
-                              onClick={() => item.imageUrl && setFullImageUrl(withApiBase(item.imageUrl.replace('/image', '/image/large')))}
+                              onClick={() => item.imageUrl && setFullImageUrl(item.imageUrl.replace('/image', '/image/large'))}
                               sx={{ borderRadius: '50%' }}
                             >
                               <Avatar

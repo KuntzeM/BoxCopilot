@@ -17,7 +17,7 @@ env:
 
 jobs:
   image:
-    name: Image (${{ matrix.image }})
+    name: Image
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -25,10 +25,6 @@ jobs:
       packages: write # push to ghcr.io
       id-token: write # keyless OIDC signing for the attestation
       attestations: write # store the provenance attestation
-    strategy:
-      fail-fast: false
-      matrix:
-        image: [backend, frontend]
     steps:
       - uses: actions/checkout@v7
 
@@ -48,33 +44,33 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           # metadata-action lowercases the reference, as GHCR requires
-          images: ${{ env.REGISTRY }}/${{ github.repository }}-${{ matrix.image }}
+          images: ${{ env.REGISTRY }}/${{ github.repository }}
           # v1.2.3 -> 1.2.3, 1.2, 1 and latest; pre-releases (v1.2.3-rc.1) only get 1.2.3-rc.1
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}},enable=${{ !startsWith(github.ref_name, 'v0.') }}
           labels: |
-            org.opencontainers.image.title=BoxCopilot ${{ matrix.image }}
-            org.opencontainers.image.description=BoxCopilot ${{ matrix.image }} service
+            org.opencontainers.image.title=BoxCopilot
+            org.opencontainers.image.description=BoxCopilot: Spring Boot backend serving the web frontend (single image)
 
       - name: Build and push
         id: push
         uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.image }}
+          context: .
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           provenance: mode=max
           sbom: true
-          cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,scope=${{ matrix.image }},mode=max
+          cache-from: type=gha,scope=image
+          cache-to: type=gha,scope=image,mode=max
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v2
         with:
-          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}-${{ matrix.image }}
+          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true

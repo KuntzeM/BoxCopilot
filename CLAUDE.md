@@ -10,7 +10,7 @@ Rules:
 
 ## Project-wide conventions
 
-BoxCopilot has independent `backend/` and `frontend/` modules. Run Maven commands from `backend/` and npm commands from `frontend/`; there is no root build manifest.
+BoxCopilot has independent `backend/` and `frontend/` modules. Run Maven commands from `backend/` and npm commands from `frontend/`; there is no root build manifest. The root `Dockerfile` builds both into one image: the SPA bundle is copied into `backend/src/main/resources/static/` (generated, git-ignored, never commit it) and Spring Boot serves it with the API on one origin (`APP_URL`).
 
 - **Agent working files:** every file that is not part of the application itself — plans, specs, security audits, review/analysis reports, scratch notes, task lists, generated artifacts and baselines — goes into the top-level `agent/` folder (e.g. `agent/plans/`, `agent/audits/`, `agent/notes/`). Never place such files in `docs/`, `backend/`, `frontend/`, or the repo root. `agent/` is listed in `.gitignore`: never commit it, never `git add -f` anything from it, and never reference its contents from committed files. Only genuine product documentation belongs in `docs/`.
 - Do not commit credentials, runtime data, logs, `target/`, or `node_modules/`.

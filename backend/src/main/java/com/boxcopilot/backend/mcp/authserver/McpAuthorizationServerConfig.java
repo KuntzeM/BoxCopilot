@@ -179,7 +179,9 @@ class McpAuthorizationServerConfig {
                 .requestCache(RequestCacheConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.NEVER))
                 .securityContext(context -> context.securityContextRepository(securityContextRepository))
-                .headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::deny))
+                // HSTS comes only from SecurityHeadersFilter (HSTS_ENABLED), never from Spring Security's default
+                .headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::deny)
+                        .httpStrictTransportSecurity(HeadersConfigurer.HstsConfig::disable))
                 .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(
                         entryPoint(authorizeMatcher, pendingCookies, frontendUrl)))
                 .addFilterAfter(new McpConsentCsrfFilter(consentSubmission, csrfRequestHandler), CsrfFilter.class)

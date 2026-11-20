@@ -106,7 +106,44 @@ class StartupGuardTest {
             environment.setProperty(key, "x");
         }
         environment.setProperty("spring.datasource.url", POSTGRES_URL);
+        environment.setProperty("frontend.url", "https://box.example.com");
         return environment;
+    }
+
+    @Test
+    void prodAcceptsAppUrlOrigins() {
+        for (String url : new String[] {"https://box.example.com", "http://localhost:8080", "HTTPS://Box.Example.com:8443"}) {
+            MockEnvironment environment = completeProd();
+            environment.setProperty("frontend.url", url);
+
+            assertThatCode(() -> new StartupGuard(environment).afterPropertiesSet()).as(url).doesNotThrowAnyException();
+        }
+    }
+
+    /** APP_URL is joined with paths (OIDC redirect URI, magic links, MCP issuer): only a bare origin works. */
+    @Test
+    void prodRejectsAppUrlThatIsNotABareOrigin() {
+        for (String url : new String[] {"https://box.example.com/", "https://box.example.com/app",
+                "https://box.example.com?x=1", "https://box.example.com#top", "ftp://box.example.com",
+                "box.example.com", "https://", "https://user@box.example.com", "not a url"}) {
+            MockEnvironment environment = completeProd();
+            environment.setProperty("frontend.url", url);
+
+            assertThatThrownBy(() -> new StartupGuard(environment).afterPropertiesSet())
+                    .as(url)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("APP_URL")
+                    .hasMessageContaining("http(s)://host[:port]");
+        }
+    }
+
+    @Test
+    void appUrlShapeIsNotCheckedOutsideProd() {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("dev");
+        environment.setProperty("frontend.url", "http://localhost:3000/");
+
+        assertThatCode(() -> new StartupGuard(environment).afterPropertiesSet()).doesNotThrowAnyException();
     }
 
     @Test
@@ -115,7 +152,6 @@ class StartupGuardTest {
         environment.setActiveProfiles("prod");
         // application-prod.yml leaves an unresolvable placeholder behind when the variable is unset
         environment.setProperty("spring.data.redis.password", "${REDIS_PASSWORD}");
-        environment.setProperty("frontend.url", "http://front");
 
         assertThatThrownBy(() -> new StartupGuard(environment).afterPropertiesSet())
                 .isInstanceOf(IllegalStateException.class)
@@ -125,8 +161,34 @@ class StartupGuardTest {
                 .hasMessageContaining("CLIENT_SECRET")
                 .hasMessageContaining("NEXTCLOUD_URL")
                 .hasMessageContaining("NEXTCLOUD_LOGOUT_URL")
-                .hasMessageContaining("VITE_API_BASE_URL")
+                .hasMessageContaining("APP_URL")
+                .hasMessageNotContaining("VITE_API_BASE_URL")
                 .hasMessageNotContaining("FRONTEND_URL");
+    }
+
+    /** APP_URL feeds both the SPA/redirect URL and the OIDC redirect URI; it is named once, whichever is missing. */
+    @Test
+    void prodNamesAppUrlOnceWhenEitherOfItsPropertiesIsMissing() {
+        for (String key : new String[] {"frontend.url",
+                "spring.security.oauth2.client.registration.nextcloud.redirect-uri"}) {
+            MockEnvironment environment = completeProd();
+            environment.setProperty(key, "${APP_URL}");
+
+            assertThatThrownBy(() -> new StartupGuard(environment).afterPropertiesSet())
+                    .as(key)
+                    .hasMessage("Missing required configuration for profile 'prod': APP_URL");
+        }
+    }
+
+    @Test
+    void prodNamesAppUrlOnceWhenBothOfItsPropertiesAreMissing() {
+        MockEnvironment environment = completeProd();
+        environment.setProperty("frontend.url", "${APP_URL}");
+        environment.setProperty("spring.security.oauth2.client.registration.nextcloud.redirect-uri",
+                "${APP_URL}/login/oauth2/code/{registrationId}");
+
+        assertThatThrownBy(() -> new StartupGuard(environment).afterPropertiesSet())
+                .hasMessage("Missing required configuration for profile 'prod': APP_URL");
     }
 
     @Test
