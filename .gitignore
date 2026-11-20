@@ -12,3 +12,6 @@ pgdata/
 .DS_Store
 graphify-out/
 .superpowers/
+
+# Agent working files (plans, audits, notes) - never commit
+agent/

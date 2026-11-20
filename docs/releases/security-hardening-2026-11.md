@@ -1,6 +1,6 @@
 # Security hardening (2026-11) - breaking operational changes
 
-See `docs/security-audit-2026-11-19.md` for the findings. Check these before upgrading:
+Check these before upgrading:
 
 - **ACTION REQUIRED: run `flyway repair` once before upgrading.** `flyway.validate-on-migrate` is now `true` in
   production. Migrations V6, V9 and V10 were edited after release (see `git log` for those files), so a database that

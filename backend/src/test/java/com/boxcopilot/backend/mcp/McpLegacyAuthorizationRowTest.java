@@ -36,8 +36,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * An {@code oauth2_authorization} row written by Spring Authorization Server 1.5 on Boot 3.5 (Jackson 2 type
  * info in {@code attributes} and the token metadata), read by Boot 4 / Spring Security 7.
  *
- * <p>The fixture is {@code docs/superpowers/plans/artifacts/baseline-3.5/legacy-authorization-row.sql}, copied
- * byte for byte to {@code src/test/resources/mcp/}: the registered client and the authorization the real
+ * <p>The fixture is {@code src/test/resources/mcp/legacy-authorization-row.sql}, taken
+ * byte for byte from the 3.5 baseline: the registered client and the authorization the real
  * authorization-code + refresh flow left behind (throwaway values, see the baseline README).
  *
  * <p><b>Observed on Spring Security 7.1.2:</b> the rows load. The default
