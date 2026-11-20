@@ -10,7 +10,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # 2) Backend: Maven package with the SPA copied into src/main/resources/static (git-ignored, generated here).
-FROM maven:3.9.12-eclipse-temurin-21 AS backend
+FROM maven:3.9-eclipse-temurin-26 AS backend
 WORKDIR /workspace
 # Dependencies first: this layer is only rebuilt when pom.xml changes.
 COPY backend/pom.xml ./
