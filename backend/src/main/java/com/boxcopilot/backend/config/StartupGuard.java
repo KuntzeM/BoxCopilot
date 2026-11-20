@@ -8,6 +8,8 @@ import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Component;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -83,6 +85,29 @@ public class StartupGuard implements InitializingBean {
         }
     }
 
+    /**
+     * APP_URL is joined with paths (OIDC redirect URI, login redirects, magic links, MCP issuer), so it must be a
+     * bare origin: a trailing slash or a path would yield URLs such as {@code https://host//login/oauth2/code/...}.
+     */
+    private void requireAppUrlIsAnOrigin() {
+        String value = environment.getProperty("frontend.url");
+        URI uri;
+        try {
+            uri = new URI(value);
+        } catch (URISyntaxException e) {
+            uri = null;
+        }
+        boolean origin = uri != null && uri.getScheme() != null
+                && ("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))
+                && uri.getHost() != null && uri.getRawUserInfo() == null
+                && (uri.getRawPath() == null || uri.getRawPath().isEmpty())
+                && uri.getRawQuery() == null && uri.getRawFragment() == null;
+        if (!origin) {
+            throw new IllegalStateException("APP_URL must be the bare public origin http(s)://host[:port] - no path, "
+                    + "trailing slash, query or fragment (got '" + value + "')");
+        }
+    }
+
     /** A leaked dev profile or default would otherwise run production on an H2 file with the well-known admin password. */
     private void rejectDevSettingsInProd() {
         if (environment.acceptsProfiles(Profiles.of("dev"))) {
@@ -121,6 +146,7 @@ public class StartupGuard implements InitializingBean {
             }
             if (!environment.acceptsProfiles(Profiles.of(TEST_PROFILE))) {
                 rejectDevSettingsInProd();
+                requireAppUrlIsAnOrigin();
             }
         }
         if (!environment.acceptsProfiles(Profiles.of(TEST_PROFILE))) {

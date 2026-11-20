@@ -90,6 +90,14 @@ app:
       authorization-requests-per-minute: ${APP_MCP_AUTHORIZATION_REQUESTS_PER_MINUTE:30}
       failed-token-lookups-per-minute: ${APP_MCP_FAILED_TOKEN_LOOKUPS_PER_MINUTE:30}
 
+# gzip for the SPA's static files, as the frontend nginx did. Static types only: JSON answers carry CSRF tokens and
+# user data, and compressing them would invite BREACH-style attacks.
+server:
+  compression:
+    enabled: true
+    mime-types: text/html,text/css,text/javascript,application/javascript,image/svg+xml
+    min-response-size: 1024
+
 # Actuator: only /actuator/health is reachable, anonymously (OAuth2SecurityConfig permits exactly that path).
 # It answers {"status":"UP"} / {"status":"DOWN"} (HTTP 200 / 503) without component details. The status is the
 # aggregate of the auto-configured contributors: db (DataSource), redis (prod only; excluded in dev), diskSpace, ping.

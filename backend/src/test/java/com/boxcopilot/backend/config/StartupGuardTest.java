@@ -106,7 +106,44 @@ class StartupGuardTest {
             environment.setProperty(key, "x");
         }
         environment.setProperty("spring.datasource.url", POSTGRES_URL);
+        environment.setProperty("frontend.url", "https://box.example.com");
         return environment;
+    }
+
+    @Test
+    void prodAcceptsAppUrlOrigins() {
+        for (String url : new String[] {"https://box.example.com", "http://localhost:8080", "HTTPS://Box.Example.com:8443"}) {
+            MockEnvironment environment = completeProd();
+            environment.setProperty("frontend.url", url);
+
+            assertThatCode(() -> new StartupGuard(environment).afterPropertiesSet()).as(url).doesNotThrowAnyException();
+        }
+    }
+
+    /** APP_URL is joined with paths (OIDC redirect URI, magic links, MCP issuer): only a bare origin works. */
+    @Test
+    void prodRejectsAppUrlThatIsNotABareOrigin() {
+        for (String url : new String[] {"https://box.example.com/", "https://box.example.com/app",
+                "https://box.example.com?x=1", "https://box.example.com#top", "ftp://box.example.com",
+                "box.example.com", "https://", "https://user@box.example.com", "not a url"}) {
+            MockEnvironment environment = completeProd();
+            environment.setProperty("frontend.url", url);
+
+            assertThatThrownBy(() -> new StartupGuard(environment).afterPropertiesSet())
+                    .as(url)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("APP_URL")
+                    .hasMessageContaining("http(s)://host[:port]");
+        }
+    }
+
+    @Test
+    void appUrlShapeIsNotCheckedOutsideProd() {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("dev");
+        environment.setProperty("frontend.url", "http://localhost:3000/");
+
+        assertThatCode(() -> new StartupGuard(environment).afterPropertiesSet()).doesNotThrowAnyException();
     }
 
     @Test

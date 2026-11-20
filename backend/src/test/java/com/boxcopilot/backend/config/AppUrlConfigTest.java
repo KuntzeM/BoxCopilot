@@ -95,4 +95,16 @@ class AppUrlConfigTest {
         assertThat(env(Map.of("APP_URL", APP_URL), "application.yml", "application-dev.yml")
                 .getProperty("frontend.url")).isEqualTo(APP_URL);
     }
+
+    /** gzip for the SPA's static types only; JSON stays uncompressed (BREACH). */
+    @Test
+    void compressionCoversStaticTypesOnly() throws IOException {
+        StandardEnvironment env = prod(Map.of("APP_URL", APP_URL));
+
+        assertThat(env.getProperty("server.compression.enabled")).isEqualTo("true");
+        assertThat(env.getProperty("server.compression.min-response-size")).isEqualTo("1024");
+        assertThat(env.getProperty("server.compression.mime-types"))
+                .isEqualTo("text/html,text/css,text/javascript,application/javascript,image/svg+xml")
+                .doesNotContain("json");
+    }
 }
