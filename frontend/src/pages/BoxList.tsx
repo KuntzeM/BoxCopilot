@@ -141,7 +141,6 @@ export default function BoxList() {
     drawerOpen,
     selectedBoxForActions,
     resolveImageUrl,
-    withApiBase,
     getBoxItems,
     getBoxItemCount,
     isLoadingItemsForBox,
@@ -390,7 +389,7 @@ export default function BoxList() {
                         sx={{ borderRadius: '50%', flexShrink: 0 }}
                         onClick={() => {
                           if (item.imageUrl) {
-                            setFullImageUrl(withApiBase(item.imageUrl.replace('/image', '/image/large')));
+                            setFullImageUrl(item.imageUrl.replace('/image', '/image/large'));
                           }
                         }}
                       >
@@ -423,7 +422,7 @@ export default function BoxList() {
         </Collapse>
       </Box>
     </Paper>
-  ), [selectedIds, expandedBoxes, t, resolveImageUrl, withApiBase, matchedItemIds, theme, isMobile, getBoxItems, getBoxItemCount, isLoadingItemsForBox]);
+  ), [selectedIds, expandedBoxes, t, resolveImageUrl, matchedItemIds, theme, isMobile, getBoxItems, getBoxItemCount, isLoadingItemsForBox]);
 
   return (
     <Box sx={{ width: '100%', pb: isMobile ? 16 : 4 }}>

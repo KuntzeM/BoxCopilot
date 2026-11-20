@@ -72,9 +72,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
   };
 
   const handleNextcloudLogin = () => {
-    // Empty base URL = same origin (reverse proxy), consistent with the other API helpers
-    const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-    window.location.href = `${apiBaseUrl}/oauth2/authorization/nextcloud`;
+    window.location.href = '/oauth2/authorization/nextcloud';
   };
 
   return (

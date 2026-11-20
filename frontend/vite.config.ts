@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
 
-  const apiBaseUrl = env.VITE_API_BASE_URL || `http://localhost:${env.BACKEND_PORT || 8080}`
+  const apiBaseUrl = `http://localhost:${env.BACKEND_PORT || 8080}`
   const port = Number(env.VITE_FRONTEND_PORT || env.FRONTEND_PORT || 5173)
 
   return {
@@ -46,6 +46,14 @@ export default defineConfig(({ mode }) => {
           target: apiBaseUrl,
           changeOrigin: true,
           credentials: 'include',
+        },
+        '/mcp': {
+          target: apiBaseUrl,
+          changeOrigin: true,
+        },
+        '/.well-known': {
+          target: apiBaseUrl,
+          changeOrigin: true,
         },
       },
     },

@@ -14,7 +14,7 @@ BoxCopilot frontend is React 19 + TypeScript + Vite with Material UI. Run comman
 
 ## Rules
 
-- Keep API paths, credentials, error handling, and response shapes compatible with the backend. Vite proxies `/api`, `/oauth2`, and `/login` during development.
+- Keep API paths, credentials, error handling, and response shapes compatible with the backend. The frontend is same-origin: use relative URLs only (no API base URL env var; axios `baseURL` is empty). In production Spring Boot serves the built SPA; in development Vite proxies `/api`, `/oauth2`, `/login`, `/mcp`, and `/.well-known` to the backend.
 - Add or update TypeScript types when an API response changes; do not use broad `any` to bypass mismatches.
 - Put reusable API behavior in `services/`, not directly in multiple components.
 - Use existing context/hooks for auth and shared state. Avoid duplicating session or user state locally.

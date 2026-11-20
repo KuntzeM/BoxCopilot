@@ -98,10 +98,9 @@ describe('useMcpContinue', () => {
   it('navigates top-level to the backend continue URL by default', () => {
     const assign = vi.fn();
     vi.stubGlobal('location', { ...window.location, assign });
-    vi.stubEnv('VITE_API_BASE_URL', 'https://api.example.com');
 
     renderHook(() => useMcpContinue(true, true));
 
-    expect(assign).toHaveBeenCalledWith('https://api.example.com/api/v1/mcp/continue');
+    expect(assign).toHaveBeenCalledWith('/api/v1/mcp/continue');
   });
 });

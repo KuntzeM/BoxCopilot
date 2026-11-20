@@ -1,7 +1,8 @@
 import axios from 'axios';
 
 // Configure axios defaults
-axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL;
+// Same-origin: the SPA is served by the backend (Vite proxies in dev), so URLs stay relative
+axios.defaults.baseURL = '';
 axios.defaults.withCredentials = true;
 
 // Ensure CSRF token is read from cookie and sent as header

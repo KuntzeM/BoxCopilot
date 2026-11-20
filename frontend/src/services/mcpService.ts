@@ -2,25 +2,17 @@ import axios from './axiosConfig';
 import { McpClientInfo } from '../types/models';
 
 /**
- * Backend base URL as used by axios, without a trailing slash. Empty when the SPA talks to a same-origin backend.
- */
-function getApiBaseUrl(): string {
-  return (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-}
-
-/**
  * URL that resumes a pending MCP authorization after login. It must be opened as a top-level navigation.
  */
 export function getMcpContinueUrl(): string {
-  return `${getApiBaseUrl()}/api/v1/mcp/continue`;
+  return '/api/v1/mcp/continue';
 }
 
 /**
- * URL of the MCP endpoint to enter in the Claude connector, or null when the backend base URL is not configured.
+ * URL of the MCP endpoint to enter in the Claude connector, derived from the current origin.
  */
-export function getMcpConnectorUrl(): string | null {
-  const base = getApiBaseUrl();
-  return base ? `${base}/mcp` : null;
+export function getMcpConnectorUrl(): string {
+  return `${window.location.origin}/mcp`;
 }
 
 /**
