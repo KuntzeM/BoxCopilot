@@ -111,7 +111,11 @@ async function login(page, user, pass) {
   await page.goto(FRONT + '/app/boxes');
   await submitLogin(page, user, pass);
 }
-const loggedIn = (page) => page.getByRole('button', { name: 'Abmelden' }).waitFor({ timeout: 10000 });
+// The avatar menu button is the signed-in marker; Admin / Abmelden live inside that menu.
+const menuButton = (page) => page.getByRole('button', { name: 'Menü', exact: true });
+const loggedIn = (page) => menuButton(page).waitFor({ timeout: 10000 });
+const openMenu = async (page) => { await menuButton(page).click(); await page.getByRole('menuitem', { name: 'Abmelden' }).waitFor(); };
+const logoutViaMenu = async (page) => { await openMenu(page); await page.getByRole('menuitem', { name: 'Abmelden' }).click(); };
 const adminRow = (p, name) => p.getByRole('row', { name: new RegExp(name) });
 const thumb = (p, name = ITEM) => p.getByRole('button', { name: `Foto von ${name} anzeigen` }).locator('img').first();
 async function thumbLoads(p, msg) {
@@ -189,7 +193,9 @@ try {
     await passField(page).fill(PASS);
     await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
     await loggedIn(page);
-    await page.getByRole('link', { name: 'Admin' }).waitFor();
+    await openMenu(page);
+    await page.getByRole('menuitem', { name: 'Admin' }).waitFor();
+    await page.keyboard.press('Escape');
     ok(await hasSession(ctx), 'no SESSION cookie after login');
     await shot(page, '02-boxlist');
   });
@@ -283,7 +289,7 @@ try {
     await page.getByText(`Aktuell: Flur-${RUN}`).waitFor();
     await page.getByLabel('Item-Name').fill(ITEM);
     await page.getByText(`Aktuell: Flur-${RUN}`).waitFor();
-    await until(async () => (await page.getByRole('heading', { name: /^Box #\d+/ }).count()) === 1, 'filter did not narrow list to the single box');
+    await until(async () => (await page.getByRole('button', { name: /^Box \d+ auswählen$/ }).count()) === 1, 'filter did not narrow list to the single box');
     await shot(page, '07-search');
     await page.getByLabel('Item-Name').fill('zzz-no-such-item-' + RUN);
     await page.getByText('Keine Boxen gefunden').waitFor({ timeout: 8000 });
@@ -439,7 +445,7 @@ try {
       // admin is untouched
       ok((await apiStatus(page, '/api/v1/boxes')) === 200, 'admin session ended by resetting another user');
       await page.reload();
-      await page.getByRole('button', { name: 'Abmelden' }).waitFor();
+      await loggedIn(page);
 
       // old password rejected, new one works
       const bad = await apiPost(n.ctx.request, '/api/auth/login', { form: { username: NEWUSER, password: NEWPASS } });
@@ -489,7 +495,7 @@ try {
     allow(/\/api\//, 401, 403);
     await page.getByLabel('Item-Name').fill(ITEM);
     await userField(page).waitFor({ timeout: 10000 });
-    ok(!(await page.getByRole('button', { name: 'Abmelden' }).count()), 'stale authenticated UI still visible');
+    ok(!(await menuButton(page).count()), 'stale authenticated UI still visible');
     await shot(page, '16-expired');
   });
 
@@ -497,7 +503,7 @@ try {
     await submitLogin(page, USER, PASS);
     await loggedIn(page);
     const lo = captureLogout(page);
-    await page.getByRole('button', { name: 'Abmelden' }).click();
+    await logoutViaMenu(page);
     const { status: ls, body: lb } = await lo;
     ok(ls === 200, `POST /api/auth/logout answered ${ls} (expected 200 JSON)`);
     ok(typeof lb.redirectUrl === 'string' && lb.redirectUrl.startsWith(FRONT), `form-login logout redirectUrl should be the frontend, got ${JSON.stringify(lb)}`);
@@ -521,7 +527,9 @@ try {
       await p.locator('input[type=submit], button[type=submit]').first().click();
       await p.waitForURL((u) => u.origin === FRONT, { timeout: 20000 });
       await loggedIn(p);
-      ok((await p.getByRole('button', { name: 'Admin' }).count()) === 0, 'OIDC user sees Admin button');
+      await openMenu(p);
+      ok((await p.getByRole('menuitem', { name: 'Admin' }).count()) === 0, 'OIDC user sees Admin entry');
+      await p.keyboard.press('Escape');
       const me = await p.evaluate(async (u) => (await fetch(u + '/api/v1/me', { credentials: 'include' })).json(), API);
       ok(me.username === OIDC_USER || me.username?.includes(OIDC_USER), `mapped username unexpected: ${me.username}`);
       ok(me.name === 'E2E Nextcloud', `mapped name unexpected: ${me.name}`);
@@ -529,7 +537,7 @@ try {
       // OIDC logout: backend answers JSON {redirectUrl} (IdP end-session), the SPA navigates there top-level and comes back
       const lo = captureLogout(p);
       const idp = p.waitForResponse((r) => r.request().isNavigationRequest() && /oidc\.localhost:9090\/.*endsession/.test(r.url()), { timeout: 15000 });
-      await p.getByRole('button', { name: 'Abmelden' }).click();
+      await logoutViaMenu(p);
       const { status: ls, body: lb } = await lo;
       ok(ls === 200, `OIDC logout answered ${ls} (expected 200 JSON)`);
       ok(/oidc\.localhost:9090\/.*endsession/.test(lb.redirectUrl || ''), `OIDC logout redirectUrl is not the IdP end-session URL: ${JSON.stringify(lb)}`);
@@ -557,7 +565,7 @@ try {
       await shot(m.page, '19-mobile-login');
       ok(sw <= cw, `login overflow ${sw} > ${cw}`);
       await login(m.page, USER, PASS);
-      await m.page.getByRole('heading', { name: 'Boxen' }).waitFor();
+      await loggedIn(m.page);
       await m.page.getByText(`Aktuell: Flur-${RUN}`).waitFor();
       [sw, cw] = await over(m.page);
       await shot(m.page, '19-mobile-boxlist');
@@ -653,7 +661,7 @@ try {
       if (userCreated && !userDeleted) await deleteUserViaUi(c.page, NEWUSER).catch((e) => console.log('        (warn) user cleanup failed: ' + String(e.message).split('\n')[0]));
       ok(boxNo, 'box was never created, nothing to clean up');
       await c.page.goto(FRONT + '/app/boxes');
-      const heading = c.page.getByRole('heading', { name: `Box #${boxNo}`, exact: true });
+      const heading = c.page.getByRole('button', { name: `Box ${boxNo} auswählen`, exact: true }); // the box's number tag
       await heading.waitFor({ timeout: 8000 });
       const tile = c.page.locator('div').filter({ has: heading }).filter({ has: c.page.getByRole('button', { name: 'Aktionen' }) }).last();
       await tile.getByRole('button', { name: 'Aktionen' }).click();
