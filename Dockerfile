@@ -2,7 +2,7 @@
 # browser talks to a single origin. Build from the repository root: docker build -t boxpilot .
 
 # 1) Frontend: Vite production build. Relative URLs only, no build-time API base URL.
-FROM node:26-alpine AS frontend
+FROM node:26.13.1-alpine AS frontend
 WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
