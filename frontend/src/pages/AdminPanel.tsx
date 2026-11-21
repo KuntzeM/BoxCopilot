@@ -1110,7 +1110,7 @@ export default function AdminPanel() {
           onClick={openCreateDialog}
           sx={{
             position: 'fixed',
-            bottom: 80,
+            bottom: 'calc(96px + env(safe-area-inset-bottom))',
             right: 16,
             zIndex: 1000,
           }}

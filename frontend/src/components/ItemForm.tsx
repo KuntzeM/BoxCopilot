@@ -44,6 +44,8 @@ interface ItemFormProps {
   onAddItem?: () => void;
   onUpdateItem?: () => void;
   hideFab?: boolean;
+  /** Changing to a new truthy value opens the create dialog (used by the app shell's primary action). */
+  openSignal?: number;
 }
 
 interface EditItem {
@@ -67,6 +69,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
   onAddItem,
   onUpdateItem,
   hideFab = false,
+  openSignal,
 }) => {
   const { t } = useTranslation();
   const theme = useTheme();
@@ -245,6 +248,10 @@ export const ItemForm: React.FC<ItemFormProps> = ({
     setPhotoFailure(null);
     setError(null);
   };
+
+  useEffect(() => {
+    if (openSignal) handleOpen();
+  }, [openSignal]);
 
   const handleClose = () => {
     stopCamera();
@@ -635,7 +642,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({
           size="large"
           sx={{
             position: 'fixed',
-                        bottom: { xs: 'calc(16px + env(safe-area-inset-bottom))', md: 24 },
+                        bottom: { xs: 'calc(96px + env(safe-area-inset-bottom))', md: 24 },
             right: 16,
             zIndex: 1050,
           }}
@@ -768,13 +775,14 @@ export const ItemForm: React.FC<ItemFormProps> = ({
           </Stack>
         </DialogContent>
 
-        <DialogActions sx={{ p: 2, gap: 1, flexWrap: 'wrap' }}>
+        <DialogActions sx={{ p: 2, gap: 1, flexWrap: 'wrap', '& > :not(style)': { m: 0 }, [theme.breakpoints.down('sm')]: { flexDirection: 'column-reverse', alignItems: 'stretch', '& > *': { width: '100%' } } }}>
           <Button onClick={handleClose} disabled={submitting} sx={{ minHeight: 48 }}>
             {t('common.cancel')}
           </Button>
           {!isEditMode && (
             <Button
-              variant="outlined"
+              variant="contained"
+              size="large"
               onClick={() => void submit(true)}
               disabled={submitting || !!photoFailure || !name.trim()}
             >
@@ -783,7 +791,8 @@ export const ItemForm: React.FC<ItemFormProps> = ({
           )}
           <Button
             type="submit"
-            variant="contained"
+            variant={isEditMode ? 'contained' : 'outlined'}
+            size={isEditMode ? 'large' : 'medium'}
             disabled={submitting || !!photoFailure || !name.trim()}
           >
             {submitting ? (

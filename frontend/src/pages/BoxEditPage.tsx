@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useTheme } from '@mui/material/styles';
 import { Box, Button, ButtonBase, Paper, Typography, Alert, CircularProgress, Stack, Snackbar, Collapse, TextField, IconButton, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { LocalShipping, ArrowBack, Save, ExpandMore, ExpandLess, Print, ContentCopy, Autorenew, Edit } from '@mui/icons-material';
 import * as boxService from '../services/boxService';
@@ -8,7 +9,7 @@ import { Box as BoxType, Item, UpdateItemPayload } from '../types/models';
 import BoxForm, { BoxFormData } from '../components/BoxForm';
 import EnhancedItemsTable from '../components/EnhancedItemsTable';
 import { ItemForm } from '../components/ItemForm';
-import { TILE, FONT_MONO } from '../context/ThemeContext';
+import { FONT_MONO } from '../context/ThemeContext';
 import { useTranslation } from '../hooks/useTranslation';
 import { extractApiError } from '../services/apiError';
 import { generateLabelPdf } from '../utils/labelPdf';
@@ -18,6 +19,16 @@ const BoxEditPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const theme = useTheme();
+  const { pathname, state } = useLocation();
+  const navState = state as { intent?: string; at?: number } | null;
+  const [openItemSignal, setOpenItemSignal] = useState(0);
+  // The shell's primary action arrives as router state: consume it so a reload does not reopen the dialog.
+  useEffect(() => {
+    if (navState?.intent !== 'item') return;
+    setOpenItemSignal((n) => n + 1);
+    navigate(pathname, { replace: true, state: null });
+  }, [navState?.at]);
 
   const [box, setBox] = useState<BoxType | null>(null);
   const [items, setItems] = useState<Item[]>([]);
@@ -280,14 +291,42 @@ const BoxEditPage: React.FC = () => {
       </Stack>
 
       <Paper variant="outlined" sx={{ p: 0, mb: 3, overflow: 'hidden' }}>
-        <Stack direction="row" spacing={2} sx={{ bgcolor: TILE.bg, color: TILE.ink, p: 2, alignItems: 'flex-end', justifyContent: 'space-between' }}>
-          <Box sx={{ minWidth: 0 }}>
-            <Typography sx={{ fontWeight: 800 }}>{formData.currentRoom || '-'} → {formData.targetRoom || '-'}</Typography>
-            {formData.isFragile && <Typography sx={{ fontFamily: FONT_MONO, fontWeight: 800, fontSize: 12 }}>{t('boxes.fragile').toUpperCase()}</Typography>}
-          </Box>
-          <Typography aria-hidden sx={{ fontFamily: FONT_MONO, fontWeight: 800, fontSize: 'clamp(56px, 20vw, 96px)', lineHeight: 0.85, letterSpacing: '-0.08em' }}>
+        <Stack direction="row" spacing={2} sx={{ p: 2, alignItems: 'center' }}>
+          <Box
+            aria-hidden
+            sx={{
+              position: 'relative',
+              width: 88,
+              height: 88,
+              flexShrink: 0,
+              borderRadius: '18px 18px 18px 5px',
+              border: `2px dashed ${theme.palette[formData.isMovedToTarget ? 'success' : 'primary'].main}`,
+              color: formData.isMovedToTarget ? 'success.main' : 'primary.main',
+              display: 'flex',
+              alignItems: 'flex-end',
+              justifyContent: 'flex-end',
+              p: 1.25,
+              fontFamily: FONT_MONO,
+              fontWeight: 600,
+              fontSize: 40,
+              lineHeight: 1,
+              letterSpacing: '-0.05em',
+              '&::before': { content: '""', position: 'absolute', top: 9, left: 9, width: 10, height: 10, borderRadius: '50%', bgcolor: 'divider' },
+            }}
+          >
             {box.boxNumber}
-          </Typography>
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontWeight: 650, fontSize: '1.15rem', lineHeight: 1.25 }}>
+              {formData.currentRoom || '-'} → {formData.targetRoom || '-'}
+            </Typography>
+            {formData.description && (
+              <Typography variant="body2" color="text.secondary" noWrap>{formData.description}</Typography>
+            )}
+            {formData.isFragile && (
+              <Typography variant="caption" sx={{ fontFamily: FONT_MONO, color: 'warning.main', fontWeight: 600 }}>{t('boxes.fragile')}</Typography>
+            )}
+          </Box>
         </Stack>
         <Button
           fullWidth
@@ -380,6 +419,8 @@ const BoxEditPage: React.FC = () => {
           <ItemForm
             onAddItem={handleAddItem}
             boxId={box.id}
+            hideFab
+            openSignal={openItemSignal}
             isLoading={isSaving || isLoading}
             onSuccess={handleSuccess}
             onError={handleError}
@@ -423,7 +464,7 @@ const BoxEditPage: React.FC = () => {
         autoHideDuration={4000}
         onClose={() => setSnackbar(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        sx={{ bottom: { xs: 'calc(16px + env(safe-area-inset-bottom))', md: 24 } }}
+        sx={{ bottom: { xs: 'calc(88px + env(safe-area-inset-bottom))', md: 24 } }}
       >
         <Alert severity={snackbar?.severity} onClose={() => setSnackbar(null)}>
           {snackbar?.message}

@@ -7,16 +7,15 @@ import {
   Toolbar, 
   Typography, 
   Box, 
-  Button, 
   Paper,
   CircularProgress, 
   IconButton,
-  Drawer,
-  List,
-  ListItem,
+  Avatar,
+  ButtonBase,
   ListItemIcon,
   ListItemText,
-  ListItemButton,
+  Menu,
+  MenuItem,
   Divider,
   useMediaQuery,
   useTheme,
@@ -26,7 +25,8 @@ import {
   WbSunny,
   DarkMode,
   Logout,
-  Menu as MenuIcon,
+  Add,
+  Search,
   Language as LanguageIcon,
   AdminPanelSettings,
   SmartToy,
@@ -36,11 +36,10 @@ import PublicPreview from './pages/PublicPreview';
 import LoginPage from './pages/LoginPage';
 import MagicLoginPage from './pages/MagicLoginPage';
 import ClaudeConnectionDialog from './components/ClaudeConnectionDialog';
-import { CookieThemeProvider, useThemeContext } from './context/ThemeContext';
+import { CookieThemeProvider, useThemeContext, FONT_MONO } from './context/ThemeContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { useTranslation } from './hooks/useTranslation';
 import { useMcpContinue } from './hooks/useMcpContinue';
-import LanguageSelector from './components/LanguageSelector';
 import { Role, UserPrincipal } from './types/models';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -91,22 +90,30 @@ function ProtectedRoute({
   return children;
 }
 
+/** Navigation intent passed via router state so the thumb bar / rail work from every screen (BoxList reads it). */
+export type NavIntent = { intent: 'search' | 'new' | 'item'; at: number };
+
 function AppShell({ children, user }: { children: React.ReactNode; user: UserPrincipal | null }) {
   const { toggleTheme, mode } = useThemeContext();
-  const { t } = useTranslation();
+  const { t, language, setLanguage } = useTranslation();
   const navigate = useNavigate();
   const theme = useTheme();
-  // <900px: bottom nav (+ hamburger for theme/language/logout); >=900px: side rail + full top bar.
-  // jsdom has no matchMedia, so tests render the wide (rail) layout.
+  // <900px: bottom thumb bar; >=900px: left rail. jsdom has no matchMedia, so tests render the wide (rail) layout.
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   // Hooks must run unconditionally: a short-circuited useMatch crashed the app when crossing 900px live.
   const onBoxes = !!useMatch('/app/boxes/*');
   const onBoxList = !!useMatch('/app/boxes');
   const wideSplit = !isMobile && onBoxes;
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const onBoxEdit = !!useMatch('/app/boxes/:id/edit');
+  const { pathname } = useLocation();
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [claudeDialogOpen, setClaudeDialogOpen] = useState(false);
+  const isAdmin = hasAdminAccess(user);
+  const displayName = user?.name || user?.username || '';
+  const initial = (displayName.trim()[0] || '?').toUpperCase();
 
   const handleLogout = async () => {
+    setMenuAnchor(null);
     try {
       // Same-origin answer {redirectUrl}: the IdP end-session URL (OIDC users) or the frontend itself.
       const { data } = await axios.post<{ redirectUrl?: string }>('/api/auth/logout');
@@ -118,168 +125,224 @@ function AppShell({ children, user }: { children: React.ReactNode; user: UserPri
     }
   };
 
-  const handleCloseMobileMenu = () => {
-    setMobileMenuOpen(false);
-  };
+  const go = (intent?: NavIntent['intent']) =>
+    navigate('/app/boxes', { state: intent ? ({ intent, at: Date.now() } satisfies NavIntent) : undefined });
+  // Inside a box the primary action adds an item (stay on the page); everywhere else it creates a box.
+  const primaryLabel = onBoxEdit ? t('items.addNew') : t('boxes.createNew');
+  const primaryAction = () =>
+    onBoxEdit ? navigate(pathname, { state: { intent: 'item', at: Date.now() } satisfies NavIntent }) : go('new');
+  const closeMenu = () => setMenuAnchor(null);
 
-  const handleMobileThemeToggle = () => {
-    toggleTheme();
-    handleCloseMobileMenu();
-  };
+  const navItemSx = (active: boolean) => ({
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 0.25,
+    minWidth: 64,
+    minHeight: 56,
+    borderRadius: 2,
+    color: active ? 'primary.main' : 'text.secondary',
+    fontFamily: FONT_MONO,
+    fontSize: 11,
+    fontWeight: 600,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+    '&:hover': { color: 'text.primary' },
+  });
 
-  const handleMobileLogout = async () => {
-    handleCloseMobileMenu();
-    await handleLogout();
-  };
+  const newBoxButton = (
+    <ButtonBase
+      onClick={primaryAction}
+      aria-label={primaryLabel}
+      sx={{
+        width: isMobile ? 60 : 56,
+        height: isMobile ? 60 : 56,
+        borderRadius: '18px',
+        bgcolor: 'primary.main',
+        color: 'primary.contrastText',
+        mt: isMobile ? -3 : 0,
+        border: isMobile ? `4px solid ${theme.palette.background.default}` : 'none',
+        '&:hover': { bgcolor: 'primary.dark' },
+      }}
+    >
+      <Add />
+    </ButtonBase>
+  );
+
+  const navBoxes = (
+    <ButtonBase
+      component={RouterLink}
+      to="/app/boxes"
+      aria-current={onBoxes ? 'page' : undefined}
+      sx={navItemSx(onBoxes)}
+    >
+      <Inventory2 />
+      {t('boxes.boxes')}
+    </ButtonBase>
+  );
+  const navSearch = (
+    <ButtonBase onClick={() => go('search')} sx={navItemSx(false)}>
+      <Search />
+      {t('app.search')}
+    </ButtonBase>
+  );
+  const hasAdminGroup = isAdmin || user?.mcpAllowed === true;
 
   return (
-    <Box>
-      <AppBar position="static" elevation={2}>
-        <Toolbar>
+    <Box sx={{ minHeight: '100vh' }}>
+      <AppBar position="sticky">
+        <Toolbar sx={{ gap: 1, minHeight: { xs: 56, md: 64 } }}>
           <Box
             component={RouterLink}
             to="/app/boxes"
-            sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'inherit', textDecoration: 'none' }}
+            sx={{ display: 'flex', alignItems: 'center', gap: 1.25, color: 'inherit', textDecoration: 'none' }}
             aria-label={t('app.title')}
           >
-            <Inventory2 />
-            <Typography variant="h6" component="div">
+            <Box
+              aria-hidden
+              sx={{
+                width: 30,
+                height: 30,
+                borderRadius: '8px 8px 8px 3px',
+                border: `2px dashed ${theme.palette.primary.main}`,
+                display: 'grid',
+                placeItems: 'center',
+                color: 'primary.main',
+              }}
+            >
+              <Inventory2 sx={{ fontSize: 16 }} />
+            </Box>
+            <Typography variant="h6" component="div" sx={{ fontFamily: FONT_MONO, fontWeight: 600, fontSize: '1.05rem' }}>
               {t('app.title')}
             </Typography>
           </Box>
 
           <Box sx={{ flexGrow: 1 }} />
-          
-          {/* Mobile: Hamburger Menu */}
-          {isMobile && (
-            <IconButton
-              onClick={() => setMobileMenuOpen(true)}
-              color="inherit"
-              aria-label={t('app.menu')}
-              size="large"
-              sx={{ minWidth: 48, minHeight: 48 }}
-            >
-              <MenuIcon />
-            </IconButton>
-          )}
-          
-          {/* Desktop: All Controls */}
-          {!isMobile && (
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-              {hasAdminAccess(user) && (
-                <Button color="inherit" startIcon={<AdminPanelSettings />} component={RouterLink} to="/app/admin">
-                  {t('app.admin')}
-                </Button>
-              )}
-              {user?.mcpAllowed === true && (
-                <Button color="inherit" startIcon={<SmartToy />} onClick={() => setClaudeDialogOpen(true)}>
-                  {t('mcp.title')}
-                </Button>
-              )}
-              <IconButton
-                onClick={toggleTheme}
-                color="inherit"
-                aria-label={t('theme.toggleDarkMode')}
-                size="medium"
-              >
-                {mode === 'light' ? <DarkMode /> : <WbSunny />}
-              </IconButton>
-              <LanguageSelector variant="icon" />
-              {user && (
-                <Typography variant="body2" sx={{ ml: 1, fontWeight: 600 }}>
-                  {user.name || user.username}
-                </Typography>
-              )}
-              <Button
-                color="inherit"
-                startIcon={<Logout />}
-                onClick={handleLogout}
-                sx={{ ml: 1 }}
-              >
-                {t('auth.logout')}
-              </Button>
-            </Box>
-          )}
+
+          <IconButton
+            onClick={(e) => setMenuAnchor(e.currentTarget)}
+            aria-label={t('app.menu')}
+            aria-haspopup="menu"
+            aria-expanded={menuAnchor ? 'true' : undefined}
+            sx={{ p: 0.5 }}
+          >
+            <Avatar sx={{ width: 36, height: 36, bgcolor: 'background.paper', color: 'primary.main', border: 1, borderColor: 'divider', fontFamily: FONT_MONO, fontWeight: 600, fontSize: 15 }}>
+              {initial}
+            </Avatar>
+          </IconButton>
         </Toolbar>
       </AppBar>
 
-      {/* Mobile Menu Drawer */}
-      <Drawer
-        anchor="right"
-        open={mobileMenuOpen}
-        onClose={handleCloseMobileMenu}
-        slotProps={{
-          paper: { sx: { width: 280 } },
-        }}
+      {/* Overflow menu: preferences first, admin tucked away in its own small group */}
+      <Menu
+        anchorEl={menuAnchor}
+        open={Boolean(menuAnchor)}
+        onClose={closeMenu}
+        slotProps={{ paper: { sx: { minWidth: 260, mt: 1 } } }}
       >
-        <Box sx={{ pt: 2 }}>
-          <List>
-            {/* User Info */}
-            <ListItem sx={{ pb: 2 }}>
-              <Box>
-                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                  {user?.name || user?.username}
-                </Typography>
-                {user?.name && user?.username && (
-                  <Typography variant="caption" color="text.secondary">
-                    {user.username}
-                  </Typography>
-                )}
-              </Box>
-            </ListItem>
-            <Divider />
-
-            {hasAdminAccess(user) && (
-              <ListItemButton component={RouterLink} to="/app/admin" onClick={handleCloseMobileMenu} sx={{ minHeight: 56 }}>
-                <ListItemIcon><AdminPanelSettings /></ListItemIcon>
-                <ListItemText primary={t('app.admin')} />
-              </ListItemButton>
-            )}
-            {user?.mcpAllowed === true && (
-              <ListItemButton onClick={() => { handleCloseMobileMenu(); setClaudeDialogOpen(true); }} sx={{ minHeight: 56 }}>
-                <ListItemIcon><SmartToy /></ListItemIcon>
-                <ListItemText primary={t('mcp.title')} />
-              </ListItemButton>
-            )}
-
-            {/* Theme Toggle */}
-            <ListItem sx={{ minHeight: 56 }}>
-              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                <IconButton
-                  onClick={handleMobileThemeToggle}
-                  color="inherit"
-                  aria-label={t('theme.toggleDarkMode')}
-                  size="large"
-                >
-                  {mode === 'dark' ? <WbSunny /> : <DarkMode />}
-                </IconButton>
-                <LanguageSelector variant="icon" buttonSx={{ ml: 0 }} />
-              </Box>
-            </ListItem>
-
-            <Divider />
-
-            {/* Logout */}
-            <ListItemButton onClick={handleMobileLogout} sx={{ minHeight: 56 }}>
-              <ListItemIcon>
-                <Logout color="error" />
-              </ListItemIcon>
-              <ListItemText primary={t('auth.logout')} />
-            </ListItemButton>
-          </List>
+        <Box role="presentation" sx={{ px: 2, py: 1.25 }}>
+          <Typography variant="subtitle1" sx={{ lineHeight: 1.2 }}>{displayName}</Typography>
+          {user?.name && user?.username && (
+            <Typography variant="caption" color="text.secondary" sx={{ fontFamily: FONT_MONO }}>{user.username}</Typography>
+          )}
         </Box>
-      </Drawer>
+        <Divider />
+        <MenuItem onClick={() => toggleTheme()} sx={{ minHeight: 48 }}>
+          <ListItemIcon>{mode === 'light' ? <DarkMode fontSize="small" /> : <WbSunny fontSize="small" />}</ListItemIcon>
+          <ListItemText>{t('theme.toggleDarkMode')}</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={() => setLanguage(language === 'de' ? 'en' : 'de')} sx={{ minHeight: 48 }}>
+          <ListItemIcon><LanguageIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>{language === 'de' ? t('language.german') : t('language.english')}</ListItemText>
+          <Typography variant="caption" color="text.secondary" sx={{ fontFamily: FONT_MONO }}>
+            {language === 'de' ? 'DE → EN' : 'EN → DE'}
+          </Typography>
+        </MenuItem>
+        {hasAdminGroup && <Divider />}
+        {hasAdminGroup && (
+          <Typography role="presentation" variant="overline" color="text.secondary" sx={{ px: 2, pt: 0.5, display: 'block' }}>
+            {t('app.administration')}
+          </Typography>
+        )}
+        {isAdmin && (
+          <MenuItem component={RouterLink} to="/app/admin" onClick={closeMenu} sx={{ minHeight: 48 }}>
+            <ListItemIcon><AdminPanelSettings fontSize="small" /></ListItemIcon>
+            <ListItemText>{t('app.admin')}</ListItemText>
+          </MenuItem>
+        )}
+        {user?.mcpAllowed === true && (
+          <MenuItem onClick={() => { closeMenu(); setClaudeDialogOpen(true); }} sx={{ minHeight: 48 }}>
+            <ListItemIcon><SmartToy fontSize="small" /></ListItemIcon>
+            <ListItemText>{t('mcp.title')}</ListItemText>
+          </MenuItem>
+        )}
+        <Divider />
+        <MenuItem onClick={handleLogout} sx={{ minHeight: 48 }}>
+          <ListItemIcon><Logout fontSize="small" color="error" /></ListItemIcon>
+          <ListItemText>{t('auth.logout')}</ListItemText>
+        </MenuItem>
+      </Menu>
 
-      <Container
-        component="main"
-        maxWidth={wideSplit ? false : 'lg'}
-        sx={{ mt: wideSplit ? 2 : 4, mb: 4, ...(wideSplit && { maxWidth: 1440 }), ...(isMobile && { maxWidth: onBoxList ? 960 : 720 }) }}
-      >
-        <ErrorBoundary>
-          <Suspense fallback={<CircularProgress aria-label="loading" />}>{children}</Suspense>
-        </ErrorBoundary>
-      </Container>
+      <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
+        {/* Wide: the same three actions as a left rail */}
+        {!isMobile && (
+          <Box
+            component="nav"
+            aria-label={t('app.navigation')}
+            sx={{ position: 'sticky', top: 64, width: 88, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5, py: 3, borderRight: 1, borderColor: 'divider', minHeight: 'calc(100vh - 64px)' }}
+          >
+            {newBoxButton}
+            {navBoxes}
+            {navSearch}
+          </Box>
+        )}
 
+        <Container
+          component="main"
+          maxWidth={wideSplit ? false : 'lg'}
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            mt: wideSplit ? 2 : { xs: 2, md: 4 },
+            mb: isMobile ? 14 : 4,
+            ...(wideSplit && { maxWidth: 1440 }),
+            ...(isMobile && { maxWidth: onBoxList ? 960 : 720 }),
+          }}
+        >
+          <ErrorBoundary>
+            <Suspense fallback={<CircularProgress aria-label="loading" />}>{children}</Suspense>
+          </ErrorBoundary>
+        </Container>
+      </Box>
+
+      {/* Phone: thumb bar with the raised primary action in the centre */}
+      {isMobile && (
+        <Box
+          component="nav"
+          aria-label={t('app.navigation')}
+          sx={{
+            position: 'fixed',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 1100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-around',
+            px: 1,
+            pt: 0.5,
+            pb: 'calc(4px + env(safe-area-inset-bottom))',
+            bgcolor: 'background.default',
+            borderTop: 1,
+            borderColor: 'divider',
+          }}
+        >
+          {navBoxes}
+          {newBoxButton}
+          {navSearch}
+        </Box>
+      )}
 
       {user?.mcpAllowed === true && (
         <ClaudeConnectionDialog open={claudeDialogOpen} onClose={() => setClaudeDialogOpen(false)} />

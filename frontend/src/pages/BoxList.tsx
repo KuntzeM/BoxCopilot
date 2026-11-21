@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Alert,
@@ -23,27 +23,25 @@ import {
   useMediaQuery,
   useTheme,
   Avatar,
-  Fab,
+  Badge,
+  InputAdornment,
   Drawer,
   List,
-  ListItem,
   ListItemIcon,
   ListItemText,
   ListItemButton,
-  Menu,
-  MenuItem,
   CircularProgress,
   alpha,
 } from '@mui/material';
-import { TILE, FONT_MONO } from '../context/ThemeContext';
+import { FONT_MONO, SURFACE } from '../context/ThemeContext';
 import {
   Add,
+  Check,
   ExpandMore,
   ExpandLess,
   ContentCopy,
   Delete,
   Edit,
-  Link as LinkIcon,
   Print,
   Search,
   OpenInNew,
@@ -55,8 +53,6 @@ import {
   MoreVert,
   LocalShipping,
   Label,
-  EditNote,
-  DoneAll,
   Inventory2,
 } from '@mui/icons-material';
 import { Box as BoxModel } from '../types/models';
@@ -77,25 +73,26 @@ interface BoxHandlingBadgesProps {
 const BoxHandlingBadges: React.FC<BoxHandlingBadgesProps> = ({ box }) => {
   const { t } = useTranslation();
 
-  if (!box.isFragile && !box.noStack && !box.labelPrinted && !box.isMovedToTarget) {
+  // Quiet by default: only boxes that need care show flags. "Moved" is already carried by the green tag and check.
+  if (!box.isFragile && !box.noStack && !box.labelPrinted) {
     return null;
   }
 
   // Every status is an icon + text label, never colour alone
-  const flagSx = { fontWeight: 700, maxWidth: '100%' } as const;
+  const flagSx = { fontWeight: 600, maxWidth: '100%' } as const;
   return (
-    <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
+    <Box sx={{ display: 'flex', gap: 0.75, mt: 0.75, flexWrap: 'wrap', alignItems: 'center' }}>
       {box.isFragile && (
-        <Chip icon={<BrokenImage />} label={t('boxes.fragile')} size="small" sx={{ ...flagSx, bgcolor: '#ffa726', color: TILE.ink, '& .MuiChip-icon': { color: TILE.ink } }} />
+        <Chip icon={<BrokenImage />} label={t('boxes.fragile')} size="small" variant="outlined" sx={{ ...flagSx, borderColor: 'warning.main', color: 'warning.main', '& .MuiChip-icon': { color: 'warning.main' } }} />
       )}
       {box.noStack && (
-        <Chip icon={<DoNotDisturb />} label={t('boxes.noStack')} variant="outlined" size="small" sx={{ ...flagSx, borderWidth: 2, borderColor: 'text.primary', color: 'text.primary', '& .MuiChip-icon': { color: 'text.primary' } }} />
+        <Chip icon={<DoNotDisturb />} label={t('boxes.noStack')} variant="outlined" size="small" sx={{ ...flagSx, borderColor: 'divider', color: 'text.secondary', '& .MuiChip-icon': { color: 'text.secondary' } }} />
       )}
       {box.labelPrinted && (
-        <Chip icon={<Label />} label={t('boxes.labelPrinted')} color="primary" variant="outlined" size="small" sx={flagSx} />
-      )}
-      {box.isMovedToTarget && (
-        <Chip icon={<LocalShipping />} label={t('boxes.moved')} color="success" size="small" sx={flagSx} />
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, fontFamily: FONT_MONO }}>
+          <Label sx={{ fontSize: 14 }} aria-hidden />
+          {t('boxes.labelPrinted')}
+        </Typography>
       )}
     </Box>
   );
@@ -152,6 +149,7 @@ export default function BoxList() {
     loadData,
     handleResetFilter,
     toggleSelect,
+    clearSelection,
     toggleExpandBox,
     handlePrintLabels,
     handleOpenBoxDialog,
@@ -167,7 +165,8 @@ export default function BoxList() {
   } = useBoxListLogic();
 
   // Master-detail keeps this list mounted while boxes are created/edited in the detail pane: refresh quietly on route change.
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
   const firstRoute = useRef(true);
   useEffect(() => {
     if (firstRoute.current) {
@@ -181,7 +180,6 @@ export default function BoxList() {
   const activeFilters = [filterFragile, filterNoStack, filterLabelPrinted, roomQuery.trim() !== ''].filter(Boolean).length;
 
   // Bulk update state
-  const [bulkMenuAnchor, setBulkMenuAnchor] = useState<null | HTMLElement>(null);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [setLabelPrintedAfterPrint, setSetLabelPrintedAfterPrint] = useState(true);
 
@@ -194,7 +192,6 @@ export default function BoxList() {
       await Promise.all(
         selectedBoxes.map((box) => updateBox(box.id, { isMovedToTarget: !allMoved }))
       );
-      setBulkMenuAnchor(null);
       await loadData();
     } catch (err) {
       setSnackbar({ open: true, message: t('errors.boxUpdateFailed'), severity: 'error' });
@@ -210,7 +207,6 @@ export default function BoxList() {
       await Promise.all(
         selectedBoxes.map((box) => updateBox(box.id, { labelPrinted: !allPrinted }))
       );
-      setBulkMenuAnchor(null);
       await loadData();
     } catch (err) {
       setSnackbar({ open: true, message: t('errors.boxUpdateFailed'), severity: 'error' });
@@ -256,144 +252,215 @@ export default function BoxList() {
   };
 
 
-  // Render a single box card (for both regular and virtualized rendering)
-  const renderBoxCard = useCallback((box: BoxModel) => (
-    <Paper
-      key={box.id}
-      variant="outlined"
-      sx={{
-        position: 'relative',
-        overflow: 'hidden',
-        ...(box.isFragile && {
-          boxShadow: `inset 6px 0 0 ${theme.palette.primary.main}`,
-        }),
-      }}
-    >
-      <Box sx={{ p: 2 }}>
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start', flex: 1, minWidth: 0 }}>
-            <Checkbox
-              checked={selectedIds.includes(box.id)}
-              onChange={() => toggleSelect(box.id)}
-              sx={{ p: 0, width: 48, height: 48, flexShrink: 0 }}
-              slotProps={{ input: { 'aria-label': t('boxes.selectBox', { number: box.boxNumber }) } }}
-            />
-            <ButtonBase
-              component="div"
-              role="link"
-              aria-label={t('boxes.openBox', { number: box.boxNumber ?? 0 })}
-              sx={{
-                flex: 1,
-                minWidth: 0,
-                display: 'block',
-                textAlign: 'left',
-                borderRadius: 1,
-                '&:hover': {
-                  opacity: 0.8
-                }
-              }}
-              onClick={() => navigate(`/app/boxes/${box.id}/edit`)}
-            >
-              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start', minWidth: 0 }}>
-                <Box
-                  aria-hidden
-                  sx={{
-                    bgcolor: TILE.bg,
-                    color: TILE.ink,
-                    borderRadius: 0.5,
-                    width: 72,
-                    aspectRatio: '1',
-                    alignSelf: 'flex-start',
-                    flexShrink: 0,
-                    boxSizing: 'border-box',
-                    px: 1,
-                    py: 0.75,
-                    display: 'flex',
-                    alignItems: 'flex-end',
-                    justifyContent: 'flex-end',
-                    fontFamily: FONT_MONO,
-                    fontWeight: 800,
-                    fontSize: 32,
-                    lineHeight: 0.9,
-                    letterSpacing: '-0.07em',
-                  }}
-                >
-                  {box.boxNumber ?? 0}
-                </Box>
-                <Box sx={{ minWidth: 0, flex: 1, overflowWrap: 'break-word' }}>
-                  <Typography variant="h6" sx={{ lineHeight: 1.2 }}>{t('boxes.boxNumber', { number: box.boxNumber ?? 0 })}</Typography>
-              <Typography variant="body2" color="text.secondary" component="div" sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 0.5 }}>
-                <span style={srOnly}>{t('boxes.current')}: </span>
-                <span>{box.currentRoom || '-'}</span>
-                <ArrowForward aria-hidden sx={{ fontSize: 16 }} />
-                <span style={srOnly}>{t('boxes.target')}: </span>
-                <span>{box.targetRoom || '-'}</span>
-              </Typography>
-              {box.description && (
-                <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mt: 0.5 }}>
-                  {truncateToFirstLine(box.description)}
-                </Typography>
-              )}
-              <BoxHandlingBadges box={box} />
-                </Box>
-              </Stack>
-            </ButtonBase>
-          </Stack>
+  // One-tap "moved" with undo instead of a confirm dialog
+  const [undo, setUndo] = useState<{ open: boolean; id: number; number: number; wasMoved: boolean }>({ open: false, id: 0, number: 0, wasMoved: false });
+  const searchRef = useRef<HTMLInputElement>(null);
 
-          <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+  const handleQuickMoved = async (box: BoxModel) => {
+    const wasMoved = !!box.isMovedToTarget;
+    try {
+      await updateBox(box.id, { isMovedToTarget: !wasMoved });
+      await loadData(true);
+      setUndo({ open: true, id: box.id, number: box.boxNumber ?? 0, wasMoved });
+    } catch (err) {
+      setSnackbar({ open: true, message: t('errors.boxUpdateFailed'), severity: 'error' });
+      console.error(err);
+    }
+  };
+
+  const handleUndo = async () => {
+    setUndo((u) => ({ ...u, open: false }));
+    try {
+      await updateBox(undo.id, { isMovedToTarget: undo.wasMoved });
+      await loadData(true);
+    } catch (err) {
+      setSnackbar({ open: true, message: t('errors.boxUpdateFailed'), severity: 'error' });
+      console.error(err);
+    }
+  };
+
+  // Thumb bar / rail actions arrive as router state (see AppShell)
+  const intent = (location.state as { intent?: 'search' | 'new' | 'item'; at?: number } | null) ?? null;
+  useEffect(() => {
+    if (!intent?.at || (intent.intent !== 'new' && intent.intent !== 'search')) return;
+    if (intent.intent === 'new') {
+      handleOpenBoxDialog();
+    } else if (intent.intent === 'search') {
+      searchRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      searchRef.current?.focus();
+    }
+    // Consume the intent so a reload or back navigation does not repeat it
+    navigate(pathname, { replace: true, state: null });
+  }, [intent?.at]);
+
+  // Progress ledger: one tick per box, grouped per target room (a room chip doubles as the room filter)
+  const ledger = useMemo(() => {
+    const total = allBoxes.length;
+    const moved = allBoxes.filter((b) => b.isMovedToTarget).length;
+    const rooms = new Map<string, { moved: number; total: number }>();
+    allBoxes.forEach((b) => {
+      const room = (b.targetRoom || '').trim();
+      if (!room) return;
+      const r = rooms.get(room) ?? { moved: 0, total: 0 };
+      r.total += 1;
+      if (b.isMovedToTarget) r.moved += 1;
+      rooms.set(room, r);
+    });
+    return { total, moved, rooms: [...rooms.entries()].sort((a, b) => b[1].total - a[1].total) };
+  }, [allBoxes]);
+
+  const outline = SURFACE[theme.palette.mode].outline;
+  const barButtonSx = { minHeight: 44, borderColor: 'divider', whiteSpace: 'nowrap' } as const;
+
+  // Render a single box card
+  const renderBoxCard = (box: BoxModel) => {
+    const selected = selectedIds.includes(box.id);
+    const moved = !!box.isMovedToTarget;
+    const hits = matchedItemIds.size > 0 ? getBoxItems(box).filter((i) => matchedItemIds.has(i.id)) : [];
+    const tagColor = moved ? theme.palette.success.main : theme.palette.primary.main;
+    return (
+      <Paper
+        key={box.id}
+        variant="outlined"
+        sx={{
+          position: 'relative',
+          overflow: 'hidden',
+          borderRadius: 3.5,
+          borderColor: selected ? 'primary.main' : 'divider',
+          boxShadow: selected ? `0 0 0 1px ${theme.palette.primary.main}` : 'none',
+          transition: 'border-color .15s, box-shadow .15s',
+          ...(box.isFragile && !moved && { borderLeft: `4px solid ${theme.palette.warning.main}` }),
+        }}
+      >
+        <Box sx={{ p: 1.5, display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+          {/* The shipping tag: its number is the box identity, tapping it selects the box */}
+          <ButtonBase
+            onClick={() => toggleSelect(box.id)}
+            aria-pressed={selected}
+            aria-label={t('boxes.selectBox', { number: box.boxNumber })}
+            sx={{
+              position: 'relative',
+              width: 68,
+              height: 68,
+              flexShrink: 0,
+              borderRadius: '14px 14px 14px 4px',
+              border: `2px ${selected ? 'solid' : 'dashed'} ${tagColor}`,
+              bgcolor: selected ? tagColor : 'transparent',
+              color: selected ? (moved ? 'success.contrastText' : 'primary.contrastText') : tagColor,
+              fontFamily: FONT_MONO,
+              fontWeight: 600,
+              fontSize: 28,
+              letterSpacing: '-0.04em',
+              display: 'flex',
+              alignItems: 'flex-end',
+              justifyContent: 'flex-end',
+              p: 1,
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 7,
+                left: 7,
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                bgcolor: selected ? 'background.paper' : 'divider',
+              },
+            }}
+          >
+            <span aria-hidden>{box.boxNumber ?? 0}</span>
+          </ButtonBase>
+
+          <ButtonBase
+            component="div"
+            role="link"
+            sx={{ flex: 1, minWidth: 0, display: 'block', textAlign: 'left', borderRadius: 1, '&:hover': { opacity: 0.85 } }}
+            onClick={() => navigate(`/app/boxes/${box.id}/edit`)}
+          >
+            <Typography component="div" sx={{ fontWeight: 650, lineHeight: 1.25, display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 0.5 }}>
+              <span style={srOnly}>{t('boxes.current')}: </span>
+              <span>{box.currentRoom || '-'}</span>
+              <ArrowForward aria-hidden sx={{ fontSize: 16, color: 'text.secondary' }} />
+              <span style={srOnly}>{t('boxes.target')}: </span>
+              <span>{box.targetRoom || '-'}</span>
+            </Typography>
+            {box.description && (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }} noWrap>
+                {truncateToFirstLine(box.description)}
+              </Typography>
+            )}
+            {hits.length > 0 && (
+              <Typography variant="caption" sx={{ fontFamily: FONT_MONO, color: 'primary.main', display: 'block', mt: 0.5 }}>
+                {t('boxes.contains', { name: hits.map((i) => i.name).join(', ') })}
+              </Typography>
+            )}
+            <BoxHandlingBadges box={box} />
+          </ButtonBase>
+
+          <Stack sx={{ flexShrink: 0, alignItems: 'center' }}>
             <IconButton
-              size="medium"
+              onClick={() => handleQuickMoved(box)}
+              aria-label={t('boxes.markMoved')}
+              aria-pressed={moved}
+              title={moved ? t('boxes.unmarkMoved') : t('boxes.markMoved')}
+              sx={{
+                width: 44,
+                height: 44,
+                border: `1.5px solid ${moved ? theme.palette.success.main : outline}`,
+                bgcolor: moved ? 'success.main' : 'transparent',
+                color: moved ? 'success.contrastText' : 'text.secondary',
+                '&:hover': { bgcolor: moved ? 'success.main' : 'action.hover', color: moved ? 'success.contrastText' : 'success.main' },
+              }}
+            >
+              <Check />
+            </IconButton>
+            <IconButton
               title={t('boxes.actions')}
               aria-label={t('boxes.actions')}
               onClick={() => handleOpenBoxActions(box)}
-              color="primary"
-              sx={{ minWidth: 48, minHeight: 48, flexShrink: 0 }}
+              sx={{ color: 'text.secondary' }}
             >
               <MoreVert />
             </IconButton>
           </Stack>
-        </Stack>
-      </Box>
+        </Box>
 
-      <Divider />
+        <Divider />
 
-      <Box sx={{ p: 2 }}>
-        <ButtonBase
-          onClick={() => toggleExpandBox(box)}
-          aria-expanded={expandedBoxes.has(box.id)}
-          aria-label={t('boxes.expandItems', { number: box.boxNumber ?? 0 })}
-          sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', minHeight: 48, justifyContent: 'flex-start', borderRadius: 1, userSelect: 'none' }}
-        >
-          {expandedBoxes.has(box.id) ? <ExpandLess /> : <ExpandMore />}
-          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-            {getBoxItemCount(box) === 1 ? t('items.itemsCountOne') : t('items.itemsCount', { count: getBoxItemCount(box) })}
-          </Typography>
-        </ButtonBase>
+        <Box sx={{ px: 1.5, py: 0.5 }}>
+          <ButtonBase
+            onClick={() => toggleExpandBox(box)}
+            aria-expanded={expandedBoxes.has(box.id)}
+            aria-label={t('boxes.expandItems', { number: box.boxNumber ?? 0 })}
+            sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', minHeight: 44, justifyContent: 'flex-start', borderRadius: 1, userSelect: 'none', color: 'text.secondary' }}
+          >
+            {expandedBoxes.has(box.id) ? <ExpandLess /> : <ExpandMore />}
+            <Typography variant="body2" sx={{ fontFamily: FONT_MONO, fontWeight: 500 }}>
+              {getBoxItemCount(box) === 1 ? t('items.itemsCountOne') : t('items.itemsCount', { count: getBoxItemCount(box) })}
+            </Typography>
+          </ButtonBase>
 
-        <Collapse in={expandedBoxes.has(box.id)} timeout="auto" unmountOnExit>
-          <Stack spacing={1.5} sx={{ mt: 2 }}>
-            {isLoadingItemsForBox(box.id) ? (
-              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                <CircularProgress size={18} />
-                <Typography variant="body2" color="text.secondary">
-                  {t('common.loading')}
-                </Typography>
-              </Stack>
-            ) : getBoxItems(box).length > 0 ? (
-              getBoxItems(box).map((item) => (
-                <Paper
-                  key={item.id}
-                  variant="outlined"
-                  sx={{
-                    p: 1.25,
-                    borderRadius: 1.5,
-                    borderColor: matchedItemIds.has(item.id) ? theme.palette.primary.main : undefined,
-                    backgroundColor: matchedItemIds.has(item.id)
-                      ? theme.palette.primary.main + '22'
-                      : undefined,
-                  }}
-                >
-                  <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+          <Collapse in={expandedBoxes.has(box.id)} timeout="auto" unmountOnExit>
+            <Stack spacing={1} sx={{ pb: 1.5, pt: 0.5 }}>
+              {isLoadingItemsForBox(box.id) ? (
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                  <CircularProgress size={18} />
+                  <Typography variant="body2" color="text.secondary">
+                    {t('common.loading')}
+                  </Typography>
+                </Stack>
+              ) : getBoxItems(box).length > 0 ? (
+                getBoxItems(box).map((item) => (
+                  <Stack
+                    key={item.id}
+                    direction="row"
+                    spacing={1.5}
+                    sx={{
+                      alignItems: 'center',
+                      p: 1,
+                      borderRadius: 2,
+                      bgcolor: matchedItemIds.has(item.id) ? alpha(theme.palette.primary.main, 0.14) : 'action.hover',
+                    }}
+                  >
                     {item.imageUrl ? (
                       <ButtonBase
                         aria-label={t('boxes.showPhoto', { name: item.name })}
@@ -404,177 +471,171 @@ export default function BoxList() {
                           }
                         }}
                       >
-                        <Avatar
-                          src={resolveImageUrl(item.imageUrl)}
-                          alt=""
-                          slotProps={{ img: { loading: 'lazy' } }}
-                          sx={{ width: 40, height: 40 }}
-                        />
+                        <Avatar src={resolveImageUrl(item.imageUrl)} alt="" slotProps={{ img: { loading: 'lazy' } }} sx={{ width: 40, height: 40 }} />
                       </ButtonBase>
                     ) : (
-                      <Avatar sx={{ width: 40, height: 40, bgcolor: 'grey.300', flexShrink: 0 }}>
+                      <Avatar sx={{ width: 40, height: 40, bgcolor: 'background.default', color: 'text.secondary', flexShrink: 0 }}>
                         <Inventory2 fontSize="small" />
                       </Avatar>
                     )}
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                        {item.name}
-                      </Typography>
-                    </Box>
+                    <Typography variant="body2" sx={{ fontWeight: 500, minWidth: 0 }}>
+                      {item.name}
+                    </Typography>
                   </Stack>
-                </Paper>
-              ))
-            ) : (
-              <Typography variant="body2" color="text.secondary">
-                {t('items.noItemsInBox')}
-              </Typography>
-            )}
-          </Stack>
-        </Collapse>
-      </Box>
-    </Paper>
-  ), [selectedIds, expandedBoxes, t, resolveImageUrl, matchedItemIds, theme, isMobile, getBoxItems, getBoxItemCount, isLoadingItemsForBox]);
+                ))
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  {t('items.noItemsInBox')}
+                </Typography>
+              )}
+            </Stack>
+          </Collapse>
+        </Box>
+      </Paper>
+    );
+  };
 
   return (
-    <Box sx={{ width: '100%', minWidth: 0, containerType: 'inline-size', pb: isMobile ? 14 : 4 }}>
+    <Box sx={{ width: '100%', minWidth: 0, containerType: 'inline-size', pb: 4 }}>
       <Stack spacing={2} sx={{ mb: 2 }}>
-        {allBoxes.length > 0 && (() => {
-          const total = allBoxes.length;
-          const moved = allBoxes.filter((b) => b.isMovedToTarget).length;
-          return (
-            <Paper variant="outlined" sx={{ p: 2 }} role="group" aria-label={t('boxes.progressMoved', { moved, total })}>
-              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'baseline', flexWrap: 'wrap' }}>
-                <Typography component="span" sx={{ fontFamily: FONT_MONO, fontWeight: 800, fontSize: 'clamp(44px, 14vw, 72px)', lineHeight: 0.9, letterSpacing: '-0.08em', color: 'primary.main' }}>
-                  {moved}
-                </Typography>
-                <Typography component="span" variant="h6">
-                  {t('boxes.progressMoved', { moved: '', total }).replace(/^\s+/, '')}
-                </Typography>
+        {ledger.total > 0 && (
+          <Paper variant="outlined" sx={{ p: 2, borderRadius: 3.5 }} role="group" aria-label={t('boxes.progressMoved', { moved: ledger.moved, total: ledger.total })}>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'baseline', flexWrap: 'wrap' }}>
+              <Typography component="span" sx={{ fontFamily: FONT_MONO, fontWeight: 600, fontSize: 40, lineHeight: 1, letterSpacing: '-0.04em', color: 'success.main' }}>
+                {ledger.moved}
+                <Box component="span" sx={{ color: 'text.secondary', fontSize: 24 }}>/{ledger.total}</Box>
+              </Typography>
+              <Typography component="span" color="text.secondary">
+                {t('boxes.progressOf')}
+              </Typography>
+            </Stack>
+            <Box aria-hidden sx={{ mt: 1.5, display: 'flex', gap: '3px' }}>
+              {Array.from({ length: Math.min(ledger.total, 30) }, (_, i) => {
+                const filled = i < Math.round((ledger.moved / ledger.total) * Math.min(ledger.total, 30));
+                return <Box key={i} sx={{ flex: 1, height: 14, borderRadius: '3px', bgcolor: filled ? 'success.main' : 'divider' }} />;
+              })}
+            </Box>
+            {ledger.rooms.length > 0 && (
+              <Stack direction="row" spacing={1} role="group" aria-label={t('boxes.targetRoomFilter')} sx={{ mt: 1.5, overflowX: 'auto', scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' }, '& > *': { flexShrink: 0 } }}>
+                {ledger.rooms.map(([room, r]) => {
+                  const active = roomQuery.trim().toLowerCase() === room.toLowerCase();
+                  return (
+                    <ButtonBase
+                      key={room}
+                      onClick={() => setRoomQuery(active ? '' : room)}
+                      aria-pressed={active}
+                      sx={{
+                        minHeight: 44,
+                        px: 1.5,
+                        borderRadius: 2,
+                        border: 1,
+                        borderColor: active ? 'primary.main' : outline,
+                        bgcolor: active ? 'primary.main' : 'transparent',
+                        color: active ? 'primary.contrastText' : 'text.primary',
+                        fontFamily: FONT_MONO,
+                        fontSize: 13,
+                        fontWeight: 500,
+                        gap: 0.75,
+                      }}
+                    >
+                      {room}
+                      <Box component="span">{r.moved}/{r.total}</Box>
+                    </ButtonBase>
+                  );
+                })}
               </Stack>
-              <Box aria-hidden sx={{ mt: 1.5, height: 16, bgcolor: 'divider', borderRadius: 0.5, overflow: 'hidden' }}>
-                <Box sx={{ width: `${(moved / total) * 100}%`, height: '100%', bgcolor: TILE.bg }} />
-              </Box>
-            </Paper>
-          );
-        })()}
-        <Stack
-          direction="row"
-          spacing={1}
-          role="group"
-          aria-label={t('boxes.statusFilter')}
-          sx={{ overflowX: 'auto', pb: 0.5, '& > *': { flexShrink: 0 } }}
-        >
-          {([['open', 'boxes.statusOpen'], ['all', 'boxes.statusAll'], ['moved', 'boxes.statusMoved']] as const).map(([value, key]) => {
-            const selected = statusFilter === value;
-            return (
-              <Chip
-                key={value}
-                label={t(key)}
-                clickable
-                aria-pressed={selected}
-                onClick={() => setStatusFilter(value)}
-                variant={selected ? 'filled' : 'outlined'}
-                sx={{
-                  height: 48,
-                  borderRadius: 1,
-                  px: 1,
-                  fontWeight: 800,
-                  fontSize: '1rem',
-                  borderWidth: 2,
-                  ...(selected
-                    ? { bgcolor: 'primary.main', color: 'primary.contrastText', borderColor: 'primary.main', '&:hover, &:focus': { bgcolor: 'primary.main' } }
-                    : { borderColor: 'text.primary' }),
-                }}
-              />
-            );
-          })}
+            )}
+          </Paper>
+        )}
+
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+          <TextField
+            fullWidth
+            inputRef={searchRef}
+            placeholder={t('boxes.itemNamePlaceholder')}
+            value={itemQuery}
+            onChange={(e) => setItemQuery(e.target.value)}
+            slotProps={{
+              input: { startAdornment: <InputAdornment position="start"><Search /></InputAdornment> },
+              htmlInput: { 'aria-label': t('boxes.itemName') },
+            }}
+          />
+          <IconButton
+            onClick={() => setShowFilterPanel((v) => !v)}
+            aria-expanded={showFilterPanel}
+            aria-label={t('boxes.filters')}
+            title={t('boxes.filters')}
+            sx={{ width: 52, height: 52, border: 1, borderColor: activeFilters > 0 ? 'primary.main' : outline, borderRadius: 2.5, flexShrink: 0, color: activeFilters > 0 ? 'primary.main' : 'text.primary' }}
+          >
+            <Badge color="primary" badgeContent={activeFilters} invisible={activeFilters === 0}>
+              <FilterList />
+            </Badge>
+          </IconButton>
         </Stack>
-        <Paper variant="outlined" sx={{ p: 2 }}>
-          <Stack spacing={2}>
-            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+
+        <Collapse in={showFilterPanel} unmountOnExit>
+          <Paper variant="outlined" sx={{ p: 2, borderRadius: 3.5 }}>
+            <Stack spacing={1}>
               <TextField
                 fullWidth
-                label={t('boxes.itemName')}
-                placeholder={t('boxes.itemNamePlaceholder')}
-                value={itemQuery}
-                onChange={(e) => setItemQuery(e.target.value)}
+                label={t('boxes.targetRoomFilter')}
+                placeholder={t('boxes.targetRoomFilterPlaceholder')}
+                value={roomQuery}
+                onChange={(e) => setRoomQuery(e.target.value)}
               />
-              <Button
-                variant="outlined"
-                onClick={() => setShowFilterPanel((v) => !v)}
-                startIcon={<FilterList />}
-                aria-expanded={showFilterPanel}
-                aria-label={t('boxes.filters')}
-                sx={{ minHeight: 48, flexShrink: 0, borderWidth: 2, borderColor: 'text.primary', color: 'text.primary' }}
-              >
-                <Box component="span" sx={{ '@container (max-width: 420px)': { display: 'none' } }}>{t('boxes.filters')}</Box>
-                {activeFilters > 0 && <Chip label={activeFilters} size="small" sx={{ ml: 1 }} />}
+              <Stack direction={isMobile ? 'column' : 'row'} spacing={isMobile ? 0 : 2}>
+                <FormControlLabel
+                  control={<Checkbox checked={filterFragile} onChange={(e) => setFilterFragile(e.target.checked)} sx={{ p: 1.5 }} />}
+                  label={t('boxes.onlyFragileBoxes')}
+                  sx={{ m: 0, minHeight: 44 }}
+                />
+                <FormControlLabel
+                  control={<Checkbox checked={filterNoStack} onChange={(e) => setFilterNoStack(e.target.checked)} sx={{ p: 1.5 }} />}
+                  label={t('boxes.onlyNoStackBoxes')}
+                  sx={{ m: 0, minHeight: 44 }}
+                />
+                <FormControlLabel
+                  control={<Checkbox checked={filterLabelPrinted} onChange={(e) => setFilterLabelPrinted(e.target.checked)} sx={{ p: 1.5 }} />}
+                  label={t('boxes.onlyLabelPrintedBoxes')}
+                  sx={{ m: 0, minHeight: 44 }}
+                />
+              </Stack>
+              <Button fullWidth variant="outlined" onClick={handleResetFilter}>
+                {t('boxes.reset')}
               </Button>
             </Stack>
-            <Collapse in={showFilterPanel} unmountOnExit>
-              <Stack spacing={2}>
-                <TextField
-                  fullWidth
-                  label={t('boxes.targetRoomFilter')}
-                  placeholder={t('boxes.targetRoomFilterPlaceholder')}
-                  value={roomQuery}
-                  onChange={(e) => setRoomQuery(e.target.value)}
-                />
-                <Stack direction={isMobile ? 'column' : 'row'} spacing={isMobile ? 0 : 2}>
-                  <FormControlLabel
-                    control={<Checkbox checked={filterFragile} onChange={(e) => setFilterFragile(e.target.checked)} sx={{ p: 1.5 }} />}
-                    label={t('boxes.onlyFragileBoxes')}
-                    sx={{ m: 0, minHeight: 48 }}
-                  />
-                  <FormControlLabel
-                    control={<Checkbox checked={filterNoStack} onChange={(e) => setFilterNoStack(e.target.checked)} sx={{ p: 1.5 }} />}
-                    label={t('boxes.onlyNoStackBoxes')}
-                    sx={{ m: 0, minHeight: 48 }}
-                  />
-                  <FormControlLabel
-                    control={<Checkbox checked={filterLabelPrinted} onChange={(e) => setFilterLabelPrinted(e.target.checked)} sx={{ p: 1.5 }} />}
-                    label={t('boxes.onlyLabelPrintedBoxes')}
-                    sx={{ m: 0, minHeight: 48 }}
-                  />
-                </Stack>
-                <Button fullWidth variant="outlined" onClick={handleResetFilter} sx={{ minHeight: 48 }}>
-                  {t('boxes.reset')}
-                </Button>
-              </Stack>
-            </Collapse>
-          </Stack>
-        </Paper>
+          </Paper>
+        </Collapse>
 
-        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1.5, minWidth: 0 }}>
-          <Typography variant="h5" sx={{ fontWeight: 700, minWidth: 0 }}>{t('boxes.boxes')}</Typography>
-          <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', minWidth: 0 }}>
-            <Button
-              variant="outlined"
-              startIcon={<EditNote />}
-              aria-label={t('boxes.bulkUpdate')}
-              onClick={(e) => setBulkMenuAnchor(e.currentTarget)}
-              disabled={selectedIds.length === 0}
-              sx={{ minHeight: 48, '@container (max-width: 520px)': { minWidth: 48, px: 1.5, '& .MuiButton-startIcon': { m: 0 }, '& .btn-label': { display: 'none' } } }}
-            >
-              <span className="btn-label">{t('boxes.bulkUpdate')}</span>
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<Print />}
-              aria-label={t('boxes.printLabels')}
-              onClick={handlePrintWithDialog}
-              disabled={selectedIds.length === 0}
-              sx={{ minHeight: 48, '@container (max-width: 520px)': { minWidth: 48, px: 1.5, '& .MuiButton-startIcon': { m: 0 }, '& .btn-label': { display: 'none' } } }}
-            >
-              <span className="btn-label">{t('boxes.printLabels')}</span>
-            </Button>
-            {!isMobile && (
-              <Button variant="contained" startIcon={<Add />} onClick={handleOpenBoxDialog} sx={{ minHeight: 48 }}>
-                {t('boxes.createNew')}
-              </Button>
-            )}
-          </Stack>
-        </Stack>
+        {/* Segmented status control, defaults to "not moved yet" */}
+        <Box
+          role="group"
+          aria-label={t('boxes.statusFilter')}
+          sx={{ display: 'flex', p: '3px', gap: '3px', border: 1, borderColor: outline, borderRadius: 2.5, bgcolor: 'background.paper' }}
+        >
+          {([['open', 'boxes.statusOpen'], ['all', 'boxes.statusAll'], ['moved', 'boxes.statusMoved']] as const).map(([value, key]) => {
+            const active = statusFilter === value;
+            return (
+              <ButtonBase
+                key={value}
+                onClick={() => setStatusFilter(value)}
+                aria-pressed={active}
+                sx={{
+                  flex: 1,
+                  minHeight: 44,
+                  borderRadius: 2,
+                  fontWeight: 650,
+                  fontSize: '0.95rem',
+                  bgcolor: active ? 'action.selected' : 'transparent',
+                  color: active ? 'text.primary' : 'text.secondary',
+                  boxShadow: active ? `inset 0 -2px 0 ${theme.palette.primary.main}` : 'none',
+                }}
+              >
+                {t(key)}
+              </ButtonBase>
+            );
+          })}
+        </Box>
       </Stack>
 
       {isLoading ? (
@@ -752,48 +813,55 @@ export default function BoxList() {
         </DialogActions>
       </Dialog>
 
-      {/* New-box FAB for mobile */}
-      {isMobile && (
-        <Fab
-          color="primary"
-          aria-label={t('boxes.createNew')}
-          onClick={handleOpenBoxDialog}
+      {/* Selection bar: rises above the thumb bar while boxes are selected */}
+      {selectedBoxes.length > 0 && (
+        <Paper
+          role="toolbar"
+          aria-label={t('boxes.bulkUpdate')}
           sx={{
-            position: 'fixed',
-            bottom: 'calc(16px + env(safe-area-inset-bottom))',
-            right: 16,
-            zIndex: 1000,
-            borderRadius: 1,
-            boxShadow: 'none',
+            // fixed on phones (the list scrolls inside clipped wrappers, which breaks sticky); pinned in the list pane on desktop
+            position: { xs: 'fixed', md: 'sticky' },
+            left: { xs: 12, md: 'auto' },
+            right: { xs: 12, md: 'auto' },
+            bottom: { xs: 'calc(92px + env(safe-area-inset-bottom))', md: 12 },
+            zIndex: 1050,
+            mt: 2,
+            p: 1,
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: 1,
+            borderRadius: 3.5,
+            border: 1,
+            borderColor: 'primary.main',
+            bgcolor: 'background.paper',
+            boxShadow: '0 10px 30px rgba(0,0,0,.35)',
           }}
         >
-          <Add />
-        </Fab>
+          <IconButton onClick={clearSelection} aria-label={t('boxes.clearSelection')} title={t('boxes.clearSelection')}>
+            <Close />
+          </IconButton>
+          <Typography sx={{ fontFamily: FONT_MONO, fontWeight: 600, pr: 0.5 }}>{t('boxes.boxesSelectedCount', { count: selectedBoxes.length })}</Typography>
+          <Button variant="outlined" startIcon={<LocalShipping />} onClick={handleBulkUpdateMoved} sx={barButtonSx}>
+            {allSelectedMoved ? t('boxes.removeMoved') : t('boxes.setMoved')}
+          </Button>
+          <Button variant="outlined" startIcon={<Label />} onClick={handleBulkUpdateLabelPrinted} sx={barButtonSx}>
+            {allSelectedPrinted ? t('boxes.removeLabelPrinted') : t('boxes.setLabelPrinted')}
+          </Button>
+          <Button variant="contained" startIcon={<Print />} onClick={handlePrintWithDialog} sx={barButtonSx}>
+            {t('boxes.printLabels')}
+          </Button>
+        </Paper>
       )}
 
-      {/* Bulk Update Menu */}
-      <Menu
-        anchorEl={bulkMenuAnchor}
-        open={Boolean(bulkMenuAnchor)}
-        onClose={() => setBulkMenuAnchor(null)}
-      >
-        <MenuItem onClick={handleBulkUpdateMoved}>
-          <ListItemIcon>
-            <LocalShipping />
-          </ListItemIcon>
-          <ListItemText>
-            {allSelectedMoved ? t('boxes.removeMoved') : t('boxes.setMoved')}
-          </ListItemText>
-        </MenuItem>
-        <MenuItem onClick={handleBulkUpdateLabelPrinted}>
-          <ListItemIcon>
-            <Label />
-          </ListItemIcon>
-          <ListItemText>
-            {allSelectedPrinted ? t('boxes.removeLabelPrinted') : t('boxes.setLabelPrinted')}
-          </ListItemText>
-        </MenuItem>
-      </Menu>
+      <Snackbar
+        open={undo.open}
+        autoHideDuration={4000}
+        onClose={(_, reason) => reason !== 'clickaway' && setUndo((u) => ({ ...u, open: false }))}
+        message={undo.wasMoved ? t('boxes.boxReopenedToast', { number: undo.number }) : t('boxes.boxMovedToast', { number: undo.number })}
+        action={<Button color="primary" size="small" onClick={handleUndo}>{t('boxes.undo')}</Button>}
+        sx={{ bottom: { xs: 96, md: 24 } }}
+      />
 
       {/* Print Dialog */}
       <Dialog open={showPrintDialog} onClose={() => setShowPrintDialog(false)}>
