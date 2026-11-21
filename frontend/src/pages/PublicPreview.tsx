@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Card, CardContent, CircularProgress, Container, Typography, Alert, AlertTitle, Stack, Divider, Chip, AppBar, Toolbar, IconButton, Paper, Dialog, DialogTitle, DialogContent, DialogActions, Button, Avatar, ButtonBase } from '@mui/material';
+import { CssBaseline, Box, Card, CardContent, CircularProgress, Container, Typography, Alert, AlertTitle, Stack, Divider, Chip, AppBar, Toolbar, IconButton, Paper, Dialog, DialogTitle, DialogContent, DialogActions, Button, Avatar, ButtonBase } from '@mui/material';
 import { Brightness4, Brightness7, Close, Edit, Inventory2 } from '@mui/icons-material';
 import axios from '../services/axiosConfig';
 import { fetchPublicPreview } from '../services/publicPreviewService';
@@ -83,7 +83,7 @@ function PublicPreviewContent() {
       <Toolbar sx={{ justifyContent: 'space-between' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Inventory2 color="primary" aria-hidden />
-          <Typography variant="h6" component="span" sx={{ fontWeight: 700 }}>
+          <Typography variant="h6" component="span" sx={{ fontWeight: 700, display: { xs: isAuthenticated ? 'none' : 'inline', sm: 'inline' } }}>
             {t('app.title')}
           </Typography>
           {isAuthenticated && data && (
@@ -92,7 +92,7 @@ function PublicPreviewContent() {
               variant="contained"
               color="primary"
               onClick={() => navigate(`/app/boxes/${data.id}/edit`)}
-              sx={{ ml: 2 }}
+              sx={{ ml: { xs: 0, sm: 2 } }}
             >
               {t('boxes.edit')}
             </Button>
@@ -154,14 +154,14 @@ function PublicPreviewContent() {
               <Box sx={{ bgcolor: TILE.bg, color: TILE.ink, borderRadius: 0.5, p: 2, mx: -1, mt: -1 }}>
                 <Stack direction="row" spacing={2} sx={{ alignItems: 'flex-end', justifyContent: 'space-between' }}>
                   <Box sx={{ minWidth: 0 }}>
-                    <Typography sx={{ fontFamily: FONT_MONO, fontWeight: 800, fontSize: 12 }}>{t('boxes.current')}</Typography>
+                    <Typography sx={{ fontFamily: FONT_MONO, fontWeight: 600, fontSize: 12 }}>{t('boxes.current')}</Typography>
                     <Typography sx={{ fontWeight: 800 }}>{data.currentRoom || '-'}</Typography>
-                    <Typography sx={{ fontFamily: FONT_MONO, fontWeight: 800, fontSize: 12, mt: 1 }}>{t('boxes.target')}</Typography>
+                    <Typography sx={{ fontFamily: FONT_MONO, fontWeight: 600, fontSize: 12, mt: 1 }}>{t('boxes.target')}</Typography>
                     <Typography sx={{ fontWeight: 800, fontSize: 'clamp(20px, 6vw, 28px)', lineHeight: 1.1 }}>{data.targetRoom || '-'}</Typography>
                   </Box>
                   <Typography
                     aria-label={t('boxes.boxNumber', { number: data.boxNumber ?? '' })}
-                    sx={{ fontFamily: FONT_MONO, fontWeight: 800, fontSize: 'clamp(64px, 26vw, 120px)', lineHeight: 0.85, letterSpacing: '-0.08em' }}
+                    sx={{ fontFamily: FONT_MONO, fontWeight: 600, fontSize: 'clamp(64px, 26vw, 120px)', lineHeight: 0.85, letterSpacing: "-0.05em" }}
                   >
                     {data.boxNumber ?? ''}
                   </Typography>
@@ -278,6 +278,7 @@ function PublicPreviewContent() {
 export default function PublicPreview() {
   return (
     <CookieThemeProvider>
+      <CssBaseline />
       <LanguageProvider>
         <PublicPreviewContent />
       </LanguageProvider>

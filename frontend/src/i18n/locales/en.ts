@@ -20,6 +20,9 @@ export const en: TranslationKeys = {
     loading: 'Loading...',
     menu: 'Menu',
     admin: 'Admin',
+    navigation: 'Main navigation',
+    administration: 'Administration',
+    search: 'Search',
   },
   auth: {
     loginPrompt: 'Please log in to continue',
@@ -85,6 +88,12 @@ export const en: TranslationKeys = {
     noBoxesFound: 'No boxes found.',
     loadingBoxes: 'Loading boxes...',
     selectBox: 'Select box {{number}}',
+    boxesSelectedCount: '{{count}} selected',
+    clearSelection: 'Clear selection',
+    boxMovedToast: 'Box {{number}} marked as moved',
+    boxReopenedToast: 'Box {{number}} is open again',
+    undo: 'Undo',
+    contains: 'contains: {{name}}',
     
     // Handling
     transportHints: 'Transport Notes',
@@ -119,6 +128,7 @@ export const en: TranslationKeys = {
     bulkUpdate: 'Bulk Update',
     setMoved: 'Mark as moved',
     progressMoved: '{{moved}} of {{total}} moved',
+    progressOf: 'moved',
     markMoved: 'Mark as moved',
     unmarkMoved: 'Moved · Undo',
     removeMoved: '✓ Moved',

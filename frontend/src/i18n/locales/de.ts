@@ -18,6 +18,9 @@ export const de = {
     loading: 'Lädt...',
     menu: 'Menü',
     admin: 'Admin',
+    navigation: 'Hauptnavigation',
+    administration: 'Verwaltung',
+    search: 'Suchen',
   },
   auth: {
     loginPrompt: 'Bitte melden Sie sich an, um fortzufahren',
@@ -83,6 +86,12 @@ export const de = {
     noBoxesFound: 'Keine Boxen gefunden.',
     loadingBoxes: 'Lade Boxen...',
     selectBox: 'Box {{number}} auswählen',
+    boxesSelectedCount: '{{count}} gewählt',
+    clearSelection: 'Auswahl aufheben',
+    boxMovedToast: 'Box {{number}} als umgezogen markiert',
+    boxReopenedToast: 'Box {{number}} ist wieder offen',
+    undo: 'Rückgängig',
+    contains: 'enthält: {{name}}',
     
     // Handling
     transportHints: 'Transport-Hinweise',
@@ -117,6 +126,7 @@ export const de = {
     bulkUpdate: 'Bulk-Update',
     setMoved: 'Umgezogen setzen',
     progressMoved: '{{moved}} von {{total}} umgezogen',
+    progressOf: 'umgezogen',
     markMoved: 'Als umgezogen markieren',
     unmarkMoved: 'Umgezogen · Rückgängig',
     removeMoved: '✓ Umgezogen',

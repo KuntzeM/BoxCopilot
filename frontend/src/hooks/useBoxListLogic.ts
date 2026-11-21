@@ -160,8 +160,8 @@ export const useBoxListLogic = () => {
         if (!isNaN(boxNumSearch)) {
           next = next.filter((b) => b.boxNumber === boxNumSearch);
         } else {
-          // Search by room name
-          next = next.filter((b) => (b.currentRoom || '').toLowerCase().includes(roomTerm));
+          // Search by target room name (matches the filter label and the docs)
+          next = next.filter((b) => (b.targetRoom || '').toLowerCase().includes(roomTerm));
         }
       }
 
@@ -203,6 +203,8 @@ export const useBoxListLogic = () => {
   };
 
   // === UI Handlers ===
+  const clearSelection = () => setSelectedIds([]);
+
   const toggleSelect = (id: number) => {
     setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   };
@@ -491,6 +493,7 @@ export const useBoxListLogic = () => {
     loadData,
     handleResetFilter,
     toggleSelect,
+    clearSelection,
     toggleExpandBox,
     handleCopyLink,
     handleOpenPublicLink,

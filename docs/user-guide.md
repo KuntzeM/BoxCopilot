@@ -12,11 +12,13 @@ After repeated wrong attempts the login asks you to wait a few minutes. That is 
 
 ## The dashboard
 
-The left column is the box list, the right column shows the box you opened.
+The left column is the box list, the right column shows the box you opened. Three actions are always within reach: **Boxes**, the raised **+** (new box, or add item while you are inside a box) and **Search**. On a phone they sit in a bar at the bottom, on a desktop in a rail on the left.
 
 ![Dashboard](screenshots/dashboard.png)
 
-At the top, the progress card counts the boxes that have been moved to their target room. Next to it, Not moved, All and Moved filter the list by status. Each box shows its number on an orange tile, the route from the current to the target room, the description and badges for Fragile and Do Not Stack.
+At the top, the progress card counts the boxes that have been moved to their target room, with one tick per box and one chip per target room (for example Kitchen 2/3). Tap a room chip to show only the boxes for that room, tap it again to clear it. Below the search field, Not moved, All and Moved filter the list by status. Each box shows its number on a dashed shipping tag, the route from the current to the target room and the description. Only boxes that need care carry badges for Fragile and Do Not Stack.
+
+The round check button on a box marks it as moved with one tap. A short Undo message appears instead of a confirmation dialog. The three-dot menu has edit, copy or open the public link and delete.
 
 Click the number of items under a box to expand it and see its items with photos.
 
@@ -24,19 +26,19 @@ Click the number of items under a box to expand it and see its items with photos
 
 ### Searching and filtering
 
-Type an item name to find the box it is in. Filters opens more options: target room, only fragile boxes, only non-stackable boxes, and only boxes with a printed label. The Filters button shows how many filters are active. Reset clears everything.
+Type an item name to find the box it is in; the matching boxes show *contains: item*. Filters opens more options: target room, only fragile boxes, only non-stackable boxes, and only boxes with a printed label. The Filters button shows how many filters are active. Reset clears everything.
 
 ![Search and filters](screenshots/search.png)
 
 ## Creating and editing boxes
 
-New Box opens a dialog for current room, target room, description and the transport notes Fragile and Do Not Stack.
+The **+** button opens a dialog for current room, target room, description and the transport notes Fragile and Do Not Stack.
 
 ![Create box](screenshots/create-box.png)
 
-Click a box to open its page. The orange header repeats the route and the handling flags, and the Mark as moved button below it records that the box has reached its target room. Print label prints the label for this box. Edit changes the room names, the description, the transport notes and the status.
+Click a box to open its page. The header repeats the number, the route and the handling flags, and the Mark as moved button below it records that the box has reached its target room. Print label prints the label for this box. Edit changes the room names, the description, the transport notes and the status.
 
-Under the header you find the public link of the box (copy it or regenerate it) and the list of items. Each item can be moved to another box, edited or deleted. The round plus button at the bottom right adds an item.
+Under the header you find the public link of the box (copy it or regenerate it) and the list of items. Each item can be moved to another box, edited or deleted. The **+** button in the bar adds an item.
 
 ![Box details](screenshots/box-details.png)
 
@@ -50,7 +52,7 @@ Add an item by name and attach a photo with the in-app camera or from the galler
 
 ## Printing labels
 
-Tick the boxes in the list and choose Print Labels. The dialog can mark all selected boxes as Label printed in the same step.
+Tap the number tag of a box to select it. A selection bar rises from the bottom with Print Labels, Moved and Label printed. The print dialog can mark all selected boxes as Label printed in the same step.
 
 ![Print dialog](screenshots/print-dialog.png)
 
@@ -58,7 +60,7 @@ The result is an A4 PDF with three labels per page: box number, handling badges,
 
 ![Label PDF](screenshots/label-printing.png)
 
-Bulk update, the button next to Print Labels, marks all selected boxes as moved or as label printed.
+The Moved and Label printed buttons in the selection bar update all selected boxes at once.
 
 ## The public preview
 
@@ -68,7 +70,7 @@ Scanning the QR code opens a read-only page with the box content and photos. It 
 
 ## Administration
 
-Admins open Administration from the top bar. The user table lists username, name, role, status, authentication type and the dates of creation and last login. The actions create and edit users, set a password, create or revoke a magic link, and delete a user.
+Administration is kept out of the way: admins open the avatar menu at the top right and choose Admin in the Administration group. The same menu holds the theme and language switches, the Claude connection and Logout. The user table lists username, name, role, status, authentication type and the dates of creation and last login. The actions create and edit users, set a password, create or revoke a magic link, and delete a user.
 
 ![Administration](screenshots/admin.png)
 
@@ -76,9 +78,9 @@ A magic link has a validity that you pick when you create it, from one hour to o
 
 ## Phone and dark theme
 
-The interface is responsive. On a phone the menu moves into the top bar and the dashboard becomes a single column. The moon and sun button switches the theme, EN and DE switch the language.
+The interface is responsive and designed for one-handed use. On a phone the three main actions sit in a bar at the bottom and the dashboard becomes a single column. The avatar menu switches the theme and the language (DE or EN). The dark theme is the default.
 
 <p>
   <img src="screenshots/mobile.png" alt="Mobile view" width="260">
-  <img src="screenshots/dark-mode.png" alt="Dark mode" width="620">
+  <img src="screenshots/light-mode.png" alt="Light theme" width="620">
 </p>

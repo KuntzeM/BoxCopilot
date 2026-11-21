@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { MemoryRouter } from 'react-router-dom';
 import axios from './services/axiosConfig';
 import App from './App';
-import { PRIMARY } from './context/ThemeContext';
+import { PRIMARY, SURFACE, STATUS } from './context/ThemeContext';
 
 vi.mock('./services/axiosConfig', () => ({
   default: { get: vi.fn(), post: vi.fn(), defaults: { headers: { common: {} as Record<string, string> } } },
@@ -21,6 +21,8 @@ vi.mock('./services/itemService', () => ({
   fetchItemsByBoxUuid: vi.fn().mockResolvedValue([]),
   searchItems: vi.fn().mockResolvedValue([]),
 }));
+
+const openMenu = async () => fireEvent.click(await screen.findByRole('button', { name: 'Menu' }));
 
 function mockMe(overrides: Record<string, unknown> = {}) {
   vi.mocked(axios.get).mockImplementation(async (url: string) => {
@@ -61,7 +63,8 @@ describe('App menu - Claude connection entry', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole('button', { name: 'Claude connection' })).toBeDefined();
+    await openMenu();
+    expect(await screen.findByRole('menuitem', { name: 'Claude connection' })).toBeDefined();
   });
 
   it('hides the Claude connection menu entry when the user is not mcpAllowed', async () => {
@@ -74,8 +77,9 @@ describe('App menu - Claude connection entry', () => {
     );
 
     // Wait for the shell to render before asserting absence.
-    await screen.findByRole('button', { name: 'Logout' });
-    expect(screen.queryByRole('button', { name: 'Claude connection' })).toBeNull();
+    await openMenu();
+    await screen.findByRole('menuitem', { name: 'Logout' });
+    expect(screen.queryByRole('menuitem', { name: 'Claude connection' })).toBeNull();
   });
 
   it('hides the Claude connection menu entry when mcpAllowed is missing from the response', async () => {
@@ -87,8 +91,9 @@ describe('App menu - Claude connection entry', () => {
       </MemoryRouter>,
     );
 
-    await screen.findByRole('button', { name: 'Logout' });
-    expect(screen.queryByRole('button', { name: 'Claude connection' })).toBeNull();
+    await openMenu();
+    await screen.findByRole('menuitem', { name: 'Logout' });
+    expect(screen.queryByRole('menuitem', { name: 'Claude connection' })).toBeNull();
   });
 });
 
@@ -117,7 +122,8 @@ describe('App logout', () => {
         <App />
       </MemoryRouter>,
     );
-    fireEvent.click(await screen.findByRole('button', { name: 'Logout' }));
+    await openMenu();
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Logout' }));
     await waitFor(() => expect(assign).toHaveBeenCalledWith('https://idp.example/logout?redirect_uri=x'));
     expect(axios.post).toHaveBeenCalledWith('/api/auth/logout');
   });
@@ -131,7 +137,8 @@ describe('App logout', () => {
         <App />
       </MemoryRouter>,
     );
-    fireEvent.click(await screen.findByRole('button', { name: 'Logout' }));
+    await openMenu();
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Logout' }));
     await waitFor(() => expect(window.location.href).toBe('/'));
   });
 });
@@ -143,17 +150,19 @@ function lum(hex: string) {
 const ratio = (a: string, b: string) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
 
 describe('theme contrast (WCAG AA)', () => {
-  it('light primary', () => {
-    expect(ratio(PRIMARY.light.contrastText, PRIMARY.light.main)).toBeGreaterThanOrEqual(4.5);
-    expect(ratio(PRIMARY.light.main, '#ffffff')).toBeGreaterThanOrEqual(4.5);
-    expect(ratio(PRIMARY.light.main, '#faf8f5')).toBeGreaterThanOrEqual(4.5);
-    expect(ratio(PRIMARY.light.contrastText, PRIMARY.light.dark)).toBeGreaterThanOrEqual(4.5);
-  });
-  it('dark primary', () => {
-    expect(ratio(PRIMARY.dark.contrastText, PRIMARY.dark.main)).toBeGreaterThanOrEqual(4.5);
-    expect(ratio(PRIMARY.dark.main, '#1f1c19')).toBeGreaterThanOrEqual(4.5);
-    expect(ratio(PRIMARY.dark.main, '#11100f')).toBeGreaterThanOrEqual(4.5);
-    expect(ratio(PRIMARY.dark.contrastText, PRIMARY.dark.light)).toBeGreaterThanOrEqual(4.5);
+  it.each(['light', 'dark'] as const)('%s theme text and accent pairs', (m) => {
+    const S = SURFACE[m];
+    expect(ratio(PRIMARY[m].contrastText, PRIMARY[m].main)).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(PRIMARY[m].contrastText, PRIMARY[m].dark)).toBeGreaterThanOrEqual(4.5);
+    for (const bg of [S.bg, S.paper, S.raised]) {
+      expect(ratio(S.text, bg)).toBeGreaterThanOrEqual(4.5);
+      expect(ratio(S.muted, bg)).toBeGreaterThanOrEqual(4.5);
+      expect(ratio(PRIMARY[m].main, bg)).toBeGreaterThanOrEqual(4.5);
+      expect(ratio(STATUS[m].done, bg)).toBeGreaterThanOrEqual(4.5);
+      expect(ratio(STATUS[m].warn, bg)).toBeGreaterThanOrEqual(4.5);
+      // Form-field / control borders: WCAG 1.4.11 non-text contrast
+      expect(ratio(S.outline, bg)).toBeGreaterThanOrEqual(3);
+    }
   });
 });
 
@@ -186,9 +195,10 @@ describe('App shell', () => {
         <App />
       </MemoryRouter>,
     );
-    await screen.findByRole('button', { name: 'Logout' });
+    expect(await screen.findByRole('link', { name: 'BoxCopilot' })).toBeDefined();
+    await openMenu();
+    await screen.findByRole('menuitem', { name: 'Logout' });
     expect(screen.queryByText('Administration')).toBeNull();
-    expect(screen.getByRole('link', { name: 'BoxCopilot' })).toBeDefined();
   });
 });
 
@@ -203,18 +213,21 @@ describe('App navigation', () => {
     vi.unstubAllGlobals();
   });
 
-  it('wide layout: no side rail, admin link lives in the top bar for admins only', async () => {
+  it('wide layout: left rail with the three actions, admin is hidden in the avatar menu', async () => {
     mockMe({ admin: true });
     render(
       <MemoryRouter initialEntries={['/app/boxes']}>
         <App />
       </MemoryRouter>,
     );
-    expect(await screen.findByRole('link', { name: 'Admin' })).toBeDefined();
-    expect(screen.queryByRole('link', { name: 'Boxes' })).toBeNull();
+    expect(await screen.findByRole('link', { name: 'Boxes' })).toBeDefined();
+    expect(screen.getByRole('button', { name: /new box/i })).toBeDefined();
+    expect(screen.queryByRole('menuitem', { name: 'Admin' })).toBeNull();
+    await openMenu();
+    expect(await screen.findByRole('menuitem', { name: 'Admin' })).toBeDefined();
   });
 
-  it('phone layout: no bottom bar, no admin entry for normal users', async () => {
+  it('phone layout: thumb bar with the raised new-box action, no admin entry for normal users', async () => {
     vi.stubGlobal('matchMedia', (q: string) => ({
       matches: q.includes('max-width'),
       media: q,
@@ -230,8 +243,11 @@ describe('App navigation', () => {
       </MemoryRouter>,
     );
     await screen.findByRole('main');
-    expect(screen.queryByRole('navigation')).toBeNull();
-    expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
+    expect(screen.getByRole('navigation')).toBeDefined();
+    expect(screen.getByRole('button', { name: /new box/i })).toBeDefined();
+    await openMenu();
+    await screen.findByRole('menuitem', { name: 'Logout' });
+    expect(screen.queryByRole('menuitem', { name: 'Admin' })).toBeNull();
   });
 });
 

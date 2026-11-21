@@ -5,7 +5,7 @@
 - Create a box with a current room, a target room, a description and handling flags (Fragile, Do not stack).
 - Search by item name, filter by target room and, under Filters, by fragile, non-stackable or label-printed boxes. A status filter switches between boxes that are not moved yet, all boxes and moved boxes.
 - A progress card on the dashboard shows how many boxes have reached their target room.
-- Quick actions per box: mark as moved, edit, copy or open the public link, delete. Expand a box in the list to preview its items.
+- Quick actions per box: mark as moved with one tap (with Undo), edit, copy or open the public link, delete. Expand a box in the list to preview its items.
 - Select several boxes to mark them as moved or as label printed in one step (Bulk update), or to print their labels.
 - Every box has a public page that works without a login. The link can be regenerated per box. The old link and all printed QR labels of that box stop working.
 - Label printing produces an A4 PDF with three labels per page: box number, handling badges, target room, description and a QR code that points to the public page.
@@ -34,7 +34,7 @@ The in-app camera is built for phones: front and rear camera switch, pinch to zo
 
 ## Language and theme
 
-The interface is available in German and English, and in a light and a dark theme. Both choices are remembered in cookies. The layout adapts to phones, tablets and desktops.
+The interface is available in German and English, and in a light and a dark theme. Both choices are remembered in cookies. The layout adapts to phones, tablets and desktops. The design is mobile first: a bottom bar on phones and a rail on desktops give one-tap access to the box list, to creating a box or item and to search, and the administration entries live in the avatar menu.
 
 ## Claude and MCP
 
