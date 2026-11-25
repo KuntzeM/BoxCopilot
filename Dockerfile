@@ -21,7 +21,7 @@ RUN test -f src/main/resources/static/index.html \
  && mvn -B -DskipTests package
 
 # 3) Runtime: JRE only.
-FROM eclipse-temurin:21.0.13_9-jre
+FROM eclipse-temurin:21.0.13.1_2-jre
 WORKDIR /app
 # Runs as uid/gid 10001 (non-root). Bind mounts from older root-run installs need a one-time chown, see docker-compose.yml.
 RUN groupadd --gid 10001 boxpilot \
